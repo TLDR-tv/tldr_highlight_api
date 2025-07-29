@@ -1,0 +1,87 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: tldr_postgres
+    environment:
+      POSTGRES_USER: tldr_user
+      POSTGRES_PASSWORD: tldr_password
+      POSTGRES_DB: tldr_highlights
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tldr_user -d tldr_highlights"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - tldr_network
+
+  redis:
+    image: redis:7-alpine
+    container_name: tldr_redis
+    command: redis-server --appendonly yes --requirepass tldr_redis_password
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - tldr_network
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: tldr_rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: tldr_user
+      RABBITMQ_DEFAULT_PASS: tldr_password
+      RABBITMQ_DEFAULT_VHOST: tldr_vhost
+    ports:
+      - "5673:5672"
+      - "15673:15672"  # Management UI
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - tldr_network
+
+  minio:
+    image: minio/minio:latest
+    container_name: tldr_minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: tldr_minio_admin
+      MINIO_ROOT_PASSWORD: tldr_minio_password
+      MINIO_DEFAULT_BUCKETS: tldr-highlights,tldr-temp
+    ports:
+      - "9010:9000"  # API
+      - "9011:9001"  # Console
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - tldr_network
+
+volumes:
+  postgres_data:
+  redis_data:
+  rabbitmq_data:
+  minio_data:
+
+networks:
+  tldr_network:
+    driver: bridge
+    name: tldr_network

@@ -1,0 +1,103 @@
+[project]
+name = "tldr-highlight-api"
+version = "0.1.0"
+description = "Enterprise B2B API for AI-powered highlight extraction from livestreams and video content"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi[all]>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "pydantic>=2.9.0",
+    "pydantic-settings>=2.6.0",
+    "sqlalchemy>=2.0.36",
+    "asyncpg>=0.30.0",
+    "psycopg2-binary>=2.9.0",
+    "alembic>=1.14.0",
+    "redis>=5.2.0",
+    "celery[redis]>=5.4.0",
+    "httpx>=0.28.0",
+    "boto3>=1.35.0",
+    "python-multipart>=0.0.18",
+    "python-jose[cryptography]>=3.3.0",
+    "passlib[bcrypt]>=1.7.4",
+    "tenacity>=9.0.0",
+    "structlog>=24.4.0",
+    # Multi-modal content processing dependencies
+    "opencv-python>=4.8.0",
+    "openai>=1.0.0",
+    "google-generativeai>=0.8.0", # Google Gemini SDK
+    "nltk>=3.8.0",
+    "textblob>=0.17.0",
+    "numpy>=1.24.0",
+    "pillow>=10.0.0",
+    # "python-magic>=0.4.27",  # Optional dependency - handled gracefully if not available
+    "ffmpeg-python>=0.2.0",
+    "aiofiles>=23.0.0",
+    "scikit-learn>=1.3.0",
+    "matplotlib>=3.7.0",
+    "scipy>=1.11.0",
+    "m3u8>=6.0.0",
+    # RTMP protocol and video processing dependencies
+    "av>=10.0.0",  # PyAV for video processing
+    "bitstring>=4.0.0",  # For binary data manipulation
+    # Chat and EventSub dependencies
+    "backoff>=2.2.0",  # For exponential backoff retry logic
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.25.0",
+    "pytest-cov>=6.0.0",
+    "pytest-mock>=3.14.0",
+    "pytest-watch>=4.2.0",
+    "ruff>=0.8.0",
+    "mypy>=1.13.0",
+    "types-redis>=4.6.0",
+    "types-passlib>=1.7.7",
+    "types-aiofiles>=24.0.0",
+    "scipy-stubs>=1.16.0",
+    "types-psutil>=6.1.0",
+    "factory-boy>=3.3.0",
+    "faker>=33.0.0",
+    "moto[s3]>=5.0.0",
+]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+]
+markers = [
+    "integration: marks tests as integration tests (require external services)",
+    "slow: marks tests as slow running",
+]
+
+[tool.mypy]
+python_version = "3.13"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+ignore_missing_imports = false
+
+# Ignore untyped imports for packages without type stubs
+[[tool.mypy.overrides]]
+module = [
+    "nltk.*",
+    "textblob.*",
+    "sklearn.*",
+    "cv2.*",
+    "ffmpeg.*",
+    "google.generativeai.*",
+    "moto.*",
+    "factory.*",
+    "faker.*",
+    "backoff.*"
+]
+ignore_missing_imports = true
