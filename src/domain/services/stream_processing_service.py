@@ -1,17 +1,19 @@
 """Stream processing domain service.
 
 This service orchestrates the complete lifecycle of stream processing,
-including state management, highlight detection coordination, and usage tracking.
+including state management, B2B agent coordination, and usage tracking.
 """
 
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 
 from src.domain.services.base import BaseDomainService
+from src.domain.services.b2b_stream_agent import B2BStreamAgent
 from src.domain.entities.stream import Stream, StreamStatus, StreamPlatform
 from src.domain.entities.user import User
 from src.domain.entities.organization import Organization
 from src.domain.entities.usage_record import UsageRecord
+from src.domain.entities.highlight_agent_config import HighlightAgentConfig
 from src.domain.value_objects.url import Url
 from src.domain.value_objects.timestamp import Timestamp
 from src.domain.value_objects.duration import Duration
@@ -27,13 +29,15 @@ from src.domain.repositories.user_repository import UserRepository
 from src.domain.repositories.organization_repository import OrganizationRepository
 from src.domain.repositories.usage_record_repository import UsageRecordRepository
 from src.domain.repositories.highlight_repository import HighlightRepository
+from src.domain.repositories.highlight_agent_config_repository import HighlightAgentConfigRepository
 
 
 class StreamProcessingService(BaseDomainService):
     """Domain service for stream processing orchestration.
     
     Handles the business logic for starting, monitoring, and completing
-    stream processing operations while enforcing business rules and quotas.
+    stream processing operations with B2B agent integration while enforcing
+    business rules and quotas.
     """
     
     def __init__(
@@ -42,7 +46,9 @@ class StreamProcessingService(BaseDomainService):
         user_repo: UserRepository,
         org_repo: OrganizationRepository,
         usage_repo: UsageRecordRepository,
-        highlight_repo: HighlightRepository
+        highlight_repo: HighlightRepository,
+        agent_config_repo: HighlightAgentConfigRepository,
+        content_analyzer: Optional[Any] = None
     ):
         """Initialize stream processing service.
         
@@ -52,6 +58,8 @@ class StreamProcessingService(BaseDomainService):
             org_repo: Repository for organization operations
             usage_repo: Repository for usage tracking
             highlight_repo: Repository for highlight operations
+            agent_config_repo: Repository for agent configurations
+            content_analyzer: Optional content analysis service for B2B agents
         """
         super().__init__()
         self.stream_repo = stream_repo
@@ -59,6 +67,8 @@ class StreamProcessingService(BaseDomainService):
         self.org_repo = org_repo
         self.usage_repo = usage_repo
         self.highlight_repo = highlight_repo
+        self.agent_config_repo = agent_config_repo
+        self.content_analyzer = content_analyzer
     
     async def start_stream_processing(
         self,
@@ -66,9 +76,10 @@ class StreamProcessingService(BaseDomainService):
         url: str,
         title: str,
         processing_options: Optional[ProcessingOptions] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
+        agent_config_id: Optional[int] = None
     ) -> Stream:
-        """Start processing a new stream.
+        """Start processing a new stream with B2B agent.
         
         Args:
             user_id: ID of the user starting the stream
@@ -76,6 +87,7 @@ class StreamProcessingService(BaseDomainService):
             title: Stream title
             processing_options: Optional processing configuration
             metadata: Optional metadata for the stream
+            agent_config_id: Optional agent configuration ID
             
         Returns:
             Created stream entity
@@ -116,6 +128,30 @@ class StreamProcessingService(BaseDomainService):
         # Save stream
         saved_stream = await self.stream_repo.save(stream)
         
+        # Get or create agent configuration
+        agent_config = await self._get_or_create_agent_config(
+            user_id=user_id,
+            organization_id=org.id if org else None,
+            agent_config_id=agent_config_id,
+            url=url
+        )
+        
+        # Trigger FFmpeg stream ingestion task (which will chain to AI detection)
+        from src.infrastructure.async_processing.stream_tasks import ingest_stream_with_ffmpeg
+        
+        task_result = ingest_stream_with_ffmpeg.delay(
+            stream_id=saved_stream.id,
+            chunk_duration=30,  # 30 second chunks
+            agent_config_id=agent_config_id
+        )
+        
+        # Store task ID for monitoring
+        saved_stream.metadata = {
+            **saved_stream.metadata,
+            "ingestion_task_id": task_result.id
+        }
+        await self.stream_repo.save(saved_stream)
+        
         # Create initial usage record
         usage_record = UsageRecord.for_stream_processing(
             user_id=user_id,
@@ -125,7 +161,7 @@ class StreamProcessingService(BaseDomainService):
         )
         await self.usage_repo.save(usage_record)
         
-        self.logger.info(f"Started stream processing: {saved_stream.id} for user {user_id}")
+        self.logger.info(f"Started stream processing with B2B agent: {saved_stream.id} for user {user_id}")
         
         return saved_stream
     
@@ -193,6 +229,10 @@ class StreamProcessingService(BaseDomainService):
         
         # Save updated stream
         saved_stream = await self.stream_repo.save(updated_stream)
+        
+        # Cancel Celery tasks if stream is being cancelled
+        if new_status == StreamStatus.CANCELLED:
+            await self._cancel_stream_tasks(stream_id)
         
         # Update usage record if completed
         if new_status in [StreamStatus.COMPLETED, StreamStatus.FAILED]:
@@ -289,6 +329,63 @@ class StreamProcessingService(BaseDomainService):
         cutoff_date = Timestamp.now().subtract_days(days_old)
         return await self.stream_repo.cleanup_old_streams(cutoff_date)
     
+    async def get_stream_task_status(self, stream_id: int) -> Optional[Dict[str, Any]]:
+        """Get Celery task status for a stream.
+        
+        Args:
+            stream_id: Stream ID
+            
+        Returns:
+            Task status information or None if not found
+        """
+        try:
+            stream = await self.stream_repo.get(stream_id)
+            if not stream or not stream.metadata.get("ingestion_task_id"):
+                return None
+            
+            from src.infrastructure.queue.celery_app import celery_app
+            
+            task_id = stream.metadata["ingestion_task_id"]
+            task_result = celery_app.AsyncResult(task_id)
+            
+            return {
+                "task_id": task_id,
+                "status": task_result.status,
+                "info": task_result.info if task_result.info else {},
+                "ready": task_result.ready(),
+                "successful": task_result.successful() if task_result.ready() else None,
+                "failed": task_result.failed() if task_result.ready() else None
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Error getting task status for stream {stream_id}: {str(e)}")
+            return None
+    
+    async def stop_stream_processing(
+        self,
+        stream_id: int,
+        force: bool = False
+    ) -> Stream:
+        """Stop stream processing and cancel tasks.
+        
+        Args:
+            stream_id: Stream ID
+            force: Whether to force stop
+            
+        Returns:
+            Updated stream entity
+        """
+        # Cancel any running tasks first
+        await self._cancel_stream_tasks(stream_id)
+        
+        # Update stream status
+        updated_stream = await self.update_stream_status(
+            stream_id=stream_id,
+            new_status=StreamStatus.COMPLETED if not force else StreamStatus.CANCELLED
+        )
+        
+        return updated_stream
+    
     # Private helper methods
     
     async def _get_user_organization(self, user_id: int) -> Optional[Organization]:
@@ -360,3 +457,69 @@ class StreamProcessingService(BaseDomainService):
                 duration_minutes = stream.duration_seconds / 60.0
                 completed_record = record.complete(quantity=duration_minutes)
                 await self.usage_repo.save(completed_record)
+    
+    async def _cancel_stream_tasks(self, stream_id: int) -> None:
+        """Cancel running Celery tasks for a stream."""
+        try:
+            stream = await self.stream_repo.get(stream_id)
+            if not stream or not stream.metadata.get("ingestion_task_id"):
+                return
+            
+            from src.infrastructure.queue.celery_app import celery_app
+            
+            task_id = stream.metadata["ingestion_task_id"]
+            celery_app.control.revoke(task_id, terminate=True)
+            
+            self.logger.info(f"Cancelled Celery tasks for stream {stream_id}")
+            
+        except Exception as e:
+            self.logger.error(f"Error cancelling tasks for stream {stream_id}: {str(e)}")
+    
+    async def _get_or_create_agent_config(
+        self,
+        user_id: int,
+        organization_id: Optional[int],
+        agent_config_id: Optional[int],
+        url: str
+    ) -> HighlightAgentConfig:
+        """Get or create an agent configuration for stream processing."""
+        # If specific config requested, try to get it
+        if agent_config_id:
+            config = await self.agent_config_repo.get(agent_config_id)
+            if config and (config.user_id == user_id or config.organization_id == organization_id):
+                return config
+        
+        # Try to get organization's default config
+        if organization_id:
+            org_configs = await self.agent_config_repo.get_active_for_organization(organization_id)
+            if org_configs:
+                return org_configs[0]  # Use first active config
+        
+        # Detect content type from URL and create appropriate default
+        content_type = self._detect_content_type(url)
+        
+        if content_type == "valorant":
+            return HighlightAgentConfig.create_valorant_config(
+                organization_id=organization_id or 0,
+                user_id=user_id
+            )
+        else:
+            return HighlightAgentConfig.create_default_gaming_config(
+                organization_id=organization_id or 0,
+                user_id=user_id
+            )
+    
+    def _detect_content_type(self, url: str) -> str:
+        """Detect content type from stream URL."""
+        url_lower = url.lower()
+        
+        # Gaming platform detection
+        if "twitch.tv" in url_lower:
+            # Could parse Twitch categories or game names from URL/metadata
+            return "gaming"
+        elif "youtube.com" in url_lower:
+            # Could analyze YouTube title/description for game detection
+            return "gaming"
+        
+        # Default to general gaming
+        return "gaming"

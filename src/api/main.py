@@ -30,7 +30,7 @@ from src.api.routers import (
     webhook_receiver_router,
 )
 from src.infrastructure.cache import get_redis_cache
-from src.core.config import settings
+from src.infrastructure.config import settings
 from src.infrastructure.database import close_db, init_db
 
 logger = logging.getLogger(__name__)

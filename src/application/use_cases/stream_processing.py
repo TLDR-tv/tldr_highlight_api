@@ -13,6 +13,7 @@ from src.domain.value_objects.timestamp import Timestamp
 from src.domain.repositories.user_repository import UserRepository
 from src.domain.repositories.stream_repository import StreamRepository
 from src.domain.repositories.highlight_repository import HighlightRepository
+from src.domain.repositories.highlight_agent_config_repository import HighlightAgentConfigRepository
 from src.domain.services.stream_processing_service import StreamProcessingService, ProcessingOptions
 from src.domain.services.highlight_detection_service import HighlightDetectionService, DetectionResult
 from src.domain.services.webhook_delivery_service import WebhookDeliveryService
@@ -33,6 +34,7 @@ class StreamStartRequest:
     title: str
     platform: Optional[str] = None
     processing_options: Optional[Dict[str, Any]] = None
+    agent_config_id: Optional[int] = None
 
 
 @dataclass
@@ -101,6 +103,7 @@ class StreamProcessingUseCase(UseCase[StreamStartRequest, StreamStartResult]):
         user_repo: UserRepository,
         stream_repo: StreamRepository,
         highlight_repo: HighlightRepository,
+        agent_config_repo: HighlightAgentConfigRepository,
         stream_service: StreamProcessingService,
         highlight_service: HighlightDetectionService,
         webhook_service: WebhookDeliveryService,
@@ -112,6 +115,7 @@ class StreamProcessingUseCase(UseCase[StreamStartRequest, StreamStartResult]):
             user_repo: Repository for user operations
             stream_repo: Repository for stream operations
             highlight_repo: Repository for highlight operations
+            agent_config_repo: Repository for agent configurations
             stream_service: Service for stream processing
             highlight_service: Service for highlight detection
             webhook_service: Service for webhook delivery
@@ -120,6 +124,7 @@ class StreamProcessingUseCase(UseCase[StreamStartRequest, StreamStartResult]):
         self.user_repo = user_repo
         self.stream_repo = stream_repo
         self.highlight_repo = highlight_repo
+        self.agent_config_repo = agent_config_repo
         self.stream_service = stream_service
         self.highlight_service = highlight_service
         self.webhook_service = webhook_service
@@ -156,12 +161,13 @@ class StreamProcessingUseCase(UseCase[StreamStartRequest, StreamStartResult]):
                     confidence_threshold=request.processing_options.get("confidence_threshold", 0.7)
                 )
             
-            # Start stream processing
+            # Start stream processing with B2B agent
             stream = await self.stream_service.start_stream_processing(
                 user_id=request.user_id,
                 url=request.url,
                 title=request.title,
-                processing_options=processing_options
+                processing_options=processing_options,
+                agent_config_id=request.agent_config_id
             )
             
             # Track API usage
@@ -234,7 +240,7 @@ class StreamProcessingUseCase(UseCase[StreamStartRequest, StreamStartResult]):
                     errors=["You don't have permission to stop this stream"]
                 )
             
-            # Stop stream processing
+            # Stop stream processing and agent
             stopped_stream = await self.stream_service.stop_stream_processing(
                 stream_id=request.stream_id,
                 force=request.force
@@ -396,6 +402,17 @@ class StreamProcessingUseCase(UseCase[StreamStartRequest, StreamStartResult]):
                 status=ResultStatus.FAILURE,
                 errors=[f"Failed to process highlights: {str(e)}"]
             )
+    
+    async def get_stream_task_status(self, stream_id: int) -> Optional[Dict[str, Any]]:
+        """Get Celery task status for a stream.
+        
+        Args:
+            stream_id: Stream ID
+            
+        Returns:
+            Task status information or None
+        """
+        return await self.stream_service.get_stream_task_status(stream_id)
     
     async def execute(self, request: StreamStartRequest) -> StreamStartResult:
         """Execute stream start (default use case method).

@@ -2,17 +2,17 @@
 
 from typing import Dict, Any, Optional
 import logging
-from fastapi import APIRouter, Request, Response, Header, HTTPException, Depends, BackgroundTasks
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Request, Header, HTTPException, Depends, BackgroundTasks
+from fastapi.responses import JSONResponse, Response as FastAPIResponse
 
-from src.api.models.webhook_models import (
+from src.api.schemas.webhook_models import (
     WebhookResponse,
     HundredMSWebhookPayload,
     TwitchWebhookPayload,
     StreamStartedWebhookEvent,
     WebhookPlatform
 )
-from src.api.dependencies import get_webhook_processing_use_case
+from src.api.dependencies.use_cases import get_webhook_processing_use_case
 from src.application.use_cases.webhook_processing import (
     WebhookProcessingUseCase,
     ProcessWebhookRequest
@@ -172,7 +172,8 @@ async def receive_twitch_webhook(
         if twitch_eventsub_message_type == "webhook_callback_verification":
             challenge = payload.get("challenge")
             if challenge:
-                return Response(content=challenge, media_type="text/plain")
+                # Return plain text response for Twitch challenge
+                return FastAPIResponse(content=challenge, media_type="text/plain")
         
         # Handle revocation notification
         if twitch_eventsub_message_type == "revocation":
@@ -218,7 +219,7 @@ async def receive_twitch_webhook(
         return WebhookResponse(
             success=True,
             message="Twitch webhook received and queued for processing",
-            event_id=webhook_payload.event.get("id")
+            event_id=webhook_payload.event.get("id") if isinstance(webhook_payload.event, dict) else None
         )
         
     except Exception as e:

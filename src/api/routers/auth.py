@@ -76,10 +76,10 @@ async def register(
         # Execute use case
         result = await auth_use_case.register(domain_request)
         
-        if not result.success:
+        if not result.is_success:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=result.error or "Registration failed"
+                detail=result.errors[0] if result.errors else "Registration failed"
             )
         
         # Create access token for immediate login
@@ -131,10 +131,10 @@ async def login(
         # Execute use case
         result = await auth_use_case.login(domain_request)
         
-        if not result.success:
+        if not result.is_success:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail=result.error or "Invalid credentials"
+                detail=result.errors[0] if result.errors else "Invalid credentials"
             )
         
         # Create access token
@@ -183,10 +183,10 @@ async def create_api_key(
             expires_at=request.expires_at
         )
         
-        if not result.success:
+        if not result.is_success:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=result.error or "Failed to create API key"
+                detail=result.errors[0] if result.errors else "Failed to create API key"
             )
         
         # Get the created API key and convert to response
@@ -215,10 +215,10 @@ async def list_api_keys(
     # Get API keys from use case
     result = await auth_use_case.list_api_keys(current_user.id)
     
-    if not result.success:
+    if not result.is_success:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=result.error or "Failed to list API keys"
+            detail=result.errors[0] if result.errors else "Failed to list API keys"
         )
     
     # Convert to DTOs
@@ -253,10 +253,10 @@ async def revoke_api_key(
             api_key_id=key_id
         )
         
-        if not result.success:
+        if not result.is_success:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=result.error or "Failed to revoke API key"
+                detail=result.errors[0] if result.errors else "Failed to revoke API key"
             )
             
     except EntityNotFoundError:
@@ -290,10 +290,10 @@ async def rotate_api_key(
             api_key_id=key_id
         )
         
-        if not result.success:
+        if not result.is_success:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=result.error or "Failed to rotate API key"
+                detail=result.errors[0] if result.errors else "Failed to rotate API key"
             )
         
         # Schedule old key revocation after grace period
