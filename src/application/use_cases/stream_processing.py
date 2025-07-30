@@ -40,7 +40,7 @@ class StreamStartResult(UseCaseResult):
     """Result of starting stream processing."""
     stream_id: Optional[int] = None
     stream_url: Optional[str] = None
-    status: Optional[str] = None
+    stream_status: Optional[str] = None
 
 
 @dataclass
@@ -71,7 +71,7 @@ class StreamStatusRequest:
 class StreamStatusResult(UseCaseResult):
     """Result of stream status check."""
     stream_id: Optional[int] = None
-    status: Optional[str] = None
+    stream_status: Optional[str] = None
     progress_percentage: Optional[float] = None
     highlights_detected: Optional[int] = None
     error_message: Optional[str] = None
@@ -189,7 +189,7 @@ class StreamProcessingUseCase(UseCase[StreamStartRequest, StreamStartResult]):
                 status=ResultStatus.SUCCESS,
                 stream_id=stream.id,
                 stream_url=stream.url.value,
-                status=stream.status.value,
+                stream_status=stream.status.value,
                 message="Stream processing started successfully"
             )
             
@@ -332,7 +332,7 @@ class StreamProcessingUseCase(UseCase[StreamStartRequest, StreamStartResult]):
             return StreamStatusResult(
                 status=ResultStatus.SUCCESS,
                 stream_id=stream.id,
-                status=stream.status.value,
+                stream_status=stream.status.value,
                 progress_percentage=progress,
                 highlights_detected=len(highlights),
                 error_message=stream.error_message,

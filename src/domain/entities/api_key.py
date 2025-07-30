@@ -3,9 +3,44 @@
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional
 from secrets import token_urlsafe
+from enum import Enum
 
 from src.domain.entities.base import Entity
 from src.domain.value_objects.timestamp import Timestamp
+
+
+class APIKeyScope(Enum):
+    """Enumeration of available API key scopes."""
+    # Stream operations
+    STREAMS_READ = "streams:read"
+    STREAMS_WRITE = "streams:write"
+    STREAMS_DELETE = "streams:delete"
+    
+    # Highlight operations
+    HIGHLIGHTS_READ = "highlights:read"
+    HIGHLIGHTS_WRITE = "highlights:write"
+    HIGHLIGHTS_DELETE = "highlights:delete"
+    
+    # Batch operations
+    BATCHES_READ = "batches:read"
+    BATCHES_WRITE = "batches:write"
+    BATCHES_DELETE = "batches:delete"
+    
+    # Webhook operations
+    WEBHOOKS_READ = "webhooks:read"
+    WEBHOOKS_WRITE = "webhooks:write"
+    WEBHOOKS_DELETE = "webhooks:delete"
+    
+    # Organization operations
+    ORGANIZATIONS_READ = "organizations:read"
+    ORGANIZATIONS_WRITE = "organizations:write"
+    
+    # User operations
+    USERS_READ = "users:read"
+    USERS_WRITE = "users:write"
+    
+    # Admin scope
+    ADMIN = "admin"
 
 
 @dataclass
@@ -19,7 +54,7 @@ class APIKey(Entity[int]):
     name: str
     key_hash: str
     user_id: int
-    scopes: List[str] = field(default_factory=list)
+    scopes: List[APIKeyScope] = field(default_factory=list)
     
     # Optional metadata
     description: Optional[str] = None
@@ -53,13 +88,18 @@ class APIKey(Entity[int]):
         }
         
         # Admin scope grants all permissions
-        if "admin" in self.scopes:
+        if APIKeyScope.ADMIN in self.scopes:
             return {perm: True for perm in all_permissions}
         
-        # Set individual permissions based on scopes
+        # Map scopes to permissions
         for scope in self.scopes:
-            if scope in all_permissions:
-                all_permissions[scope] = True
+            scope_value = scope.value
+            if ":" in scope_value:
+                resource, action = scope_value.split(":")
+                if resource in all_permissions:
+                    all_permissions[resource] = True
+                if action in all_permissions:
+                    all_permissions[action] = True
         
         return all_permissions
     
@@ -79,11 +119,11 @@ class APIKey(Entity[int]):
         """Check if API key has specific permission."""
         return self.permissions.get(permission, False)
     
-    def has_scope(self, scope: str) -> bool:
+    def has_scope(self, scope: APIKeyScope) -> bool:
         """Check if API key has specific scope."""
-        return scope in self.scopes or "admin" in self.scopes
+        return scope in self.scopes or APIKeyScope.ADMIN in self.scopes
     
-    def add_scope(self, scope: str) -> "APIKey":
+    def add_scope(self, scope: APIKeyScope) -> "APIKey":
         """Add a scope to the API key."""
         if scope in self.scopes:
             return self
@@ -107,7 +147,7 @@ class APIKey(Entity[int]):
             updated_at=Timestamp.now()
         )
     
-    def remove_scope(self, scope: str) -> "APIKey":
+    def remove_scope(self, scope: APIKeyScope) -> "APIKey":
         """Remove a scope from the API key."""
         if scope not in self.scopes:
             return self
@@ -189,3 +229,7 @@ class APIKey(Entity[int]):
             created_at=self.created_at,
             updated_at=Timestamp.now()
         )
+    
+    def revoke(self) -> "APIKey":
+        """Revoke the API key (alias for deactivate)."""
+        return self.deactivate()

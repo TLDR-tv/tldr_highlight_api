@@ -1,9 +1,9 @@
 """Authentication use cases."""
 
 from dataclasses import dataclass
-from typing import Optional, List
+from typing import Optional, List, Tuple
 import bcrypt
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from src.application.use_cases.base import UseCase, UseCaseResult, ResultStatus
 from src.domain.entities.user import User
@@ -66,6 +66,41 @@ class ValidateAPIKeyResult(UseCaseResult):
     organization_id: Optional[int] = None
     scopes: Optional[List[str]] = None
     rate_limit: Optional[int] = None
+
+
+@dataclass
+class CreateAPIKeyRequest:
+    """Request for creating a new API key."""
+    user_id: int
+    name: str
+    scopes: List[APIKeyScope]
+    expires_at: Optional[datetime] = None
+
+
+@dataclass
+class CreateAPIKeyResult(UseCaseResult):
+    """Result of API key creation."""
+    api_key: Optional[APIKey] = None
+    key: Optional[str] = None  # The actual key string (shown only once)
+
+
+@dataclass
+class ListAPIKeysResult(UseCaseResult):
+    """Result of listing API keys."""
+    api_keys: List[APIKey] = None
+
+
+@dataclass
+class RevokeAPIKeyResult(UseCaseResult):
+    """Result of revoking an API key."""
+    pass
+
+
+@dataclass
+class RotateAPIKeyResult(UseCaseResult):
+    """Result of rotating an API key."""
+    api_key: Optional[APIKey] = None
+    key: Optional[str] = None  # The new key string
 
 
 class AuthenticationUseCase(UseCase[RegisterRequest, RegisterResult]):
@@ -265,7 +300,12 @@ class AuthenticationUseCase(UseCase[RegisterRequest, RegisterResult]):
         """
         try:
             # Get API key
-            api_key = await self.api_key_repo.get_by_key(request.api_key)
+            # Hash the API key for lookup
+            import hashlib
+            key_hash = hashlib.sha256(request.api_key.encode("utf-8")).hexdigest()
+            
+            # Get API key by its hash
+            api_key = await self.api_key_repo.get_by_key_hash(key_hash)
             if not api_key:
                 return ValidateAPIKeyResult(
                     status=ResultStatus.UNAUTHORIZED,
@@ -349,13 +389,18 @@ class AuthenticationUseCase(UseCase[RegisterRequest, RegisterResult]):
         # Calculate expiry
         expires_at = None
         if expires_in_days:
-            expires_at = Timestamp.now().add_days(expires_in_days)
+            from datetime import timedelta
+            expires_at = Timestamp(datetime.now(timezone.utc) + timedelta(days=expires_in_days))
+        
+        # Hash the key for storage
+        import hashlib
+        key_hash = hashlib.sha256(key.encode("utf-8")).hexdigest()
         
         # Create API key
         api_key = APIKey(
             id=None,
             user_id=user_id,
-            key=key,
+            key_hash=key_hash,
             name=name,
             scopes=scopes,
             expires_at=expires_at,
@@ -365,3 +410,169 @@ class AuthenticationUseCase(UseCase[RegisterRequest, RegisterResult]):
         
         # Save and return
         return await self.api_key_repo.save(api_key)
+    
+    async def create_api_key(
+        self,
+        user_id: int,
+        name: str,
+        scopes: List[APIKeyScope],
+        expires_at: Optional[datetime] = None
+    ) -> CreateAPIKeyResult:
+        """Create a new API key for a user."""
+        try:
+            # Verify user exists
+            user = await self.user_repo.get(user_id)
+            if not user:
+                return CreateAPIKeyResult(
+                    status=ResultStatus.NOT_FOUND,
+                    errors=["User not found"]
+                )
+            
+            # Generate secure key
+            import secrets
+            key = f"tldr_sk_{secrets.token_urlsafe(32)}"
+            
+            # Hash the key for storage
+            key_hash = hashlib.sha256(key.encode("utf-8")).hexdigest()
+            
+            # Create API key entity
+            api_key = APIKey(
+                id=None,
+                user_id=user_id,
+                key_hash=key_hash,
+                name=name,
+                scopes=scopes,
+                expires_at=Timestamp(expires_at) if expires_at else None,
+                created_at=Timestamp.now(),
+                updated_at=Timestamp.now()
+            )
+            
+            # Save
+            saved_key = await self.api_key_repo.save(api_key)
+            
+            return CreateAPIKeyResult(
+                status=ResultStatus.SUCCESS,
+                api_key=saved_key,
+                key=key,  # Return the actual key
+                message="API key created successfully"
+            )
+            
+        except Exception as e:
+            return CreateAPIKeyResult(
+                status=ResultStatus.FAILURE,
+                errors=[f"Failed to create API key: {str(e)}"]
+            )
+    
+    async def list_api_keys(self, user_id: int) -> ListAPIKeysResult:
+        """List all API keys for a user."""
+        try:
+            api_keys = await self.api_key_repo.get_by_user(user_id)
+            
+            # Filter out expired/revoked keys unless specifically requested
+            active_keys = [key for key in api_keys if key.is_valid]
+            
+            return ListAPIKeysResult(
+                status=ResultStatus.SUCCESS,
+                api_keys=active_keys,
+                message=f"Found {len(active_keys)} active API keys"
+            )
+            
+        except Exception as e:
+            return ListAPIKeysResult(
+                status=ResultStatus.FAILURE,
+                errors=[f"Failed to list API keys: {str(e)}"]
+            )
+    
+    async def revoke_api_key(self, user_id: int, api_key_id: int) -> RevokeAPIKeyResult:
+        """Revoke an API key."""
+        try:
+            # Get the API key
+            api_key = await self.api_key_repo.get(api_key_id)
+            
+            if not api_key:
+                return RevokeAPIKeyResult(
+                    status=ResultStatus.NOT_FOUND,
+                    errors=["API key not found"]
+                )
+            
+            # Verify ownership
+            if api_key.user_id != user_id:
+                return RevokeAPIKeyResult(
+                    status=ResultStatus.UNAUTHORIZED,
+                    errors=["You do not have permission to revoke this API key"]
+                )
+            
+            # Revoke the key
+            api_key.revoke()
+            await self.api_key_repo.save(api_key)
+            
+            return RevokeAPIKeyResult(
+                status=ResultStatus.SUCCESS,
+                message="API key revoked successfully"
+            )
+            
+        except Exception as e:
+            return RevokeAPIKeyResult(
+                status=ResultStatus.FAILURE,
+                errors=[f"Failed to revoke API key: {str(e)}"]
+            )
+    
+    async def rotate_api_key(self, user_id: int, api_key_id: int) -> RotateAPIKeyResult:
+        """Rotate an API key to generate a new key value."""
+        try:
+            # Get the existing API key
+            old_key = await self.api_key_repo.get(api_key_id)
+            
+            if not old_key:
+                return RotateAPIKeyResult(
+                    status=ResultStatus.NOT_FOUND,
+                    errors=["API key not found"]
+                )
+            
+            # Verify ownership
+            if old_key.user_id != user_id:
+                return RotateAPIKeyResult(
+                    status=ResultStatus.UNAUTHORIZED,
+                    errors=["You do not have permission to rotate this API key"]
+                )
+            
+            # Generate new key value
+            import secrets
+            new_key_value = f"tldr_sk_{secrets.token_urlsafe(32)}"
+            
+            # Hash the key for storage
+            new_key_hash = hashlib.sha256(new_key_value.encode("utf-8")).hexdigest()
+            
+            # Create new API key with same properties
+            new_api_key = APIKey(
+                id=None,
+                user_id=user_id,
+                key_hash=new_key_hash,
+                name=f"{old_key.name} (rotated)",
+                scopes=old_key.scopes,
+                expires_at=old_key.expires_at,
+                created_at=Timestamp.now(),
+                updated_at=Timestamp.now()
+            )
+            
+            # Save new key
+            saved_key = await self.api_key_repo.save(new_api_key)
+            
+            # Schedule old key for revocation after grace period
+            # In production, this would be handled by a background task
+            # For now, we'll just mark it as rotated
+            old_key.name = f"{old_key.name} (rotated - will be revoked)"
+            await self.api_key_repo.save(old_key)
+            
+            return RotateAPIKeyResult(
+                status=ResultStatus.SUCCESS,
+                api_key=saved_key,
+                key=new_key_value,
+                message="API key rotated successfully"
+            )
+            
+        except Exception as e:
+            return RotateAPIKeyResult(
+                status=ResultStatus.FAILURE,
+                errors=[f"Failed to rotate API key: {str(e)}"]
+            )

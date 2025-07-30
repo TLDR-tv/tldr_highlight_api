@@ -27,6 +27,7 @@ from src.api.routers import (
     highlights_router,
     streams_router,
     webhooks_router,
+    webhook_receiver_router,
 )
 from src.core.cache import cache
 from src.core.config import settings
@@ -198,6 +199,10 @@ def create_app() -> FastAPI:
 
     app.include_router(
         webhooks_router, prefix=f"{settings.api_v1_prefix}/webhooks", tags=["webhooks"]
+    )
+    
+    app.include_router(
+        webhook_receiver_router, prefix=f"{settings.api_v1_prefix}/webhooks", tags=["webhooks"]
     )
 
     @app.get("/", include_in_schema=False)

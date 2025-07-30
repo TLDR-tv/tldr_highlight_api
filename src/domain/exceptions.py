@@ -48,3 +48,18 @@ class QuotaExceededError(BusinessRuleViolation):
 class InvalidStateTransition(BusinessRuleViolation):
     """Raised when an invalid state transition is attempted."""
     pass
+
+
+class InvalidResourceStateError(DomainException):
+    """Raised when a resource is in an invalid state for the requested operation."""
+    pass
+
+
+class ValidationError(DomainException):
+    """Raised when validation fails."""
+    pass
+
+
+class AuthenticationError(DomainException):
+    """Raised when authentication fails."""
+    pass

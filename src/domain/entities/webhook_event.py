@@ -31,9 +31,13 @@ class WebhookEventType(Enum):
 class WebhookEvent(Entity[int]):
     """Domain entity representing a received webhook event."""
     
+    # Required fields
     event_id: str
     event_type: WebhookEventType
     platform: str
+    received_at: Timestamp
+    
+    # Optional fields with defaults
     status: WebhookEventStatus = WebhookEventStatus.RECEIVED
     payload: Dict[str, Any] = field(default_factory=dict)
     
@@ -43,11 +47,6 @@ class WebhookEvent(Entity[int]):
     processed_at: Optional[Timestamp] = None
     error_message: Optional[str] = None
     retry_count: int = 0
-    
-    # Audit fields
-    received_at: Timestamp = field(default_factory=Timestamp.now)
-    created_at: Timestamp = field(default_factory=Timestamp.now)
-    updated_at: Timestamp = field(default_factory=Timestamp.now)
     
     def mark_processing(self) -> "WebhookEvent":
         """Mark event as being processed."""

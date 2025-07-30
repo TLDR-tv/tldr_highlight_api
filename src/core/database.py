@@ -111,7 +111,7 @@ async def init_db() -> None:
     from src.infrastructure.persistence.models.base import Base
 
     # Import all models to ensure they're registered with Base
-    from src.models import (  # noqa: F401
+    from src.infrastructure.persistence.models import (  # noqa: F401
         APIKey,
         Batch,
         Highlight,
@@ -120,6 +120,7 @@ async def init_db() -> None:
         UsageRecord,
         User,
         Webhook,
+        WebhookEvent,
     )
 
     engine = get_engine()

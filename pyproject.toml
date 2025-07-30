@@ -38,10 +38,11 @@ dependencies = [
     "scipy>=1.11.0",
     "m3u8>=6.0.0",
     # RTMP protocol and video processing dependencies
-    "av>=10.0.0",  # PyAV for video processing
-    "bitstring>=4.0.0",  # For binary data manipulation
+    "av>=10.0.0", # PyAV for video processing
+    "bitstring>=4.0.0", # For binary data manipulation
     # Chat and EventSub dependencies
-    "backoff>=2.2.0",  # For exponential backoff retry logic
+    "backoff>=2.2.0", # For exponential backoff retry logic
+    "pyjwt>=2.10.1",
 ]
 
 [project.optional-dependencies]

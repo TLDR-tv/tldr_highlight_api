@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Optional, List, Dict, Any
 
 from src.application.use_cases.base import UseCase, UseCaseResult, ResultStatus
-from src.domain.entities.batch import Batch, BatchStatus, BatchItem, BatchItemStatus
+from src.domain.entities.batch import Batch, BatchStatus, BatchItem
 from src.domain.entities.webhook import WebhookEvent
 from src.domain.entities.usage_record import UsageType
 from src.domain.value_objects.timestamp import Timestamp
@@ -52,7 +52,7 @@ class BatchStatusRequest:
 class BatchStatusResult(UseCaseResult):
     """Result of batch status check."""
     batch_id: Optional[int] = None
-    status: Optional[str] = None
+    batch_status: Optional[str] = None
     progress_percentage: Optional[float] = None
     successful_items: Optional[int] = None
     failed_items: Optional[int] = None
@@ -273,7 +273,7 @@ class BatchProcessingUseCase(UseCase[BatchCreateRequest, BatchCreateResult]):
             result = BatchStatusResult(
                 status=ResultStatus.SUCCESS,
                 batch_id=batch.id,
-                status=batch.status.value,
+                batch_status=batch.status.value,
                 progress_percentage=progress,
                 successful_items=batch.successful_items,
                 failed_items=batch.failed_items,

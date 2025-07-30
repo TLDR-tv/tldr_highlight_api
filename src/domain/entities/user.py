@@ -21,6 +21,9 @@ class User(Entity[int]):
     company_name: CompanyName
     password_hash: str
     
+    # Status
+    is_active: bool = True
+    
     # Related entity IDs (not full objects to avoid circular deps)
     api_key_ids: List[int] = field(default_factory=list)
     organization_ids: List[int] = field(default_factory=list)
@@ -35,6 +38,7 @@ class User(Entity[int]):
             email=new_email,
             company_name=self.company_name,
             password_hash=self.password_hash,
+            is_active=self.is_active,
             created_at=self.created_at,
             updated_at=Timestamp.now(),
             api_key_ids=self.api_key_ids.copy(),
@@ -51,6 +55,7 @@ class User(Entity[int]):
             email=self.email,
             company_name=new_company_name,
             password_hash=self.password_hash,
+            is_active=self.is_active,
             created_at=self.created_at,
             updated_at=Timestamp.now(),
             api_key_ids=self.api_key_ids.copy(),
@@ -67,6 +72,7 @@ class User(Entity[int]):
             email=self.email,
             company_name=self.company_name,
             password_hash=new_hash,
+            is_active=self.is_active,
             created_at=self.created_at,
             updated_at=Timestamp.now(),
             api_key_ids=self.api_key_ids.copy(),

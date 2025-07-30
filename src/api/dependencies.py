@@ -14,15 +14,15 @@ from src.infrastructure.persistence.models.api_key import APIKey
 from src.infrastructure.persistence.models.user import User
 
 # Import repositories
-from src.infrastructure.persistence.repositories.user_repository import UserRepositoryImpl
-from src.infrastructure.persistence.repositories.api_key_repository import APIKeyRepositoryImpl
-from src.infrastructure.persistence.repositories.organization_repository import OrganizationRepositoryImpl
-from src.infrastructure.persistence.repositories.stream_repository import StreamRepositoryImpl
-from src.infrastructure.persistence.repositories.highlight_repository import HighlightRepositoryImpl
-from src.infrastructure.persistence.repositories.batch_repository import BatchRepositoryImpl
-from src.infrastructure.persistence.repositories.webhook_repository import WebhookRepositoryImpl
-from src.infrastructure.persistence.repositories.webhook_event_repository import WebhookEventRepositoryImpl
-from src.infrastructure.persistence.repositories.usage_record_repository import UsageRecordRepositoryImpl
+from src.infrastructure.persistence.repositories.user_repository import UserRepository
+from src.infrastructure.persistence.repositories.api_key_repository import APIKeyRepository
+from src.infrastructure.persistence.repositories.organization_repository import OrganizationRepository
+from src.infrastructure.persistence.repositories.stream_repository import StreamRepository
+from src.infrastructure.persistence.repositories.highlight_repository import HighlightRepository
+from src.infrastructure.persistence.repositories.batch_repository import BatchRepository
+from src.infrastructure.persistence.repositories.webhook_repository import WebhookRepository
+from src.infrastructure.persistence.repositories.webhook_event_repository import WebhookEventRepository
+from src.infrastructure.persistence.repositories.usage_record_repository import UsageRecordRepository
 
 # Import domain services
 from src.domain.services.organization_management_service import OrganizationManagementService
@@ -137,76 +137,76 @@ DatabaseSession = Annotated[AsyncSession, Depends(get_db_session)]
 
 async def get_user_repository(
     db: AsyncSession = Depends(get_db_session)
-) -> UserRepositoryImpl:
+) -> UserRepository:
     """Get user repository instance."""
-    return UserRepositoryImpl(db)
+    return UserRepository(db)
 
 
 async def get_api_key_repository(
     db: AsyncSession = Depends(get_db_session)
-) -> APIKeyRepositoryImpl:
+) -> APIKeyRepository:
     """Get API key repository instance."""
-    return APIKeyRepositoryImpl(db)
+    return APIKeyRepository(db)
 
 
 async def get_organization_repository(
     db: AsyncSession = Depends(get_db_session)
-) -> OrganizationRepositoryImpl:
+) -> OrganizationRepository:
     """Get organization repository instance."""
-    return OrganizationRepositoryImpl(db)
+    return OrganizationRepository(db)
 
 
 async def get_stream_repository(
     db: AsyncSession = Depends(get_db_session)
-) -> StreamRepositoryImpl:
+) -> StreamRepository:
     """Get stream repository instance."""
-    return StreamRepositoryImpl(db)
+    return StreamRepository(db)
 
 
 async def get_highlight_repository(
     db: AsyncSession = Depends(get_db_session)
-) -> HighlightRepositoryImpl:
+) -> HighlightRepository:
     """Get highlight repository instance."""
-    return HighlightRepositoryImpl(db)
+    return HighlightRepository(db)
 
 
 async def get_batch_repository(
     db: AsyncSession = Depends(get_db_session)
-) -> BatchRepositoryImpl:
+) -> BatchRepository:
     """Get batch repository instance."""
-    return BatchRepositoryImpl(db)
+    return BatchRepository(db)
 
 
 async def get_webhook_repository(
     db: AsyncSession = Depends(get_db_session)
-) -> WebhookRepositoryImpl:
+) -> WebhookRepository:
     """Get webhook repository instance."""
-    return WebhookRepositoryImpl(db)
+    return WebhookRepository(db)
 
 
 async def get_webhook_event_repository(
     db: AsyncSession = Depends(get_db_session)
-) -> WebhookEventRepositoryImpl:
+) -> WebhookEventRepository:
     """Get webhook event repository instance."""
-    return WebhookEventRepositoryImpl(db)
+    return WebhookEventRepository(db)
 
 
 async def get_usage_record_repository(
     db: AsyncSession = Depends(get_db_session)
-) -> UsageRecordRepositoryImpl:
+) -> UsageRecordRepository:
     """Get usage record repository instance."""
-    return UsageRecordRepositoryImpl(db)
+    return UsageRecordRepository(db)
 
 
 # Domain Service Dependencies
 
 async def get_organization_management_service(
-    org_repo: OrganizationRepositoryImpl = Depends(get_organization_repository),
-    user_repo: UserRepositoryImpl = Depends(get_user_repository),
-    usage_repo: UsageRecordRepositoryImpl = Depends(get_usage_record_repository),
-    stream_repo: StreamRepositoryImpl = Depends(get_stream_repository),
-    api_key_repo: APIKeyRepositoryImpl = Depends(get_api_key_repository),
-    webhook_repo: WebhookRepositoryImpl = Depends(get_webhook_repository)
+    org_repo: OrganizationRepository = Depends(get_organization_repository),
+    user_repo: UserRepository = Depends(get_user_repository),
+    usage_repo: UsageRecordRepository = Depends(get_usage_record_repository),
+    stream_repo: StreamRepository = Depends(get_stream_repository),
+    api_key_repo: APIKeyRepository = Depends(get_api_key_repository),
+    webhook_repo: WebhookRepository = Depends(get_webhook_repository)
 ) -> OrganizationManagementService:
     """Get organization management service instance."""
     return OrganizationManagementService(
@@ -220,8 +220,8 @@ async def get_organization_management_service(
 
 
 async def get_stream_processing_service(
-    stream_repo: StreamRepositoryImpl = Depends(get_stream_repository),
-    org_repo: OrganizationRepositoryImpl = Depends(get_organization_repository)
+    stream_repo: StreamRepository = Depends(get_stream_repository),
+    org_repo: OrganizationRepository = Depends(get_organization_repository)
 ) -> StreamProcessingService:
     """Get stream processing service instance."""
     return StreamProcessingService(
@@ -231,8 +231,8 @@ async def get_stream_processing_service(
 
 
 async def get_highlight_detection_service(
-    highlight_repo: HighlightRepositoryImpl = Depends(get_highlight_repository),
-    stream_repo: StreamRepositoryImpl = Depends(get_stream_repository)
+    highlight_repo: HighlightRepository = Depends(get_highlight_repository),
+    stream_repo: StreamRepository = Depends(get_stream_repository)
 ) -> HighlightDetectionService:
     """Get highlight detection service instance."""
     return HighlightDetectionService(
@@ -242,10 +242,10 @@ async def get_highlight_detection_service(
 
 
 async def get_webhook_delivery_service(
-    webhook_repo: WebhookRepositoryImpl = Depends(get_webhook_repository),
-    stream_repo: StreamRepositoryImpl = Depends(get_stream_repository),
-    highlight_repo: HighlightRepositoryImpl = Depends(get_highlight_repository),
-    batch_repo: BatchRepositoryImpl = Depends(get_batch_repository)
+    webhook_repo: WebhookRepository = Depends(get_webhook_repository),
+    stream_repo: StreamRepository = Depends(get_stream_repository),
+    highlight_repo: HighlightRepository = Depends(get_highlight_repository),
+    batch_repo: BatchRepository = Depends(get_batch_repository)
 ) -> WebhookDeliveryService:
     """Get webhook delivery service instance."""
     return WebhookDeliveryService(
@@ -257,9 +257,9 @@ async def get_webhook_delivery_service(
 
 
 async def get_usage_tracking_service(
-    usage_repo: UsageRecordRepositoryImpl = Depends(get_usage_record_repository),
-    org_repo: OrganizationRepositoryImpl = Depends(get_organization_repository),
-    user_repo: UserRepositoryImpl = Depends(get_user_repository)
+    usage_repo: UsageRecordRepository = Depends(get_usage_record_repository),
+    org_repo: OrganizationRepository = Depends(get_organization_repository),
+    user_repo: UserRepository = Depends(get_user_repository)
 ) -> UsageTrackingService:
     """Get usage tracking service instance."""
     return UsageTrackingService(
@@ -272,9 +272,9 @@ async def get_usage_tracking_service(
 # Use Case Dependencies
 
 async def get_authentication_use_case(
-    user_repo: UserRepositoryImpl = Depends(get_user_repository),
-    api_key_repo: APIKeyRepositoryImpl = Depends(get_api_key_repository),
-    org_repo: OrganizationRepositoryImpl = Depends(get_organization_repository),
+    user_repo: UserRepository = Depends(get_user_repository),
+    api_key_repo: APIKeyRepository = Depends(get_api_key_repository),
+    org_repo: OrganizationRepository = Depends(get_organization_repository),
     org_service: OrganizationManagementService = Depends(get_organization_management_service)
 ) -> AuthenticationUseCase:
     """Get authentication use case instance."""
@@ -287,9 +287,9 @@ async def get_authentication_use_case(
 
 
 async def get_stream_processing_use_case(
-    user_repo: UserRepositoryImpl = Depends(get_user_repository),
-    stream_repo: StreamRepositoryImpl = Depends(get_stream_repository),
-    highlight_repo: HighlightRepositoryImpl = Depends(get_highlight_repository),
+    user_repo: UserRepository = Depends(get_user_repository),
+    stream_repo: StreamRepository = Depends(get_stream_repository),
+    highlight_repo: HighlightRepository = Depends(get_highlight_repository),
     stream_service: StreamProcessingService = Depends(get_stream_processing_service),
     highlight_service: HighlightDetectionService = Depends(get_highlight_detection_service),
     webhook_service: WebhookDeliveryService = Depends(get_webhook_delivery_service),
@@ -308,9 +308,9 @@ async def get_stream_processing_use_case(
 
 
 async def get_batch_processing_use_case(
-    user_repo: UserRepositoryImpl = Depends(get_user_repository),
-    batch_repo: BatchRepositoryImpl = Depends(get_batch_repository),
-    org_repo: OrganizationRepositoryImpl = Depends(get_organization_repository),
+    user_repo: UserRepository = Depends(get_user_repository),
+    batch_repo: BatchRepository = Depends(get_batch_repository),
+    org_repo: OrganizationRepository = Depends(get_organization_repository),
     org_service: OrganizationManagementService = Depends(get_organization_management_service),
     webhook_service: WebhookDeliveryService = Depends(get_webhook_delivery_service),
     usage_service: UsageTrackingService = Depends(get_usage_tracking_service)
@@ -327,9 +327,9 @@ async def get_batch_processing_use_case(
 
 
 async def get_webhook_processing_use_case(
-    webhook_event_repo: WebhookEventRepositoryImpl = Depends(get_webhook_event_repository),
-    user_repo: UserRepositoryImpl = Depends(get_user_repository),
-    api_key_repo: APIKeyRepositoryImpl = Depends(get_api_key_repository),
+    webhook_event_repo: WebhookEventRepository = Depends(get_webhook_event_repository),
+    user_repo: UserRepository = Depends(get_user_repository),
+    api_key_repo: APIKeyRepository = Depends(get_api_key_repository),
     stream_processing_use_case: StreamProcessingUseCase = Depends(get_stream_processing_use_case)
 ) -> WebhookProcessingUseCase:
     """Get webhook processing use case instance."""

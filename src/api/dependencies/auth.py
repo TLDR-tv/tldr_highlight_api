@@ -1,347 +1,383 @@
-"""Authentication dependencies for FastAPI endpoints.
+"""Authentication dependencies for FastAPI.
 
-This module provides dependency functions for JWT token validation,
-API key authentication, and permission checking.
+This module provides FastAPI-specific authentication dependencies,
+keeping API concerns separate from infrastructure and business logic.
 """
 
-import hashlib
-import secrets
-from datetime import datetime, timezone
-from typing import List, Optional
+import logging
+from typing import Optional, Union, List, Annotated
 
-from passlib.context import CryptContext
-from jose import jwt
-from fastapi import Depends, HTTPException, Request, Security, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
 
-from src.core.config import get_settings
-from src.core.database import get_db
+from src.core.config import settings
+from src.infrastructure.database import get_db
+from src.infrastructure.security import APIKeyValidator
+from src.infrastructure.cache import get_rate_limiter, RateLimiter
 from src.infrastructure.persistence.models.api_key import APIKey
 from src.infrastructure.persistence.models.user import User
-from src.api.schemas.auth import TokenData
+from src.infrastructure.persistence.models.organization import Organization
 
-settings = get_settings()
-security = HTTPBearer()
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+logger = logging.getLogger(__name__)
 
 
-class AuthenticationError(HTTPException):
-    """Custom exception for authentication errors."""
-
-    def __init__(self, detail: str = "Authentication failed"):
-        super().__init__(
+def get_api_key_from_header(request: Request) -> str:
+    """Extract API key from request headers.
+    
+    Args:
+        request: FastAPI request object
+        
+    Returns:
+        The API key string
+        
+    Raises:
+        HTTPException: If API key is missing or invalid format
+    """
+    api_key = request.headers.get(settings.api_key_header)
+    
+    if not api_key:
+        raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=detail,
-            headers={"WWW-Authenticate": "Bearer"},
+            detail="API key is required. Include it in the X-API-Key header.",
+            headers={"WWW-Authenticate": "ApiKey"},
         )
-
-
-class PermissionError(HTTPException):
-    """Custom exception for permission errors."""
-
-    def __init__(self, detail: str = "Insufficient permissions"):
-        super().__init__(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=detail,
+    
+    api_key = api_key.strip()
+    if not api_key:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="API key cannot be empty.",
+            headers={"WWW-Authenticate": "ApiKey"},
         )
+    
+    return api_key
 
 
-def hash_password(password: str) -> str:
-    """Hash a password using bcrypt.
-
+async def get_current_api_key(
+    api_key: str = Depends(get_api_key_from_header),
+    db: AsyncSession = Depends(get_db),
+) -> APIKey:
+    """Get and validate the current API key.
+    
     Args:
-        password: Plain text password
-
+        api_key: API key from header
+        db: Database session
+        
     Returns:
-        str: Hashed password
-    """
-    return pwd_context.hash(password)
-
-
-def verify_password(password: str, hashed_password: str) -> bool:
-    """Verify a password against its hash.
-
-    Args:
-        password: Plain text password
-        hashed_password: Hashed password
-
-    Returns:
-        bool: True if password matches
-    """
-    return pwd_context.verify(password, hashed_password)
-
-
-def generate_api_key() -> str:
-    """Generate a new API key.
-
-    Returns:
-        str: Secure API key with tldr_sk_ prefix
-    """
-    # Generate 32 bytes of random data
-    random_bytes = secrets.token_bytes(32)
-
-    # Create a hash to ensure consistent length
-    key_hash = hashlib.sha256(random_bytes).hexdigest()[:32]
-
-    return f"tldr_sk_{key_hash}"
-
-
-def hash_api_key(api_key: str) -> str:
-    """Hash an API key for storage.
-
-    Args:
-        api_key: Plain text API key
-
-    Returns:
-        str: Hashed API key
-    """
-    return hashlib.sha256(api_key.encode("utf-8")).hexdigest()
-
-
-def create_access_token(user_id: int, email: str, scopes: List[str] = None) -> str:
-    """Create a JWT access token.
-
-    Args:
-        user_id: User ID
-        email: User email
-        scopes: List of permission scopes
-
-    Returns:
-        str: JWT token
-    """
-    if scopes is None:
-        scopes = []
-
-    payload = {
-        "user_id": user_id,
-        "email": email,
-        "scopes": scopes,
-        "exp": datetime.now(timezone.utc).timestamp()
-        + (settings.jwt_expiration_minutes * 60),
-        "iat": datetime.now(timezone.utc).timestamp(),
-    }
-
-    return jwt.encode(payload, settings.jwt_secret_key, algorithm="HS256")
-
-
-def verify_token(token: str) -> TokenData:
-    """Verify and decode a JWT token.
-
-    Args:
-        token: JWT token
-
-    Returns:
-        TokenData: Decoded token data
-
+        Validated API key object
+        
     Raises:
-        AuthenticationError: If token is invalid
+        HTTPException: If API key is invalid or expired
     """
     try:
-        payload = jwt.decode(token, settings.jwt_secret_key, algorithms=["HS256"])
+        validator = APIKeyValidator()
+        result = await validator.validate_api_key(api_key, db)
+        
+        if not result.is_valid:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=result.error_message or "Invalid or expired API key.",
+                headers={"WWW-Authenticate": "ApiKey"},
+            )
+        
+        return result.api_key
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error validating API key: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Authentication service error.",
+        )
 
-        user_id = payload.get("user_id")
-        email = payload.get("email")
-        scopes = payload.get("scopes", [])
 
-        if user_id is None or email is None:
-            raise AuthenticationError("Invalid token payload")
-
-        return TokenData(user_id=user_id, email=email, scopes=scopes)
-
-    except jwt.ExpiredSignatureError:
-        raise AuthenticationError("Token has expired")
-    except jwt.InvalidTokenError:
-        raise AuthenticationError("Invalid token")
-
-
-async def get_current_user_from_token(
-    credentials: HTTPAuthorizationCredentials = Security(security),
-    db: AsyncSession = Depends(get_db),
-) -> User:
-    """Get current user from JWT token.
-
+async def get_current_user(api_key: APIKey = Depends(get_current_api_key)) -> User:
+    """Get the current user from the API key.
+    
     Args:
-        credentials: HTTP authorization credentials
-        db: Database session
-
+        api_key: Validated API key
+        
     Returns:
-        User: Current user
-
+        The user associated with the API key
+        
     Raises:
-        AuthenticationError: If authentication fails
+        HTTPException: If user is not found
     """
-    token_data = verify_token(credentials.credentials)
-
-    # Get user from database
-    result = await db.execute(select(User).where(User.id == token_data.user_id))
-    user = result.scalar_one_or_none()
-
-    if user is None:
-        raise AuthenticationError("User not found")
-
-    return user
+    if not api_key.user:
+        logger.error(f"API key {api_key.id} has no associated user")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="User data not found.",
+        )
+    
+    return api_key.user
 
 
-async def get_current_user_from_api_key(
-    credentials: HTTPAuthorizationCredentials = Security(security),
-    db: AsyncSession = Depends(get_db),
-) -> tuple[User, APIKey]:
-    """Get current user from API key.
-
+async def get_current_organization(
+    user: User = Depends(get_current_user),
+) -> Organization:
+    """Get the current user's organization.
+    
     Args:
-        credentials: HTTP authorization credentials
-        db: Database session
-
+        user: Current user
+        
     Returns:
-        tuple: (User, APIKey) objects
-
+        The user's organization
+        
     Raises:
-        AuthenticationError: If authentication fails
+        HTTPException: If organization is not found
     """
-    api_key = credentials.credentials
-
-    if not api_key.startswith("tldr_sk_"):
-        raise AuthenticationError("Invalid API key format")
-
-    # Hash the API key for lookup
-    hashed_key = hash_api_key(api_key)
-
-    # Get API key from database
-    result = await db.execute(select(APIKey).where(APIKey.key == hashed_key))
-    api_key_obj = result.scalar_one_or_none()
-
-    if api_key_obj is None:
-        raise AuthenticationError("Invalid API key")
-
-    if not api_key_obj.active:
-        raise AuthenticationError("API key is inactive")
-
-    if api_key_obj.is_expired():
-        raise AuthenticationError("API key has expired")
-
-    # Update last used timestamp
-    api_key_obj.last_used_at = datetime.now(timezone.utc)
-    await db.commit()
-
-    # Get user
-    result = await db.execute(select(User).where(User.id == api_key_obj.user_id))
-    user = result.scalar_one_or_none()
-
-    if user is None:
-        raise AuthenticationError("User not found")
-
-    return user, api_key_obj
+    if not user.owned_organizations:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Organization not found. Please contact support.",
+        )
+    
+    return user.owned_organizations[0]
 
 
-async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Security(security),
-    db: AsyncSession = Depends(get_db),
-) -> User:
-    """Get current user from either JWT token or API key.
-
+def require_scope(required_scopes: Union[str, List[str]]):
+    """Create a dependency that requires specific scopes.
+    
     Args:
-        credentials: HTTP authorization credentials
-        db: Database session
-
+        required_scopes: Required scope(s) for the endpoint
+        
     Returns:
-        User: Current user
-
-    Raises:
-        AuthenticationError: If authentication fails
+        Dependency function that checks permissions
     """
-    token = credentials.credentials
-
-    # Try JWT token first
-    if not token.startswith("tldr_sk_"):
+    # Normalize to list
+    if isinstance(required_scopes, str):
+        required_scopes = [required_scopes]
+    
+    async def check_permissions(
+        api_key: APIKey = Depends(get_current_api_key),
+    ) -> APIKey:
+        """Check if the API key has required permissions.
+        
+        Args:
+            api_key: Validated API key
+            
+        Returns:
+            The API key if permissions are valid
+            
+        Raises:
+            HTTPException: If permissions are insufficient
+        """
         try:
-            return await get_current_user_from_token(credentials, db)
-        except AuthenticationError:
-            pass
-
-    # Try API key
-    try:
-        user, _ = await get_current_user_from_api_key(credentials, db)
-        return user
-    except AuthenticationError:
-        pass
-
-    raise AuthenticationError("Invalid authentication credentials")
-
-
-def require_scopes(required_scopes: List[str]):
-    """Dependency factory for requiring specific scopes.
-
-    Args:
-        required_scopes: List of required scopes
-
-    Returns:
-        Dependency function
-    """
-
-    async def check_scopes(
-        credentials: HTTPAuthorizationCredentials = Security(security),
-        db: AsyncSession = Depends(get_db),
-    ) -> User:
-        token = credentials.credentials
-
-        # Check if it's an API key
-        if token.startswith("tldr_sk_"):
-            user, api_key = await get_current_user_from_api_key(credentials, db)
-
-            # Check if API key has required scopes
+            validator = APIKeyValidator()
+            
+            # Check each required scope
             for scope in required_scopes:
-                if not api_key.has_scope(scope):
-                    raise PermissionError(f"Missing required scope: {scope}")
-
-            return user
-
-        # Handle JWT token
-        token_data = verify_token(token)
-
-        # Check if token has required scopes
-        for scope in required_scopes:
-            if scope not in token_data.scopes:
-                raise PermissionError(f"Missing required scope: {scope}")
-
-        # Get user from database
-        result = await db.execute(select(User).where(User.id == token_data.user_id))
-        user = result.scalar_one_or_none()
-
-        if user is None:
-            raise AuthenticationError("User not found")
-
-        return user
-
-    return check_scopes
-
-
-def require_admin():
-    """Dependency for requiring admin permissions."""
-    return require_scopes(["admin"])
+                if not await validator.has_permission(api_key, scope):
+                    logger.warning(
+                        f"API key {api_key.id} denied access to scope '{scope}'. "
+                        f"Available scopes: {api_key.scopes}"
+                    )
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail=f"Insufficient permissions. Required scope: {scope}",
+                    )
+            
+            return api_key
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error checking permissions: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Permission check error.",
+            )
+    
+    return check_permissions
 
 
-async def get_optional_user(
-    request: Request, db: AsyncSession = Depends(get_db)
-) -> Optional[User]:
-    """Get current user if authenticated, otherwise return None.
+async def check_rate_limit(
+    api_key: APIKey = Depends(get_current_api_key),
+) -> APIKey:
+    """Check rate limit for the current API key.
+    
+    Args:
+        api_key: Validated API key
+        
+    Returns:
+        The API key if rate limit is not exceeded
+        
+    Raises:
+        HTTPException: If rate limit is exceeded
+    """
+    try:
+        rate_limiter = await get_rate_limiter()
+        validator = APIKeyValidator()
+        
+        # Get rate limit for this API key
+        max_requests = await validator.get_rate_limit(api_key)
+        
+        # Check rate limit
+        result = await rate_limiter.is_allowed(
+            key=f"api_key:{api_key.id}",
+            max_requests=max_requests,
+            window_seconds=60  # Per minute
+        )
+        
+        if not result.is_allowed:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Rate limit exceeded. Please slow down your requests.",
+                headers={
+                    "X-RateLimit-Limit": str(max_requests),
+                    "X-RateLimit-Remaining": "0",
+                    "X-RateLimit-Reset": str(result.reset_time),
+                    "Retry-After": "60",
+                },
+            )
+        
+        return api_key
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error checking rate limit: {e}")
+        # Fail open on rate limit service errors
+        return api_key
 
+
+async def check_burst_limit(
+    api_key: APIKey = Depends(get_current_api_key),
+) -> APIKey:
+    """Check burst rate limit for the current API key.
+    
+    Args:
+        api_key: Validated API key
+        
+    Returns:
+        The API key if burst limit is not exceeded
+        
+    Raises:
+        HTTPException: If burst limit is exceeded
+    """
+    try:
+        rate_limiter = await get_rate_limiter()
+        
+        # Check burst limit (20 requests per 10 seconds)
+        result = await rate_limiter.is_allowed(
+            key=f"burst:{api_key.id}",
+            max_requests=20,
+            window_seconds=10
+        )
+        
+        if not result.is_allowed:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Burst rate limit exceeded. Please reduce request frequency.",
+                headers={
+                    "X-RateLimit-Burst-Limit": "20",
+                    "X-RateLimit-Burst-Remaining": "0",
+                    "Retry-After": "10",
+                },
+            )
+        
+        return api_key
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error checking burst limit: {e}")
+        # Fail open on rate limit service errors
+        return api_key
+
+
+# Convenience dependencies combining multiple checks
+async def authenticated_user(
+    api_key: APIKey = Depends(get_current_api_key),
+    _: APIKey = Depends(check_rate_limit),
+) -> User:
+    """Get authenticated user with rate limiting.
+    
+    Combines API key validation, rate limiting, and user extraction.
+    
+    Returns:
+        The authenticated user
+    """
+    return api_key.user
+
+
+async def authenticated_organization(
+    user: User = Depends(authenticated_user),
+    organization: Organization = Depends(get_current_organization),
+) -> Organization:
+    """Get authenticated user's organization with rate limiting.
+    
+    Returns:
+        The authenticated user's organization
+    """
+    return organization
+
+
+def require_authenticated_scope(required_scopes: Union[str, List[str]]):
+    """Create a dependency combining authentication, rate limiting, and scope checking.
+    
+    Args:
+        required_scopes: Required scope(s) for the endpoint
+        
+    Returns:
+        Dependency function with full authentication stack
+    """
+    scope_check = require_scope(required_scopes)
+    
+    async def full_auth_check(
+        api_key: APIKey = Depends(scope_check),
+        _: APIKey = Depends(check_rate_limit)
+    ) -> APIKey:
+        """Full authentication check with scope and rate limiting.
+        
+        Returns:
+            Validated API key with required permissions
+        """
+        return api_key
+    
+    return full_auth_check
+
+
+# Optional authentication (for public endpoints with optional features)
+async def optional_authentication(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> Optional[APIKey]:
+    """Optional authentication for endpoints that work with or without auth.
+    
     Args:
         request: FastAPI request object
         db: Database session
-
+        
     Returns:
-        Optional[User]: Current user or None
+        API key if provided and valid, None otherwise
     """
-
-    auth_header = request.headers.get("authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
-        return None
-
     try:
-        token = auth_header.split(" ")[1]
-        credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
-        return await get_current_user(credentials, db)
-    except (AuthenticationError, IndexError):
+        api_key = request.headers.get(settings.api_key_header)
+        if not api_key or not api_key.strip():
+            return None
+        
+        validator = APIKeyValidator()
+        result = await validator.validate_api_key(api_key.strip(), db)
+        
+        return result.api_key if result.is_valid else None
+        
+    except Exception as e:
+        logger.debug(f"Optional authentication failed: {e}")
         return None
+
+
+# Type aliases for cleaner dependency injection
+CurrentUser = Annotated[User, Depends(get_current_user)]
+OptionalCurrentUser = Annotated[Optional[User], Depends(optional_authentication)]
+
+# Pre-defined scope requirements for common use cases
+admin_required = require_authenticated_scope("admin")
+read_required = require_authenticated_scope("read")
+write_required = require_authenticated_scope("write")
+streams_required = require_authenticated_scope("streams")
+batches_required = require_authenticated_scope("batches")
+webhooks_required = require_authenticated_scope("webhooks")
+analytics_required = require_authenticated_scope("analytics")
