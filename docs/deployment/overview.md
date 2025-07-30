@@ -37,9 +37,9 @@ services:
       - "8000:8000"
     environment:
       - APP_ENVIRONMENT=production
-      - DATABASE_URL=postgresql+asyncpg://postgres:${POSTGRES_PASSWORD}@postgres:5432/tldr_highlight_api
-      - REDIS_URL=redis://redis:6379/0
-      - CELERY_BROKER_URL=redis://redis:6379/1
+      - DATABASE_URL=postgresql+asyncpg://tldr_user:${POSTGRES_PASSWORD}@postgres:5432/tldr_highlights
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/1
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
@@ -61,9 +61,9 @@ services:
     command: celery -A src.infrastructure.queue.celery_app worker --loglevel=info --concurrency=4
     environment:
       - APP_ENVIRONMENT=production
-      - DATABASE_URL=postgresql+asyncpg://postgres:${POSTGRES_PASSWORD}@postgres:5432/tldr_highlight_api
-      - REDIS_URL=redis://redis:6379/0
-      - CELERY_BROKER_URL=redis://redis:6379/1
+      - DATABASE_URL=postgresql+asyncpg://tldr_user:${POSTGRES_PASSWORD}@postgres:5432/tldr_highlights
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/1
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
@@ -82,33 +82,33 @@ services:
     command: celery -A src.infrastructure.queue.celery_app beat --loglevel=info
     environment:
       - APP_ENVIRONMENT=production
-      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/1
     depends_on:
       - redis
     restart: unless-stopped
 
   # Infrastructure Services
   postgres:
-    image: postgres:13
+    image: postgres:16-alpine
     environment:
-      - POSTGRES_DB=tldr_highlight_api
-      - POSTGRES_USER=postgres
+      - POSTGRES_DB=tldr_highlights
+      - POSTGRES_USER=tldr_user
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./backups:/backups
     ports:
-      - "5432:5432"
+      - "5433:5432"
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U tldr_user"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   redis:
-    image: redis:6-alpine
-    command: redis-server --appendonly yes --maxmemory 1gb --maxmemory-policy allkeys-lru
+    image: redis:7-alpine
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
     volumes:
       - redis_data:/data
     ports:
@@ -123,11 +123,11 @@ services:
   # Monitoring and Management
   flower:
     image: mher/flower:0.9.7
-    command: flower --broker=redis://redis:6379/1 --port=5555
+    command: flower --broker=redis://:${REDIS_PASSWORD}@redis:6379/1 --port=5555
     ports:
       - "5555:5555"
     environment:
-      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/1
     depends_on:
       - redis
     restart: unless-stopped
@@ -155,7 +155,7 @@ volumes:
 ```bash
 # .env.production
 APP_NAME="TL;DR Highlight API"
-APP_VERSION="1.0.0"
+APP_VERSION="0.1.0"
 APP_ENVIRONMENT="production"
 DEBUG=false
 LOG_LEVEL="INFO"
@@ -167,12 +167,13 @@ WEBHOOK_SECRET_KEY="your-webhook-secret-production-key"
 
 # Database
 POSTGRES_PASSWORD="secure-postgres-password"
-DATABASE_URL="postgresql+asyncpg://postgres:${POSTGRES_PASSWORD}@postgres:5432/tldr_highlight_api"
+DATABASE_URL="postgresql+asyncpg://tldr_user:${POSTGRES_PASSWORD}@postgres:5432/tldr_highlights"
 
 # Redis
-REDIS_URL="redis://redis:6379/0"
-CELERY_BROKER_URL="redis://redis:6379/1"
-CELERY_RESULT_BACKEND="redis://redis:6379/2"
+REDIS_PASSWORD="secure-redis-password"
+REDIS_URL="redis://:${REDIS_PASSWORD}@redis:6379/0"
+CELERY_BROKER_URL="redis://:${REDIS_PASSWORD}@redis:6379/1"
+CELERY_RESULT_BACKEND="redis://:${REDIS_PASSWORD}@redis:6379/2"
 
 # AI Services
 GEMINI_API_KEY="your-production-gemini-api-key"
@@ -453,12 +454,12 @@ spec:
     spec:
       containers:
       - name: postgres
-        image: postgres:13
+        image: postgres:16-alpine
         env:
         - name: POSTGRES_DB
-          value: "tldr_highlight_api"
+          value: "tldr_highlights"
         - name: POSTGRES_USER
-          value: "postgres"
+          value: "tldr_user"
         - name: POSTGRES_PASSWORD
           valueFrom:
             secretKeyRef:
@@ -755,7 +756,7 @@ groups:
 
 ```dockerfile
 # Security-hardened Dockerfile
-FROM python:3.11-slim
+FROM python:3.13-slim
 
 # Create non-root user
 RUN groupadd -r appuser && useradd -r -g appuser appuser
@@ -787,6 +788,7 @@ EXPOSE 8000
 # Run application
 CMD ["uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
+
 
 ### Network Security
 

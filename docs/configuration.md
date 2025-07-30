@@ -89,7 +89,7 @@ WEBHOOK_TOLERANCE_SECONDS=300  # Webhook timestamp tolerance
 
 ```bash
 # Database Connection
-DATABASE_URL="postgresql+asyncpg://user:pass@localhost:5432/dbname"
+DATABASE_URL="postgresql+asyncpg://tldr_user:tldr_password@localhost:5433/tldr_highlights"
 DATABASE_POOL_SIZE=20         # Connection pool size
 DATABASE_MAX_OVERFLOW=30      # Max overflow connections
 DATABASE_POOL_TIMEOUT=30      # Connection timeout seconds
@@ -97,10 +97,10 @@ DATABASE_POOL_RECYCLE=3600    # Connection recycle time
 
 # Alternative individual settings
 DB_HOST="localhost"
-DB_PORT=5432
-DB_USER="postgres"
-DB_PASSWORD="password"
-DB_NAME="tldr_highlight_api"
+DB_PORT=5433
+DB_USER="tldr_user"
+DB_PASSWORD="tldr_password"
+DB_NAME="tldr_highlights"
 DB_SCHEMA="public"
 
 # SSL Configuration
@@ -137,8 +137,8 @@ DATABASE_MAX_OVERFLOW=50
 
 ```bash
 # Redis Connection
-REDIS_URL="redis://localhost:6379/0"
-REDIS_PASSWORD=""             # Redis password (if required)
+REDIS_URL="redis://:tldr_redis_password@localhost:6379/0"
+REDIS_PASSWORD="tldr_redis_password"             # Redis password (if required)
 REDIS_SSL=false              # Enable SSL connection
 
 # Alternative individual settings
@@ -159,8 +159,8 @@ CACHE_KEY_PREFIX="tldr:"     # Cache key prefix
 CACHE_SERIALIZER="json"      # json, pickle
 
 # Celery Redis Settings
-CELERY_BROKER_URL="redis://localhost:6379/1"
-CELERY_RESULT_BACKEND="redis://localhost:6379/2"
+CELERY_BROKER_URL="redis://:tldr_redis_password@localhost:6379/1"
+CELERY_RESULT_BACKEND="redis://:tldr_redis_password@localhost:6379/2"
 CELERY_BROKER_CONNECTION_RETRY=true
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP=true
 ```
@@ -210,18 +210,18 @@ MAX_DIMENSION_COUNT=20               # Maximum dimensions allowed
 
 ## 💾 Storage Configuration
 
-### AWS S3 Settings
+### S3 Settings
 
 ```bash
 # AWS Credentials
-AWS_ACCESS_KEY_ID="your-aws-access-key"
-AWS_SECRET_ACCESS_KEY="your-aws-secret-key"
+AWS_ACCESS_KEY_ID="tldr_minio_admin"
+AWS_SECRET_ACCESS_KEY="tldr_minio_password"
 AWS_SESSION_TOKEN=""         # For temporary credentials
 AWS_REGION="us-east-1"       # AWS region
 
 # S3 Configuration
-AWS_S3_BUCKET="your-highlights-bucket"
-AWS_S3_ENDPOINT_URL=""       # For S3-compatible services
+AWS_S3_BUCKET="tldr-highlights"
+AWS_S3_ENDPOINT_URL="http://localhost:9010"       # For S3-compatible services
 AWS_S3_USE_SSL=true          # Use HTTPS for S3
 AWS_S3_VERIFY_SSL=true       # Verify SSL certificates
 
@@ -531,8 +531,8 @@ DEBUG=true
 LOG_LEVEL="DEBUG"
 
 # Use local services
-DATABASE_URL="postgresql+asyncpg://postgres:password@localhost:5432/tldr_dev"
-REDIS_URL="redis://localhost:6379/0"
+DATABASE_URL="postgresql+asyncpg://tldr_user:tldr_password@localhost:5433/tldr_highlights"
+REDIS_URL="redis://:tldr_redis_password@localhost:6379/0"
 
 # Relaxed security for development
 SECRET_KEY="dev-secret-key-not-for-production"
@@ -561,7 +561,7 @@ DATABASE_POOL_SIZE=25
 DATABASE_MAX_OVERFLOW=50
 
 # Production Redis
-REDIS_URL="redis://prod-redis:6379/0"
+REDIS_URL="redis://:secure-redis-password@prod-redis:6379/0"
 REDIS_PASSWORD="secure-redis-password"
 
 # Strong security

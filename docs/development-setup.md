@@ -5,7 +5,7 @@ This guide will help you set up a local development environment for the TL;DR Hi
 ## 📋 Prerequisites
 
 ### System Requirements
-- **Python 3.11+** (Python 3.12 recommended)
+- **Python 3.13+**
 - **Docker & Docker Compose** (for local services)
 - **Git** (latest version)
 - **FFmpeg 4.4+** (for video processing)
@@ -43,8 +43,8 @@ uv pip install -e ".[dev]"
 
 ### 4. Start Infrastructure Services
 ```bash
-# Start PostgreSQL, Redis, and RabbitMQ
-docker-compose up -d postgres redis rabbitmq
+# Start PostgreSQL, Redis, and MinIO
+docker-compose up -d postgres redis minio
 ```
 
 ### 5. Configure Environment
@@ -125,21 +125,21 @@ docker-compose down
 
 #### Local Installation (Alternative)
 
-**PostgreSQL 13+**
+**PostgreSQL 16+**
 ```bash
 # macOS (Homebrew)
-brew install postgresql@13
-brew services start postgresql@13
+brew install postgresql@16
+brew services start postgresql@16
 
 # Ubuntu/Debian
 sudo apt update
-sudo apt install postgresql-13 postgresql-contrib
+sudo apt install postgresql-16 postgresql-contrib
 
 # Create database
-createdb tldr_highlight_api
+createdb tldr_highlights
 ```
 
-**Redis 6+**
+**Redis 7+**
 ```bash
 # macOS (Homebrew)
 brew install redis
@@ -150,15 +150,16 @@ sudo apt install redis-server
 sudo systemctl start redis-server
 ```
 
-**RabbitMQ (for Celery)**
+**MinIO (for S3-compatible storage)**
 ```bash
 # macOS (Homebrew)
-brew install rabbitmq
-brew services start rabbitmq
+brew install minio/stable/minio
+minio server /tmp/minio_data
 
 # Ubuntu/Debian
-sudo apt install rabbitmq-server
-sudo systemctl start rabbitmq-server
+wget https://dl.min.io/server/minio/release/linux-amd64/minio
+chmod +x minio
+./minio server /tmp/minio_data
 ```
 
 ### FFmpeg Installation
@@ -218,7 +219,7 @@ Create a `.env` file in the project root:
 ```bash
 # Application Settings
 APP_NAME="TL;DR Highlight API"
-APP_VERSION="1.0.0"
+APP_VERSION="0.1.0"
 APP_ENVIRONMENT="development"
 DEBUG=true
 LOG_LEVEL="DEBUG"
@@ -228,24 +229,25 @@ API_V1_PREFIX="/api/v1"
 API_KEY_HEADER="X-API-Key"
 
 # Database Configuration
-DATABASE_URL="postgresql+asyncpg://postgres:password@localhost:5432/tldr_highlight_api"
+DATABASE_URL="postgresql+asyncpg://tldr_user:tldr_password@localhost:5433/tldr_highlights"
 
 # Redis Configuration
-REDIS_URL="redis://localhost:6379/0"
+REDIS_URL="redis://:tldr_redis_password@localhost:6379/0"
 CACHE_TTL=3600
 
 # Celery Configuration
-CELERY_BROKER_URL="redis://localhost:6379/1"
-CELERY_RESULT_BACKEND="redis://localhost:6379/2"
+CELERY_BROKER_URL="redis://:tldr_redis_password@localhost:6379/1"
+CELERY_RESULT_BACKEND="redis://:tldr_redis_password@localhost:6379/2"
 
 # AI Services
 GEMINI_API_KEY="your_gemini_api_key_here"
 GEMINI_MODEL="gemini-2.0-flash-exp"
 
-# Storage
-AWS_ACCESS_KEY_ID="your_access_key"
-AWS_SECRET_ACCESS_KEY="your_secret_key"
-AWS_S3_BUCKET="tldr-dev-highlights"
+# Storage (MinIO for local development)
+AWS_ACCESS_KEY_ID="tldr_minio_admin"
+AWS_SECRET_ACCESS_KEY="tldr_minio_password"
+AWS_S3_BUCKET="tldr-highlights"
+AWS_S3_ENDPOINT_URL="http://localhost:9010"
 AWS_REGION="us-east-1"
 
 # Security
@@ -282,30 +284,39 @@ The included `docker-compose.yml` provides local development services:
 ```yaml
 services:
   postgres:
-    image: postgres:13
+    image: postgres:16-alpine
+    container_name: tldr_postgres
     environment:
-      POSTGRES_DB: tldr_highlight_api
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
+      POSTGRES_USER: tldr_user
+      POSTGRES_PASSWORD: tldr_password
+      POSTGRES_DB: tldr_highlights
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
   redis:
-    image: redis:6-alpine
+    image: redis:7-alpine
+    container_name: tldr_redis
+    command: redis-server --appendonly yes --requirepass tldr_redis_password
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
 
-  rabbitmq:
-    image: rabbitmq:3-management-alpine
+  minio:
+    image: minio/minio:latest
+    container_name: tldr_minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: tldr_minio_admin
+      MINIO_ROOT_PASSWORD: tldr_minio_password
+      MINIO_DEFAULT_BUCKETS: tldr-highlights,tldr-temp
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "9010:9000"  # API
+      - "9011:9001"  # Console
     volumes:
-      - rabbitmq_data:/var/lib/rabbitmq
+      - minio_data:/data
 ```
 
 ## 🧪 Development Workflow

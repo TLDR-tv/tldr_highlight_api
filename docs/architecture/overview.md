@@ -300,12 +300,12 @@ graph TB
 ## 🔧 Technology Stack
 
 ### Core Technologies
-- **Python 3.11+**: Modern Python with async support
+- **Python 3.13+**: Modern Python with async support
 - **FastAPI**: High-performance web framework
 - **SQLAlchemy 2.0**: Modern ORM with async support
 - **Celery**: Distributed task queue
 - **Redis**: Caching and message broker
-- **PostgreSQL**: Primary data store
+- **PostgreSQL 16+**: Primary data store
 
 ### AI & Media Processing
 - **Google Gemini**: Multi-modal AI analysis

@@ -81,9 +81,9 @@ Welcome to the comprehensive documentation for the TL;DR Highlight API - an ente
 
 ## 📋 Requirements
 
-- Python 3.11+
-- PostgreSQL 13+
-- Redis 6+
+- Python 3.13+
+- PostgreSQL 16+
+- Redis 7+
 - FFmpeg 4.4+
 - Docker & Docker Compose (for local development)
 
@@ -97,4 +97,4 @@ This project is proprietary software. See the LICENSE file for details.
 
 ---
 
-*Last updated: 2025-01-30*
+*Last updated: 2025-07-30*
