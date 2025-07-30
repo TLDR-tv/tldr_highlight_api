@@ -123,8 +123,8 @@ class Organization(Entity[int]):
         return len(self.member_ids) + 1  # +1 for owner
 
     def can_add_member(self) -> bool:
-        """Check if organization can add more members."""
-        return self.member_count < self.plan_limits.team_members
+        """Check if organization can add more members (unlimited for now)."""
+        return True  # No limits for now
 
     def add_member(self, user_id: int) -> "Organization":
         """Add a member to the organization."""
@@ -134,10 +134,7 @@ class Organization(Entity[int]):
         if user_id in self.member_ids:
             return self
 
-        if not self.can_add_member():
-            raise ValueError(
-                f"Organization has reached member limit of {self.plan_limits.team_members}"
-            )
+        # No member limits for first client - unlimited members allowed
 
         new_member_ids = self.member_ids.copy()
         new_member_ids.append(user_id)
@@ -148,7 +145,6 @@ class Organization(Entity[int]):
             owner_id=self.owner_id,
             plan_type=self.plan_type,
             member_ids=new_member_ids,
-            custom_limits=self.custom_limits.copy() if self.custom_limits else None,
             settings=self.settings.copy(),
             subscription_started_at=self.subscription_started_at,
             subscription_ends_at=self.subscription_ends_at,
@@ -170,7 +166,6 @@ class Organization(Entity[int]):
             owner_id=self.owner_id,
             plan_type=self.plan_type,
             member_ids=new_member_ids,
-            custom_limits=self.custom_limits.copy() if self.custom_limits else None,
             settings=self.settings.copy(),
             subscription_started_at=self.subscription_started_at,
             subscription_ends_at=self.subscription_ends_at,
@@ -190,7 +185,6 @@ class Organization(Entity[int]):
             owner_id=self.owner_id,
             plan_type=new_plan,
             member_ids=self.member_ids.copy(),
-            custom_limits=self.custom_limits.copy() if self.custom_limits else None,
             settings=self.settings.copy(),
             subscription_started_at=Timestamp.now(),
             subscription_ends_at=self.subscription_ends_at,
@@ -207,7 +201,6 @@ class Organization(Entity[int]):
             owner_id=self.owner_id,
             plan_type=self.plan_type,
             member_ids=self.member_ids.copy(),
-            custom_limits=self.custom_limits.copy() if self.custom_limits else None,
             settings=self.settings.copy(),
             subscription_started_at=self.subscription_started_at,
             subscription_ends_at=self.subscription_ends_at,

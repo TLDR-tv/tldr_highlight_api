@@ -309,7 +309,7 @@ async def get_organization_usage(
             else "Failed to get usage statistics",
         )
 
-    # Combine usage data with plan limits
+    # Collect usage data (no limits enforced)
     usage_data = {
         "total_streams": usage_result.total_streams or 0,
         "total_batch_videos": 0,  # Not implemented in use case yet
@@ -317,11 +317,4 @@ async def get_organization_usage(
         "storage_used_gb": usage_result.storage_used_gb or 0,
     }
 
-    if not org_result.organization:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Organization data not available",
-        )
-    plan_limits = org_result.organization.plan_limits
-
-    return mapper.to_organization_usage_stats(usage_data, plan_limits)
+    return mapper.to_organization_usage_stats(usage_data)

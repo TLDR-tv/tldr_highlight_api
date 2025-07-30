@@ -1,7 +1,7 @@
 """Organization management domain service.
 
 This service handles organization lifecycle, member management,
-plan upgrades, and quota enforcement.
+and plan upgrades. All limits are unlimited for first client.
 """
 
 from typing import Dict, Any
@@ -21,7 +21,6 @@ from src.domain.exceptions import (
     EntityNotFoundError,
     DuplicateEntityError,
     BusinessRuleViolation,
-    QuotaExceededError,
     UnauthorizedAccessError,
 )
 
@@ -29,8 +28,8 @@ from src.domain.exceptions import (
 class OrganizationManagementService(BaseDomainService):
     """Domain service for organization management.
 
-    Handles organization lifecycle, member management, plan changes,
-    and enforces business rules around quotas and limits.
+    Handles organization lifecycle, member management, and plan changes.
+    All limits are unlimited for first client.
     """
 
     def __init__(
@@ -154,12 +153,10 @@ class OrganizationManagementService(BaseDomainService):
                 "User is already a member of another organization"
             )
 
-        # Add member (will check quota)
+        # Add member (no limits enforced)
         try:
             updated_org = org.add_member(user_id)
         except ValueError as e:
-            if "member limit" in str(e):
-                raise QuotaExceededError(str(e))
             raise BusinessRuleViolation(str(e))
 
         # Save updated organization
@@ -274,14 +271,14 @@ class OrganizationManagementService(BaseDomainService):
 
         return saved_org
 
-    async def check_and_enforce_quotas(self, organization_id: int) -> Dict[str, Any]:
-        """Check current usage against plan quotas.
+    async def get_usage_statistics(self, organization_id: int) -> Dict[str, Any]:
+        """Get current usage statistics (no limits enforced).
 
         Args:
             organization_id: Organization ID
 
         Returns:
-            Dictionary with quota status for each resource
+            Dictionary with usage statistics for tracking
 
         Raises:
             EntityNotFoundError: If organization doesn't exist
@@ -291,9 +288,7 @@ class OrganizationManagementService(BaseDomainService):
         if not org:
             raise EntityNotFoundError(f"Organization {organization_id} not found")
 
-        plan_limits = org.plan_limits
-
-        # Get current usage for various resources
+        # Get current usage for various resources (for statistics only)
 
         # API Keys
         api_keys = await self.api_key_repo.get_by_user(org.owner_id, active_only=True)
@@ -319,48 +314,17 @@ class OrganizationManagementService(BaseDomainService):
         )
         processing_minutes = monthly_usage.get("total_quantity", 0)
 
-        # API rate limit is enforced at runtime, just report the limit
-
-        quota_status = {
-            "api_keys": {
-                "used": api_key_count,
-                "limit": plan_limits.api_keys,
-                "available": plan_limits.api_keys - api_key_count,
-                "at_limit": api_key_count >= plan_limits.api_keys,
-            },
-            "webhooks": {
-                "used": webhook_count,
-                "limit": plan_limits.webhook_endpoints,
-                "available": plan_limits.webhook_endpoints - webhook_count,
-                "at_limit": webhook_count >= plan_limits.webhook_endpoints,
-            },
-            "concurrent_streams": {
-                "used": concurrent_streams,
-                "limit": plan_limits.concurrent_streams,
-                "available": plan_limits.concurrent_streams - concurrent_streams,
-                "at_limit": concurrent_streams >= plan_limits.concurrent_streams,
-            },
-            "monthly_processing_minutes": {
-                "used": processing_minutes,
-                "limit": plan_limits.monthly_processing_minutes,
-                "available": max(
-                    0, plan_limits.monthly_processing_minutes - processing_minutes
-                ),
-                "at_limit": processing_minutes
-                >= plan_limits.monthly_processing_minutes,
-            },
-            "team_members": {
-                "used": org.member_count,
-                "limit": plan_limits.team_members,
-                "available": plan_limits.team_members - org.member_count,
-                "at_limit": org.member_count >= plan_limits.team_members,
-            },
-            "api_rate_limit_per_minute": {
-                "limit": plan_limits.api_rate_limit_per_minute
-            },
+        # Return usage statistics (no limits enforced - unlimited for all)
+        usage_stats = {
+            "api_keys": {"used": api_key_count},
+            "webhooks": {"used": webhook_count},
+            "concurrent_streams": {"used": concurrent_streams},
+            "monthly_processing_minutes": {"used": processing_minutes},
+            "team_members": {"used": org.member_count},
+            "note": "All limits are unlimited for first client",
         }
 
-        return quota_status
+        return usage_stats
 
     async def get_organization_analytics(
         self, organization_id: int, days: int = 30
@@ -420,7 +384,7 @@ class OrganizationManagementService(BaseDomainService):
             usage_type.value: data for usage_type, data in usage_by_type.items()
         }
         analytics["member_activity"] = member_activity
-        analytics["quota_status"] = await self.check_and_enforce_quotas(organization_id)
+        analytics["usage_statistics"] = await self.get_usage_statistics(organization_id)
 
         return analytics
 

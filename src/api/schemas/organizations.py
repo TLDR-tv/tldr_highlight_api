@@ -51,17 +51,7 @@ class OrganizationResponse(BaseModel):
         example="2024-01-15T10:30:00Z",
     )
 
-    plan_limits: Dict[str, int] = Field(
-        ...,
-        description="Usage limits based on the subscription plan",
-        example={
-            "monthly_streams": 1000,
-            "monthly_batch_videos": 5000,
-            "max_stream_duration_hours": 8,
-            "webhook_endpoints": 5,
-            "api_rate_limit_per_minute": 300,
-        },
-    )
+    # Plan limits removed - all organizations have unlimited access for now
 
     class Config:
         from_attributes = True
@@ -156,18 +146,5 @@ class OrganizationUsageStats(BaseModel):
         },
     )
 
-    plan_limits: Dict[str, int] = Field(
-        ...,
-        description="Plan limits for comparison",
-        example={
-            "monthly_streams": 1000,
-            "monthly_batch_videos": 5000,
-            "api_rate_limit_per_minute": 300,
-        },
-    )
-
-    usage_percentage: Dict[str, float] = Field(
-        ...,
-        description="Usage as percentage of plan limits",
-        example={"streams": 4.5, "batch_videos": 4.6, "api_calls": 41.7},
-    )
+    # Plan limits and usage percentages removed - unlimited access for now
+    # Usage is still tracked for statistics but no limits are enforced

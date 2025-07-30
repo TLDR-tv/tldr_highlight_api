@@ -25,7 +25,6 @@ from src.domain.services.highlight_detection_service import (
 from src.domain.services.webhook_delivery_service import WebhookDeliveryService
 from src.domain.services.usage_tracking_service import UsageTrackingService
 from src.domain.exceptions import (
-    QuotaExceededError,
     BusinessRuleViolation,
     InvalidResourceStateError,
 )
@@ -276,13 +275,7 @@ class StreamProcessingUseCase(UseCase[StreamStartRequest, StreamStartResult]):
                 message="Stream processing started successfully",
             )
 
-        except QuotaExceededError as e:
-            logfire.warning(
-                "use_case.stream.quota_exceeded", user_id=request.user_id, error=str(e)
-            )
-            return StreamStartResult(
-                status=ResultStatus.QUOTA_EXCEEDED, errors=[str(e)]
-            )
+        # No quota limits for first client - this exception is no longer raised
         except BusinessRuleViolation as e:
             logfire.warning(
                 "use_case.stream.validation_error",

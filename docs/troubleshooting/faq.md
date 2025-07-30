@@ -63,35 +63,36 @@ You can adjust confidence thresholds and customize dimensions to optimize for yo
 ## 🏢 Business & Pricing
 
 ### Q: What subscription plans are available?
-**A:** We offer four tiers:
+**A:** Currently, all organizations have unlimited access:
 
 | Plan | Processing Hours/Month | API Calls/Month | Features |
 |------|----------------------|-----------------|----------|
-| **Starter** | 50 hours | 10K calls | Basic analysis, standard support |
-| **Professional** | 200 hours | 50K calls | Custom dimensions, priority processing |
-| **Enterprise** | 1000+ hours | 500K+ calls | White-label, SLA, dedicated support |
-| **Custom** | Unlimited | Unlimited | Custom features, on-premise options |
+| **All Plans** | Unlimited | Unlimited | Full feature access, comprehensive support |
+
+*Note: We're currently offering unlimited usage for our first clients while we optimize the platform.*
 
 ### Q: How is usage calculated and billed?
-**A:** Usage is tracked across multiple dimensions:
-- **Processing time**: Actual analysis time (usually 10-20% of video duration)
-- **API calls**: REST API requests (webhooks don't count)
-- **Storage**: Highlight files and thumbnails
-- **AI analysis**: Gemini API usage for content analysis
+**A:** Usage is tracked for statistics but not billed currently:
+- **Processing time**: Tracked for analytics (no limits)
+- **API calls**: Tracked for analytics (no limits)
+- **Storage**: Tracked for analytics (no limits)
+- **AI analysis**: Tracked for analytics (no limits)
+
+*Note: All usage is currently unlimited for our first clients.*
 
 ### Q: Is there a free trial available?
 **A:** Yes! We offer:
-- **14-day free trial** with Starter plan limits
-- **No credit card required** for trial
-- **Full feature access** during trial period
-- **Migration support** from trial to paid plans
+- **Unlimited access** for early clients
+- **No credit card required** 
+- **Full feature access** with unlimited usage
+- **Priority support** during early access period
 
 ### Q: Can I upgrade or downgrade my plan?
-**A:** Absolutely:
-- **Upgrades**: Take effect immediately with prorated billing
-- **Downgrades**: Take effect at next billing cycle
-- **Custom plans**: Contact sales for enterprise needs
-- **Usage overage**: Automatic upgrade options available
+**A:** Currently all plans have unlimited access:
+- **Plan changes**: Available but all have same unlimited limits
+- **Custom configurations**: Contact us for specific needs
+- **Enterprise features**: Available to all during early access
+- **No usage limits**: No overage charges or restrictions
 
 ## 🔐 Security & Compliance
 
@@ -152,20 +153,23 @@ You can adjust confidence thresholds and customize dimensions to optimize for yo
 - **Testing**: Webhook tester available in dashboard
 
 ### Q: Can I process multiple streams simultaneously?
-**A:** Yes:
-- **Starter**: Up to 5 concurrent streams
-- **Professional**: Up to 20 concurrent streams  
-- **Enterprise**: Up to 100+ concurrent streams
-- **Custom**: Unlimited concurrent processing
-- **Queue management**: Priority processing for paid tiers
+**A:** Yes, unlimited concurrent processing:
+- **All Plans**: Unlimited concurrent streams
+- **No restrictions**: Process as many streams as needed
+- **High performance**: Optimized for concurrent processing
+- **Queue management**: All streams get priority processing
+
+*Note: Unlimited concurrent processing during early access.*
 
 ### Q: What's the rate limiting policy?
-**A:** Rate limits vary by plan:
-- **Authentication endpoints**: 10 requests/minute
-- **Stream creation**: Plan-dependent (5-100/minute)
-- **Data retrieval**: Plan-dependent (100-10K/minute)
+**A:** Very generous rate limits for all users:
+- **Authentication endpoints**: 1000 requests/minute
+- **Stream creation**: 1000 requests/minute (effectively unlimited)
+- **Data retrieval**: 10,000 requests/minute (effectively unlimited)
 - **Webhooks**: No limits on receiving
-- **Headers**: Rate limit info in response headers
+- **Headers**: Rate limit info still in response headers
+
+*Note: Extremely high limits during early access period.*
 
 ## 🎥 Content Processing
 

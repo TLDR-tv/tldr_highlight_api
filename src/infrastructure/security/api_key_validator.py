@@ -195,18 +195,8 @@ class APIKeyValidator:
         Returns:
             Rate limit per minute
         """
-        try:
-            # Get user's organization
-            if api_key.user.owned_organizations:
-                org = api_key.user.owned_organizations[0]
-                return org.plan_limits.get("api_rate_limit_per_minute", 60)
-
-            # Default rate limit if no organization
-            return 60
-
-        except Exception as e:
-            logger.error(f"Error getting rate limit for API key: {e}")
-            return 60  # Default fallback
+        # No rate limits for first client - return high limit for unlimited usage
+        return 10000  # Very high limit effectively means unlimited
 
     async def validate_scopes(self, scopes: List[str]) -> bool:
         """Validate that provided scopes are valid.

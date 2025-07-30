@@ -39,16 +39,12 @@ class OrganizationMapper:
     @staticmethod
     def to_organization_response(organization: Organization) -> OrganizationResponse:
         """Convert Organization domain entity to response DTO."""
-        # Get plan limits based on plan type
-        plan_limits = organization.plan_limits
-
         return OrganizationResponse(
             id=organization.id,
             name=organization.name.value,
             owner_id=organization.owner_id,
             plan_type=organization.plan_type.value,
             created_at=organization.created_at.value,
-            plan_limits=plan_limits,
         )
 
     @staticmethod
@@ -140,9 +136,9 @@ class OrganizationMapper:
 
     @staticmethod
     def to_organization_usage_stats(
-        usage_result: dict, plan_limits: dict
+        usage_result: dict
     ) -> OrganizationUsageStats:
-        """Convert usage result to response DTO."""
+        """Convert usage result to response DTO (unlimited limits)."""
         # Calculate current month usage
         current_usage = {
             "streams_processed": usage_result.get("total_streams", 0),
@@ -151,27 +147,6 @@ class OrganizationMapper:
             "storage_used_gb": usage_result.get("storage_used_gb", 0),
         }
 
-        # Calculate usage percentages
-        usage_percentage = {}
-        if plan_limits.get("monthly_streams", 0) > 0:
-            usage_percentage["streams"] = (
-                current_usage["streams_processed"] / plan_limits["monthly_streams"]
-            ) * 100
-
-        if plan_limits.get("monthly_batch_videos", 0) > 0:
-            usage_percentage["batch_videos"] = (
-                current_usage["batch_videos_processed"]
-                / plan_limits["monthly_batch_videos"]
-            ) * 100
-
-        if plan_limits.get("api_rate_limit_per_minute", 0) > 0:
-            monthly_api_limit = plan_limits["api_rate_limit_per_minute"] * 60 * 24 * 30
-            usage_percentage["api_calls"] = (
-                current_usage["total_api_calls"] / monthly_api_limit
-            ) * 100
-
         return OrganizationUsageStats(
             current_month=current_usage,
-            plan_limits=plan_limits,
-            usage_percentage=usage_percentage,
         )

@@ -16,7 +16,6 @@ from src.domain.value_objects.timestamp import Timestamp
 from src.domain.value_objects.processing_options import ProcessingOptions
 from src.domain.exceptions import (
     EntityNotFoundError,
-    QuotaExceededError,
     InvalidStateTransition,
 )
 from src.domain.repositories.stream_repository import StreamRepository
@@ -508,23 +507,15 @@ class StreamProcessingService(BaseDomainService):
         active_streams = await self.stream_repo.get_active_streams()
         user_active_count = sum(1 for s in active_streams if s.user_id == user_id)
 
-        # Get limit from organization plan or use default
-        limit = 1  # Default for free users
-        if org:
-            limit = org.plan_limits.concurrent_streams
-
-        if user_active_count >= limit:
-            logfire.warning(
-                "quota.exceeded",
-                user_id=user_id,
-                organization_id=org.id if org else None,
-                limit=limit,
-                current_count=user_active_count,
-            )
-            raise QuotaExceededError(
-                f"Concurrent stream limit ({limit}) exceeded. "
-                f"Please wait for current streams to complete."
-            )
+        # No concurrent stream limits for first client - unlimited processing
+        # Log usage for statistics but don't enforce limits
+        logfire.info(
+            "stream.concurrent_usage",
+            user_id=user_id,
+            organization_id=org.id if org else None,
+            current_count=user_active_count,
+            note="No limits enforced - unlimited for first client",
+        )
 
     def _detect_platform(self, url: str) -> StreamPlatform:
         """Detect streaming platform from URL."""

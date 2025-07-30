@@ -62,15 +62,15 @@ class Organization:
 
 **Business Rules:**
 - Must have unique name and slug
-- Subscription plan determines feature access and limits
+- Subscription plan for reference only (no limits enforced)
 - Processing settings isolated per organization
 - Cannot be deleted if active streams exist
 
-**Subscription Plans:**
-- **Starter**: Basic features, limited processing
-- **Professional**: Advanced features, higher limits  
-- **Enterprise**: Full features, custom limits
-- **Custom**: Tailored plans for specific needs
+**Subscription Plans (for reference only - all plans have unlimited limits):**
+- **Starter**: Basic features, unlimited processing
+- **Professional**: Advanced features, unlimited processing  
+- **Enterprise**: Full features, unlimited processing
+- **Custom**: Tailored plans, unlimited processing
 
 ### Stream Entity
 
