@@ -6,7 +6,7 @@ from sqlalchemy import select, func, and_, or_, text
 from sqlalchemy.orm import selectinload
 
 from src.domain.repositories.highlight_repository import HighlightRepository as IHighlightRepository
-from src.domain.entities.highlight import Highlight, HighlightType
+from src.domain.entities.highlight import Highlight
 from src.domain.value_objects.timestamp import Timestamp
 from src.domain.exceptions import EntityNotFoundError
 from src.infrastructure.persistence.repositories.base_repository import BaseRepository
@@ -28,7 +28,7 @@ class HighlightRepository(BaseRepository[Highlight, HighlightModel, int], IHighl
     
     async def get_by_stream(self, stream_id: int,
                           min_confidence: Optional[float] = None,
-                          types: Optional[List[HighlightType]] = None) -> List[Highlight]:
+                          types: Optional[List[str]] = None) -> List[Highlight]:
         """Get highlights for a stream with optional filters.
         
         Args:
@@ -47,7 +47,7 @@ class HighlightRepository(BaseRepository[Highlight, HighlightModel, int], IHighl
             stmt = stmt.where(HighlightModel.confidence_score >= min_confidence)
         
         if types:
-            type_values = [t.value for t in types]
+            type_values = types  # Already strings
             stmt = stmt.where(HighlightModel.highlight_type.in_(type_values))
         
         # Order by confidence score and start time
@@ -118,7 +118,7 @@ class HighlightRepository(BaseRepository[Highlight, HighlightModel, int], IHighl
         
         return self.mapper.to_domain_list(models)
     
-    async def get_by_type(self, highlight_type: HighlightType,
+    async def get_by_type(self, highlight_type: str,
                         user_id: Optional[int] = None,
                         limit: int = 100) -> List[Highlight]:
         """Get highlights by type.
@@ -132,7 +132,7 @@ class HighlightRepository(BaseRepository[Highlight, HighlightModel, int], IHighl
             List of highlights of the specified type
         """
         stmt = select(HighlightModel).where(
-            HighlightModel.highlight_type == highlight_type.value
+            HighlightModel.highlight_type == highlight_type
         )
         
         if user_id:

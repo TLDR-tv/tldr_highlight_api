@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Optional, List, Dict, Any
 
 from src.application.use_cases.base import UseCase, UseCaseResult, ResultStatus
-from src.domain.entities.highlight import Highlight, HighlightType
+from src.domain.entities.highlight import Highlight
 from src.domain.repositories.highlight_repository import HighlightRepository
 from src.domain.repositories.stream_repository import StreamRepository
 from src.domain.repositories.user_repository import UserRepository

@@ -4,7 +4,7 @@ import json
 from typing import Optional
 
 from src.infrastructure.persistence.mappers.base import Mapper
-from src.domain.entities.highlight import Highlight as DomainHighlight, HighlightType
+from src.domain.entities.highlight import Highlight as DomainHighlight
 from src.domain.value_objects.timestamp import Timestamp
 from src.domain.value_objects.duration import Duration
 from src.domain.value_objects.confidence_score import ConfidenceScore
@@ -31,7 +31,7 @@ class HighlightMapper(Mapper[DomainHighlight, PersistenceHighlight]):
             start_time=Duration(model.start_time_seconds),
             end_time=Duration(model.end_time_seconds),
             confidence_score=ConfidenceScore(model.confidence_score),
-            highlight_type=HighlightType(model.highlight_type),
+            highlight_types=model.highlight_types or [],
             title=model.title,
             description=model.description,
             thumbnail_url=Url(model.thumbnail_url) if model.thumbnail_url else None,
@@ -59,7 +59,7 @@ class HighlightMapper(Mapper[DomainHighlight, PersistenceHighlight]):
         model.start_time_seconds = float(entity.start_time)
         model.end_time_seconds = float(entity.end_time)
         model.confidence_score = float(entity.confidence_score)
-        model.highlight_type = entity.highlight_type.value
+        model.highlight_types = entity.highlight_types
         
         # Set content attributes
         model.title = entity.title

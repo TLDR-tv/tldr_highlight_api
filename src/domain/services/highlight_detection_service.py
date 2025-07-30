@@ -1,21 +1,27 @@
 """Highlight detection domain service.
 
-This service orchestrates the highlight detection process, aggregating
-results from multiple detectors and creating highlight entities.
+This service orchestrates the highlight detection process using
+configurable dimensions and analysis strategies.
 """
 
 from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime
 
 from src.domain.services.base import BaseDomainService
-from src.domain.entities.highlight import Highlight, HighlightType
+from src.domain.entities.highlight import Highlight
 from src.domain.entities.stream import Stream
+from src.domain.entities.dimension_set import DimensionSet
+from src.domain.entities.highlight_type_registry import HighlightTypeRegistry
 from src.domain.value_objects.confidence_score import ConfidenceScore
 from src.domain.value_objects.duration import Duration
 from src.domain.value_objects.timestamp import Timestamp
 from src.domain.value_objects.url import Url
+from src.domain.value_objects.processing_options import ProcessingOptions, FusionStrategy
+from src.domain.services.analysis_strategies import AnalysisStrategy, AnalysisSegment, AnalysisResult
 from src.domain.repositories.highlight_repository import HighlightRepository
 from src.domain.repositories.stream_repository import StreamRepository
+from src.domain.repositories.dimension_set_repository import DimensionSetRepository
+from src.domain.repositories.highlight_type_registry_repository import HighlightTypeRegistryRepository
 from src.domain.exceptions import EntityNotFoundError, BusinessRuleViolation
 
 
@@ -40,33 +46,398 @@ class DetectionResult:
 class HighlightDetectionService(BaseDomainService):
     """Domain service for highlight detection orchestration.
     
-    Aggregates results from multiple detectors (video, audio, chat),
-    applies fusion scoring, and creates highlight entities.
+    Uses configurable dimensions and analysis strategies to detect
+    highlights in multi-modal content.
     """
     
     def __init__(
         self,
         highlight_repo: HighlightRepository,
         stream_repo: StreamRepository,
-        min_confidence_threshold: float = 0.7,
-        min_duration_seconds: float = 5.0,
-        max_duration_seconds: float = 120.0
+        dimension_set_repo: DimensionSetRepository,
+        type_registry_repo: HighlightTypeRegistryRepository,
+        analysis_strategies: Dict[str, AnalysisStrategy]
     ):
         """Initialize highlight detection service.
         
         Args:
             highlight_repo: Repository for highlight operations
             stream_repo: Repository for stream operations
-            min_confidence_threshold: Minimum confidence score to create highlight
-            min_duration_seconds: Minimum highlight duration
-            max_duration_seconds: Maximum highlight duration
+            dimension_set_repo: Repository for dimension sets
+            type_registry_repo: Repository for highlight type registries
+            analysis_strategies: Map of strategy names to implementations
         """
         super().__init__()
         self.highlight_repo = highlight_repo
         self.stream_repo = stream_repo
-        self.min_confidence_threshold = min_confidence_threshold
-        self.min_duration_seconds = min_duration_seconds
-        self.max_duration_seconds = max_duration_seconds
+        self.dimension_set_repo = dimension_set_repo
+        self.type_registry_repo = type_registry_repo
+        self.analysis_strategies = analysis_strategies
+    
+    async def process_stream_segment(
+        self,
+        stream_id: int,
+        segment_data: Dict[str, Any],
+        processing_options: ProcessingOptions
+    ) -> List[Highlight]:
+        """Process a stream segment to detect highlights.
+        
+        Args:
+            stream_id: Stream ID
+            segment_data: Multi-modal segment data
+            processing_options: Processing configuration
+            
+        Returns:
+            List of detected highlights
+            
+        Raises:
+            EntityNotFoundError: If required entities don't exist
+        """
+        # Verify stream exists
+        stream = await self.stream_repo.get(stream_id)
+        if not stream:
+            raise EntityNotFoundError(f"Stream {stream_id} not found")
+        
+        # Load dimension set if specified
+        dimension_set = None
+        if processing_options.dimension_set_id:
+            dimension_set = await self.dimension_set_repo.get(processing_options.dimension_set_id)
+            if not dimension_set:
+                raise EntityNotFoundError(f"DimensionSet {processing_options.dimension_set_id} not found")
+        
+        # Load type registry if specified
+        type_registry = None
+        if processing_options.type_registry_id:
+            type_registry = await self.type_registry_repo.get(processing_options.type_registry_id)
+            if not type_registry:
+                raise EntityNotFoundError(f"TypeRegistry {processing_options.type_registry_id} not found")
+        
+        # Create analysis segment
+        analysis_segment = AnalysisSegment(
+            start_time=segment_data.get("start_time", 0.0),
+            end_time=segment_data.get("end_time", 0.0),
+            video_frames=segment_data.get("video_frames", []),
+            audio_data=segment_data.get("audio_data", {}),
+            text_data=segment_data.get("text_data", {}),
+            metadata=segment_data.get("metadata", {}),
+            social_data=segment_data.get("social_data", {})
+        )
+        
+        # Get analysis strategy
+        strategy = self.analysis_strategies.get(processing_options.detection_strategy.value)
+        if not strategy:
+            raise BusinessRuleViolation(f"Unknown analysis strategy: {processing_options.detection_strategy}")
+        
+        # Configure strategy with dimension set
+        if dimension_set and hasattr(strategy, 'set_dimensions'):
+            strategy.set_dimensions(dimension_set)
+        
+        # Analyze segment
+        analysis_result = await strategy.analyze(analysis_segment)
+        
+        # Apply fusion strategy if multiple modalities
+        if len(analysis_result.modality_scores) > 1:
+            fused_scores = self._apply_fusion_strategy(
+                analysis_result.modality_scores,
+                processing_options.fusion_strategy,
+                processing_options.modality_weights
+            )
+            analysis_result.dimension_scores = fused_scores
+        
+        # Check if segment qualifies as highlight
+        if self._is_highlight(analysis_result, processing_options):
+            highlight = await self._create_highlight(
+                stream_id,
+                analysis_segment,
+                analysis_result,
+                type_registry
+            )
+            return [highlight]
+        
+        return []
+    
+    async def detect_highlights_batch(
+        self,
+        stream_id: int,
+        segments: List[Dict[str, Any]],
+        processing_options: ProcessingOptions
+    ) -> List[Highlight]:
+        """Process multiple segments to detect highlights.
+        
+        Args:
+            stream_id: Stream ID
+            segments: List of segment data
+            processing_options: Processing configuration
+            
+        Returns:
+            List of detected highlights
+        """
+        highlights = []
+        
+        for segment_data in segments:
+            segment_highlights = await self.process_stream_segment(
+                stream_id,
+                segment_data,
+                processing_options
+            )
+            highlights.extend(segment_highlights)
+        
+        # Post-process to merge adjacent highlights
+        if highlights:
+            highlights = await self._post_process_highlights(highlights, processing_options)
+        
+        return highlights
+    
+    def _apply_fusion_strategy(
+        self,
+        modality_scores: Dict[str, Dict[str, float]],
+        fusion_strategy: FusionStrategy,
+        modality_weights: Dict[str, float]
+    ) -> Dict[str, float]:
+        """Apply fusion strategy to combine modality scores.
+        
+        Args:
+            modality_scores: Scores per modality per dimension
+            fusion_strategy: Strategy to use
+            modality_weights: Weights for each modality
+            
+        Returns:
+            Fused dimension scores
+        """
+        if fusion_strategy == FusionStrategy.WEIGHTED:
+            return self._weighted_fusion(modality_scores, modality_weights)
+        elif fusion_strategy == FusionStrategy.CONSENSUS:
+            return self._consensus_fusion(modality_scores)
+        elif fusion_strategy == FusionStrategy.CASCADE:
+            return self._cascade_fusion(modality_scores, modality_weights)
+        elif fusion_strategy == FusionStrategy.MAX_CONFIDENCE:
+            return self._max_confidence_fusion(modality_scores)
+        else:
+            # Default to weighted
+            return self._weighted_fusion(modality_scores, modality_weights)
+    
+    def _weighted_fusion(
+        self,
+        modality_scores: Dict[str, Dict[str, float]],
+        modality_weights: Dict[str, float]
+    ) -> Dict[str, float]:
+        """Weighted average fusion."""
+        fused_scores = {}
+        
+        # Get all dimensions
+        all_dimensions = set()
+        for scores in modality_scores.values():
+            all_dimensions.update(scores.keys())
+        
+        # Calculate weighted average for each dimension
+        for dimension in all_dimensions:
+            weighted_sum = 0.0
+            weight_sum = 0.0
+            
+            for modality, scores in modality_scores.items():
+                if dimension in scores:
+                    weight = modality_weights.get(modality, 1.0)
+                    weighted_sum += scores[dimension] * weight
+                    weight_sum += weight
+            
+            if weight_sum > 0:
+                fused_scores[dimension] = weighted_sum / weight_sum
+        
+        return fused_scores
+    
+    def _consensus_fusion(self, modality_scores: Dict[str, Dict[str, float]]) -> Dict[str, float]:
+        """Consensus-based fusion - all modalities must agree."""
+        fused_scores = {}
+        
+        # Get dimensions present in all modalities
+        if not modality_scores:
+            return fused_scores
+        
+        common_dimensions = set(next(iter(modality_scores.values())).keys())
+        for scores in modality_scores.values():
+            common_dimensions &= set(scores.keys())
+        
+        # Use minimum score (all must agree)
+        for dimension in common_dimensions:
+            min_score = min(scores.get(dimension, 0.0) for scores in modality_scores.values())
+            fused_scores[dimension] = min_score
+        
+        return fused_scores
+    
+    def _cascade_fusion(
+        self,
+        modality_scores: Dict[str, Dict[str, float]],
+        modality_weights: Dict[str, float]
+    ) -> Dict[str, float]:
+        """Cascade fusion - prioritize modalities by weight."""
+        fused_scores = {}
+        
+        # Sort modalities by weight
+        sorted_modalities = sorted(
+            modality_scores.keys(),
+            key=lambda m: modality_weights.get(m, 0.0),
+            reverse=True
+        )
+        
+        # Take scores from highest priority modality with data
+        for modality in sorted_modalities:
+            if modality_scores[modality]:
+                return modality_scores[modality].copy()
+        
+        return fused_scores
+    
+    def _max_confidence_fusion(self, modality_scores: Dict[str, Dict[str, float]]) -> Dict[str, float]:
+        """Max confidence fusion - take highest score per dimension."""
+        fused_scores = {}
+        
+        # Get all dimensions
+        all_dimensions = set()
+        for scores in modality_scores.values():
+            all_dimensions.update(scores.keys())
+        
+        # Take maximum score for each dimension
+        for dimension in all_dimensions:
+            max_score = max(
+                scores.get(dimension, 0.0)
+                for scores in modality_scores.values()
+            )
+            fused_scores[dimension] = max_score
+        
+        return fused_scores
+    
+    def _is_highlight(self, analysis_result: AnalysisResult, options: ProcessingOptions) -> bool:
+        """Determine if analysis result qualifies as a highlight."""
+        if not analysis_result.dimension_scores:
+            return False
+        
+        # Check confidence threshold
+        overall_confidence = analysis_result.overall_confidence
+        if overall_confidence < options.min_confidence_threshold:
+            return False
+        
+        # Check duration constraints
+        duration = analysis_result.end_time - analysis_result.start_time
+        if duration < options.min_highlight_duration:
+            return False
+        if duration > options.max_highlight_duration:
+            return False
+        
+        # Check minimum dimension scores
+        high_scoring_dimensions = sum(
+            1 for score in analysis_result.dimension_scores.values()
+            if score >= 0.7  # High score threshold
+        )
+        
+        if high_scoring_dimensions < 2:  # Need at least 2 high-scoring dimensions
+            return False
+        
+        return True
+    
+    async def _create_highlight(
+        self,
+        stream_id: int,
+        segment: AnalysisSegment,
+        analysis_result: AnalysisResult,
+        type_registry: Optional[HighlightTypeRegistry]
+    ) -> Highlight:
+        """Create highlight entity from analysis result."""
+        # Determine highlight types
+        highlight_types = []
+        if type_registry:
+            highlight_types = type_registry.determine_types(
+                analysis_result.dimension_scores,
+                analysis_result.metadata
+            )
+        
+        # Generate title and description
+        title = self._generate_title(analysis_result, highlight_types)
+        description = self._generate_description(analysis_result)
+        
+        # Create highlight entity
+        highlight = Highlight(
+            id=None,
+            stream_id=stream_id,
+            start_time=Duration(segment.start_time),
+            end_time=Duration(segment.end_time),
+            confidence_score=ConfidenceScore(analysis_result.overall_confidence),
+            highlight_types=highlight_types,
+            title=title,
+            description=description,
+            tags=analysis_result.suggested_tags[:10],
+            sentiment_score=analysis_result.metadata.get("sentiment_score"),
+            viewer_engagement=analysis_result.metadata.get("engagement_score"),
+            video_analysis=segment.video_frames[0] if segment.video_frames else {},
+            audio_analysis=segment.audio_data,
+            chat_analysis=segment.text_data,
+            processed_by="flexible_detector_v1",
+            created_at=Timestamp.now(),
+            updated_at=Timestamp.now()
+        )
+        
+        # Save highlight
+        return await self.highlight_repo.save(highlight)
+    
+    def _generate_title(self, analysis_result: AnalysisResult, highlight_types: List[str]) -> str:
+        """Generate title for highlight."""
+        if highlight_types:
+            # Use first type as basis for title
+            type_name = highlight_types[0].replace("_", " ").title()
+            return f"{type_name} Moment"
+        
+        # Fallback based on top dimensions
+        if analysis_result.dimension_scores:
+            top_dimension = max(
+                analysis_result.dimension_scores.items(),
+                key=lambda x: x[1]
+            )[0]
+            return f"{top_dimension.replace('_', ' ').title()} Highlight"
+        
+        return "Stream Highlight"
+    
+    def _generate_description(self, analysis_result: AnalysisResult) -> str:
+        """Generate description for highlight."""
+        descriptions = []
+        
+        # Add dimension-based descriptions
+        for dimension, score in analysis_result.dimension_scores.items():
+            if score >= 0.8:
+                descriptions.append(f"High {dimension.replace('_', ' ')}")
+        
+        # Add metadata descriptions
+        if "transcription" in analysis_result.metadata:
+            transcript = analysis_result.metadata["transcription"][:100]
+            descriptions.append(f'"{transcript}..."')
+        
+        return ". ".join(descriptions) if descriptions else "Automatically detected highlight"
+    
+    async def _post_process_highlights(
+        self,
+        highlights: List[Highlight],
+        options: ProcessingOptions
+    ) -> List[Highlight]:
+        """Post-process highlights to merge adjacent ones."""
+        if len(highlights) < 2:
+            return highlights
+        
+        # Sort by start time
+        sorted_highlights = sorted(highlights, key=lambda h: h.start_time.value)
+        
+        # Merge adjacent highlights
+        merged = []
+        current = sorted_highlights[0]
+        
+        for next_highlight in sorted_highlights[1:]:
+            gap = next_highlight.start_time.value - current.end_time.value
+            
+            # Merge if gap is small and types overlap
+            if gap <= 5.0 and self._should_merge(current, next_highlight):
+                current = self._merge_highlights(current, next_highlight)
+            else:
+                merged.append(current)
+                current = next_highlight
+        
+        merged.append(current)
+        return merged
     
     async def process_detection_results(
         self,
@@ -75,7 +446,7 @@ class HighlightDetectionService(BaseDomainService):
         audio_results: List[DetectionResult],
         chat_results: List[DetectionResult]
     ) -> List[Highlight]:
-        """Process detection results from multiple sources and create highlights.
+        """Process detection results from multiple sources (compatibility method).
         
         Args:
             stream_id: Stream ID
@@ -85,403 +456,94 @@ class HighlightDetectionService(BaseDomainService):
             
         Returns:
             List of created highlights
-            
-        Raises:
-            EntityNotFoundError: If stream doesn't exist
         """
-        # Verify stream exists
+        # Convert detection results to segments
+        segments = []
+        
+        # Combine all results into segments
+        all_results = [
+            (r, "video") for r in video_results
+        ] + [
+            (r, "audio") for r in audio_results
+        ] + [
+            (r, "chat") for r in chat_results
+        ]
+        
+        # Sort by start time
+        all_results.sort(key=lambda x: x[0].start_time)
+        
+        # Group overlapping results into segments
+        if all_results:
+            current_segment = {
+                "start_time": all_results[0][0].start_time,
+                "end_time": all_results[0][0].end_time,
+                "video_frames": [],
+                "audio_data": {},
+                "text_data": {},
+                "metadata": {}
+            }
+            
+            for result, modality in all_results:
+                if result.start_time <= current_segment["end_time"]:
+                    # Overlapping - merge
+                    current_segment["end_time"] = max(current_segment["end_time"], result.end_time)
+                    if modality == "video":
+                        current_segment["video_frames"].append(result.metadata)
+                    elif modality == "audio":
+                        current_segment["audio_data"].update(result.metadata)
+                    elif modality == "chat":
+                        current_segment["text_data"].update(result.metadata)
+                else:
+                    # Non-overlapping - save current and start new
+                    segments.append(current_segment)
+                    current_segment = {
+                        "start_time": result.start_time,
+                        "end_time": result.end_time,
+                        "video_frames": [],
+                        "audio_data": {},
+                        "text_data": {},
+                        "metadata": {}
+                    }
+                    if modality == "video":
+                        current_segment["video_frames"].append(result.metadata)
+                    elif modality == "audio":
+                        current_segment["audio_data"].update(result.metadata)
+                    elif modality == "chat":
+                        current_segment["text_data"].update(result.metadata)
+            
+            segments.append(current_segment)
+        
+        # Get stream to determine processing options
         stream = await self.stream_repo.get(stream_id)
         if not stream:
             raise EntityNotFoundError(f"Stream {stream_id} not found")
         
-        # Aggregate and fuse results
-        fused_segments = self._fuse_detection_results(
-            video_results, audio_results, chat_results
-        )
+        # Use default processing options if not specified
+        processing_options = stream.processing_options or ProcessingOptions()
         
-        # Filter by confidence and duration
-        valid_segments = self._filter_segments(fused_segments)
-        
-        # Create highlight entities
-        highlights = []
-        for segment in valid_segments:
-            highlight = await self._create_highlight_from_segment(
-                stream_id, segment
-            )
-            highlights.append(highlight)
-        
-        # Bulk create highlights
-        if highlights:
-            created_highlights = await self.highlight_repo.bulk_create(highlights)
-            self.logger.info(
-                f"Created {len(created_highlights)} highlights for stream {stream_id}"
-            )
-            return created_highlights
-        
-        return []
+        # Process segments using the flexible system
+        return await self.detect_highlights_batch(stream_id, segments, processing_options)
     
-    async def detect_trending_moments(
-        self,
-        stream_id: int,
-        chat_spike_threshold: float = 2.0,
-        engagement_window_seconds: float = 30.0
-    ) -> List[Highlight]:
-        """Detect trending moments based on chat engagement spikes.
+    def _should_merge(self, h1: Highlight, h2: Highlight) -> bool:
+        """Check if two highlights should be merged."""
+        # Check for common types
+        common_types = set(h1.highlight_types) & set(h2.highlight_types)
+        if common_types:
+            return True
         
-        Args:
-            stream_id: Stream ID
-            chat_spike_threshold: Multiplier for baseline chat rate
-            engagement_window_seconds: Time window for engagement analysis
-            
-        Returns:
-            List of trending highlights
-        """
-        # This would integrate with real-time chat analysis
-        # For now, return empty list as placeholder
-        self.logger.info(f"Detecting trending moments for stream {stream_id}")
-        return []
-    
-    async def post_process_highlights(
-        self,
-        stream_id: int,
-        merge_threshold_seconds: float = 10.0
-    ) -> List[Highlight]:
-        """Post-process highlights to merge overlapping segments.
+        # Check for similar confidence
+        confidence_diff = abs(h1.confidence_score.value - h2.confidence_score.value)
+        if confidence_diff < 0.2:
+            return True
         
-        Args:
-            stream_id: Stream ID
-            merge_threshold_seconds: Max gap between highlights to merge
-            
-        Returns:
-            List of processed highlights
-        """
-        # Get all highlights for stream
-        highlights = await self.highlight_repo.get_by_stream(stream_id)
-        
-        if len(highlights) < 2:
-            return highlights
-        
-        # Sort by start time
-        sorted_highlights = sorted(highlights, key=lambda h: h.start_time.value)
-        
-        # Merge overlapping or close highlights
-        merged = []
-        current = sorted_highlights[0]
-        
-        for next_highlight in sorted_highlights[1:]:
-            gap = next_highlight.start_time.value - current.end_time.value
-            
-            if gap <= merge_threshold_seconds:
-                # Merge highlights
-                current = self._merge_highlights(current, next_highlight)
-            else:
-                merged.append(current)
-                current = next_highlight
-        
-        merged.append(current)
-        
-        # Update merged highlights
-        updated = []
-        for highlight in merged:
-            saved = await self.highlight_repo.save(highlight)
-            updated.append(saved)
-        
-        self.logger.info(
-            f"Post-processed {len(highlights)} highlights into {len(updated)} for stream {stream_id}"
-        )
-        
-        return updated
-    
-    async def rank_highlights(
-        self,
-        stream_id: int,
-        limit: Optional[int] = None
-    ) -> List[Tuple[Highlight, float]]:
-        """Rank highlights by importance score.
-        
-        Args:
-            stream_id: Stream ID
-            limit: Optional limit on number of results
-            
-        Returns:
-            List of (highlight, score) tuples sorted by score
-        """
-        highlights = await self.highlight_repo.get_by_stream(stream_id)
-        
-        # Calculate importance scores
-        scored_highlights = []
-        for highlight in highlights:
-            score = self._calculate_importance_score(highlight)
-            scored_highlights.append((highlight, score))
-        
-        # Sort by score descending
-        scored_highlights.sort(key=lambda x: x[1], reverse=True)
-        
-        # Apply limit if specified
-        if limit:
-            scored_highlights = scored_highlights[:limit]
-        
-        return scored_highlights
-    
-    async def generate_highlight_metadata(
-        self,
-        highlight_id: int,
-        include_thumbnails: bool = True,
-        include_transcription: bool = True
-    ) -> Dict[str, Any]:
-        """Generate comprehensive metadata for a highlight.
-        
-        Args:
-            highlight_id: Highlight ID
-            include_thumbnails: Whether to include thumbnail URLs
-            include_transcription: Whether to include transcription
-            
-        Returns:
-            Dictionary with highlight metadata
-        """
-        highlight = await self.highlight_repo.get(highlight_id)
-        if not highlight:
-            raise EntityNotFoundError(f"Highlight {highlight_id} not found")
-        
-        metadata = {
-            "id": highlight.id,
-            "title": highlight.title,
-            "description": highlight.description,
-            "duration_seconds": highlight.duration.value,
-            "confidence_score": highlight.confidence_score.value,
-            "type": highlight.highlight_type.value,
-            "tags": highlight.tags,
-            "sentiment": highlight.sentiment_label,
-            "engagement_level": highlight.engagement_level,
-        }
-        
-        if include_thumbnails and highlight.thumbnail_url:
-            metadata["thumbnail_url"] = highlight.thumbnail_url.value
-        
-        if include_transcription:
-            # Extract transcription from audio analysis if available
-            transcription = highlight.audio_analysis.get("transcription", "")
-            metadata["transcription"] = transcription
-        
-        return metadata
-    
-    # Private helper methods
-    
-    def _fuse_detection_results(
-        self,
-        video_results: List[DetectionResult],
-        audio_results: List[DetectionResult],
-        chat_results: List[DetectionResult]
-    ) -> List[Dict[str, Any]]:
-        """Fuse detection results from multiple sources."""
-        # Combine all results with weights
-        all_segments = []
-        
-        # Weight contributions from different detectors
-        weights = {
-            "video": 0.4,
-            "audio": 0.3,
-            "chat": 0.3
-        }
-        
-        # Add weighted results
-        for result in video_results:
-            all_segments.append({
-                "start_time": result.start_time,
-                "end_time": result.end_time,
-                "weighted_confidence": result.confidence * weights["video"],
-                "detectors": {"video": result},
-                "metadata": result.metadata
-            })
-        
-        for result in audio_results:
-            all_segments.append({
-                "start_time": result.start_time,
-                "end_time": result.end_time,
-                "weighted_confidence": result.confidence * weights["audio"],
-                "detectors": {"audio": result},
-                "metadata": result.metadata
-            })
-        
-        for result in chat_results:
-            all_segments.append({
-                "start_time": result.start_time,
-                "end_time": result.end_time,
-                "weighted_confidence": result.confidence * weights["chat"],
-                "detectors": {"chat": result},
-                "metadata": result.metadata
-            })
-        
-        # Merge overlapping segments
-        if not all_segments:
-            return []
-        
-        # Sort by start time
-        all_segments.sort(key=lambda x: x["start_time"])
-        
-        # Merge overlapping segments and combine confidence scores
-        merged = []
-        current = all_segments[0].copy()
-        
-        for segment in all_segments[1:]:
-            if segment["start_time"] <= current["end_time"]:
-                # Overlapping - merge
-                current["end_time"] = max(current["end_time"], segment["end_time"])
-                current["weighted_confidence"] += segment["weighted_confidence"]
-                current["detectors"].update(segment["detectors"])
-                # Merge metadata
-                for key, value in segment["metadata"].items():
-                    if key not in current["metadata"]:
-                        current["metadata"][key] = value
-            else:
-                # Non-overlapping - save current and start new
-                merged.append(current)
-                current = segment.copy()
-        
-        merged.append(current)
-        
-        return merged
-    
-    def _filter_segments(self, segments: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Filter segments by confidence and duration."""
-        valid = []
-        
-        for segment in segments:
-            duration = segment["end_time"] - segment["start_time"]
-            
-            # Check duration constraints
-            if duration < self.min_duration_seconds:
-                continue
-            if duration > self.max_duration_seconds:
-                # Split long segments
-                segment["end_time"] = segment["start_time"] + self.max_duration_seconds
-            
-            # Check confidence threshold
-            if segment["weighted_confidence"] >= self.min_confidence_threshold:
-                valid.append(segment)
-        
-        return valid
-    
-    async def _create_highlight_from_segment(
-        self,
-        stream_id: int,
-        segment: Dict[str, Any]
-    ) -> Highlight:
-        """Create highlight entity from processed segment."""
-        # Determine highlight type based on detectors
-        highlight_type = self._determine_highlight_type(segment["detectors"])
-        
-        # Generate title and description
-        title = self._generate_title(segment, highlight_type)
-        description = self._generate_description(segment)
-        
-        # Extract analysis data
-        video_analysis = {}
-        audio_analysis = {}
-        chat_analysis = {}
-        
-        if "video" in segment["detectors"]:
-            video_analysis = segment["detectors"]["video"].metadata
-        if "audio" in segment["detectors"]:
-            audio_analysis = segment["detectors"]["audio"].metadata
-        if "chat" in segment["detectors"]:
-            chat_analysis = segment["detectors"]["chat"].metadata
-        
-        # Create highlight entity
-        return Highlight(
-            id=None,
-            stream_id=stream_id,
-            start_time=Duration(segment["start_time"]),
-            end_time=Duration(segment["end_time"]),
-            confidence_score=ConfidenceScore(min(segment["weighted_confidence"], 1.0)),
-            highlight_type=highlight_type,
-            title=title,
-            description=description,
-            tags=self._extract_tags(segment),
-            sentiment_score=chat_analysis.get("sentiment_score"),
-            viewer_engagement=chat_analysis.get("engagement_score"),
-            video_analysis=video_analysis,
-            audio_analysis=audio_analysis,
-            chat_analysis=chat_analysis,
-            processed_by="fusion_detector_v1",
-            created_at=Timestamp.now(),
-            updated_at=Timestamp.now()
-        )
-    
-    def _determine_highlight_type(self, detectors: Dict[str, DetectionResult]) -> HighlightType:
-        """Determine highlight type based on active detectors."""
-        # Priority order for type determination
-        if "video" in detectors:
-            video_type = detectors["video"].metadata.get("detected_type")
-            if video_type == "gameplay":
-                return HighlightType.GAMEPLAY
-            elif video_type == "reaction":
-                return HighlightType.REACTION
-        
-        if "audio" in detectors:
-            audio_features = detectors["audio"].metadata.get("features", {})
-            if audio_features.get("is_funny", False):
-                return HighlightType.FUNNY
-            elif audio_features.get("is_emotional", False):
-                return HighlightType.EMOTIONAL
-        
-        if "chat" in detectors:
-            chat_sentiment = detectors["chat"].metadata.get("dominant_sentiment")
-            if chat_sentiment == "excitement":
-                return HighlightType.CLIMACTIC
-        
-        return HighlightType.CUSTOM
-    
-    def _generate_title(self, segment: Dict[str, Any], highlight_type: HighlightType) -> str:
-        """Generate title for highlight."""
-        # Use metadata to create descriptive title
-        if highlight_type == HighlightType.GAMEPLAY:
-            return "Epic Gameplay Moment"
-        elif highlight_type == HighlightType.REACTION:
-            return "Streamer Reaction"
-        elif highlight_type == HighlightType.FUNNY:
-            return "Hilarious Moment"
-        elif highlight_type == HighlightType.EMOTIONAL:
-            return "Emotional Scene"
-        elif highlight_type == HighlightType.CLIMACTIC:
-            return "Climactic Moment"
-        else:
-            return "Stream Highlight"
-    
-    def _generate_description(self, segment: Dict[str, Any]) -> str:
-        """Generate description for highlight."""
-        descriptions = []
-        
-        if "video" in segment["detectors"]:
-            video_desc = segment["detectors"]["video"].metadata.get("description")
-            if video_desc:
-                descriptions.append(video_desc)
-        
-        if "audio" in segment["detectors"]:
-            audio_desc = segment["detectors"]["audio"].metadata.get("description")
-            if audio_desc:
-                descriptions.append(audio_desc)
-        
-        if "chat" in segment["detectors"]:
-            chat_desc = segment["detectors"]["chat"].metadata.get("description")
-            if chat_desc:
-                descriptions.append(chat_desc)
-        
-        return " ".join(descriptions) if descriptions else "Automatically detected highlight"
-    
-    def _extract_tags(self, segment: Dict[str, Any]) -> List[str]:
-        """Extract tags from segment metadata."""
-        tags = set()
-        
-        for detector_result in segment["detectors"].values():
-            detector_tags = detector_result.metadata.get("tags", [])
-            tags.update(detector_tags)
-        
-        return list(tags)[:10]  # Limit to 10 tags
+        return False
     
     def _merge_highlights(self, h1: Highlight, h2: Highlight) -> Highlight:
         """Merge two highlights into one."""
-        # Use higher confidence score
+        # Combine types
+        merged_types = list(set(h1.highlight_types + h2.highlight_types))[:3]
+        
+        # Use higher confidence
         confidence = ConfidenceScore(max(h1.confidence_score.value, h2.confidence_score.value))
         
         # Merge tags
@@ -510,9 +572,11 @@ class HighlightDetectionService(BaseDomainService):
             start_time=h1.start_time,  # Use earlier start
             end_time=h2.end_time,      # Use later end
             confidence_score=confidence,
-            highlight_type=h1.highlight_type,  # Keep first type
-            title=h1.title,
+            highlight_types=merged_types,
+            title=h1.title,  # Keep first title
             description=f"{h1.description} {h2.description}".strip(),
+            thumbnail_url=h1.thumbnail_url,
+            clip_url=h1.clip_url,
             tags=merged_tags,
             sentiment_score=sentiment,
             viewer_engagement=engagement,
@@ -523,29 +587,3 @@ class HighlightDetectionService(BaseDomainService):
             created_at=h1.created_at,
             updated_at=Timestamp.now()
         )
-    
-    def _calculate_importance_score(self, highlight: Highlight) -> float:
-        """Calculate importance score for ranking."""
-        score = 0.0
-        
-        # Base score from confidence
-        score += highlight.confidence_score.value * 0.4
-        
-        # Engagement score
-        if highlight.viewer_engagement:
-            score += highlight.viewer_engagement * 0.3
-        
-        # Sentiment impact
-        if highlight.sentiment_score is not None:
-            # Both positive and negative extremes are interesting
-            sentiment_impact = abs(highlight.sentiment_score)
-            score += sentiment_impact * 0.2
-        
-        # Duration factor (prefer medium length)
-        duration = highlight.duration.value
-        if 10 <= duration <= 60:
-            score += 0.1
-        elif 60 < duration <= 90:
-            score += 0.05
-        
-        return min(score, 1.0)

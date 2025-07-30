@@ -4,7 +4,7 @@ from typing import Protocol, List, Optional, Dict
 from abc import abstractmethod
 
 from src.domain.repositories.base import Repository
-from src.domain.entities.highlight import Highlight, HighlightType
+from src.domain.entities.highlight import Highlight
 from src.domain.value_objects.confidence_score import ConfidenceScore
 from src.domain.value_objects.timestamp import Timestamp
 
@@ -18,7 +18,7 @@ class HighlightRepository(Repository[Highlight, int], Protocol):
     @abstractmethod
     async def get_by_stream(self, stream_id: int,
                           min_confidence: Optional[float] = None,
-                          types: Optional[List[HighlightType]] = None) -> List[Highlight]:
+                          types: Optional[List[str]] = None) -> List[Highlight]:
         """Get highlights for a stream with optional filters."""
         ...
     
@@ -36,7 +36,7 @@ class HighlightRepository(Repository[Highlight, int], Protocol):
         ...
     
     @abstractmethod
-    async def get_by_type(self, highlight_type: HighlightType,
+    async def get_by_type(self, highlight_type: str,
                         user_id: Optional[int] = None,
                         limit: int = 100) -> List[Highlight]:
         """Get highlights by type."""

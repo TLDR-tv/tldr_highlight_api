@@ -96,6 +96,18 @@ class Batch(Base, TimestampMixin):
         comment="JSON serialized batch items data",
     )
     
+    dimension_set_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("dimension_sets.id"),
+        nullable=True,
+        comment="Optional custom dimension set for flexible highlight detection",
+    )
+    
+    type_registry_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("highlight_type_registries.id"),
+        nullable=True,
+        comment="Optional custom type registry for flexible highlight types",
+    )
+    
     started_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True),
         nullable=True,

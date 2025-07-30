@@ -11,7 +11,7 @@ from src.domain.entities.user import User
 from src.domain.entities.organization import Organization, PlanType, PlanLimits
 from src.domain.entities.api_key import APIKey
 from src.domain.entities.stream import Stream, StreamStatus, StreamPlatform
-from src.domain.entities.highlight import Highlight, HighlightType
+from src.domain.entities.highlight import Highlight
 from src.domain.entities.webhook import Webhook, WebhookEvent, WebhookStatus, WebhookDelivery
 from src.domain.entities.batch import Batch, BatchStatus, BatchItem
 from src.domain.entities.usage_record import UsageRecord, UsageType
@@ -34,7 +34,6 @@ __all__ = [
     "StreamStatus", 
     "StreamPlatform",
     "Highlight",
-    "HighlightType",
     
     # Webhook
     "Webhook",

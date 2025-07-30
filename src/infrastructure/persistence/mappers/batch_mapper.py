@@ -18,7 +18,7 @@ class BatchMapper(Mapper[DomainBatch, PersistenceBatch]):
         """Convert Batch persistence model to domain entity."""
         # Parse processing options
         processing_opts_data = json.loads(model.processing_options) if model.processing_options else {}
-        processing_options = ProcessingOptions(**processing_opts_data)
+        processing_options = ProcessingOptions(**processing_opts_data) if processing_opts_data else ProcessingOptions()
         
         # Parse batch items
         items = []

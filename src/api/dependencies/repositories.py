@@ -16,6 +16,8 @@ from src.infrastructure.persistence.repositories.batch_repository import BatchRe
 from src.infrastructure.persistence.repositories.webhook_repository import WebhookRepository
 from src.infrastructure.persistence.repositories.webhook_event_repository import WebhookEventRepository
 from src.infrastructure.persistence.repositories.usage_record_repository import UsageRecordRepository
+from src.infrastructure.persistence.repositories.dimension_set_repository import DimensionSetRepository
+from src.infrastructure.persistence.repositories.highlight_type_registry_repository import HighlightTypeRegistryRepository
 
 
 # Repository Dependencies
@@ -81,3 +83,17 @@ async def get_usage_record_repository(
 ) -> UsageRecordRepository:
     """Get usage record repository instance."""
     return UsageRecordRepository(db)
+
+
+async def get_dimension_set_repository(
+    db: AsyncSession = Depends(get_db_session)
+) -> DimensionSetRepository:
+    """Get dimension set repository instance."""
+    return DimensionSetRepository(db)
+
+
+async def get_highlight_type_registry_repository(
+    db: AsyncSession = Depends(get_db_session)
+) -> HighlightTypeRegistryRepository:
+    """Get highlight type registry repository instance."""
+    return HighlightTypeRegistryRepository(db)

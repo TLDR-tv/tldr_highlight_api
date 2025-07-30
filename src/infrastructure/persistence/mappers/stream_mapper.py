@@ -19,7 +19,7 @@ class StreamMapper(Mapper[DomainStream, PersistenceStream]):
         """Convert Stream persistence model to domain entity."""
         # Parse processing options from JSON
         processing_opts_data = json.loads(model.processing_options) if model.processing_options else {}
-        processing_options = ProcessingOptions(**processing_opts_data)
+        processing_options = ProcessingOptions(**processing_opts_data) if processing_opts_data else ProcessingOptions()
         
         # Parse platform data
         platform_data = json.loads(model.platform_data) if model.platform_data else {}

@@ -6,7 +6,7 @@ from src.api.schemas.batches import BatchCreate, BatchUpdate, BatchResponse, Vid
 from src.domain.entities.batch import Batch, BatchItem, BatchStatus
 from src.domain.value_objects.url import Url
 from src.domain.value_objects.timestamp import Timestamp
-from src.domain.value_objects.processing_options import ProcessingOptions
+from src.domain.value_objects.processing_options import ProcessingOptions, DetectionStrategy, FusionStrategy
 
 
 class BatchMapper:
@@ -79,17 +79,22 @@ class BatchMapper:
         # Convert processing options to dict for API response
         options_dict = entity.processing_options.to_dict()
         
-        # Map legacy API field names to domain processing options
+        # Map to API field names
         api_options = {
-            "highlight_threshold": options_dict["confidence_threshold"],
-            "max_highlights_per_video": 10,  # Default, could be derived from processing options
-            "min_duration": int(options_dict["min_highlight_duration"]),
-            "max_duration": int(options_dict["max_highlight_duration"]),
-            "enable_audio_analysis": options_dict["analyze_audio"],
-            "enable_scene_detection": options_dict["analyze_video"],
+            "dimension_set_id": options_dict.get("dimension_set_id"),
+            "type_registry_id": options_dict.get("type_registry_id"),
+            "detection_strategy": options_dict.get("detection_strategy"),
+            "fusion_strategy": options_dict.get("fusion_strategy"),
+            "enabled_modalities": list(options_dict.get("enabled_modalities", [])),
+            "modality_weights": options_dict.get("modality_weights", {}),
+            "min_confidence_threshold": options_dict.get("min_confidence_threshold", 0.65),
+            "target_confidence_threshold": options_dict.get("target_confidence_threshold", 0.75),
+            "exceptional_threshold": options_dict.get("exceptional_threshold", 0.85),
+            "min_duration": int(options_dict.get("min_highlight_duration", 10)),
+            "max_duration": int(options_dict.get("max_highlight_duration", 300)),
+            "max_highlights_per_video": 10,  # Default
             "parallel_processing": True,  # Default
             "output_format": "mp4",  # Default
-            "output_quality": options_dict["video_quality"],
             "generate_thumbnails": True,  # Default
             "custom_tags": [],  # Default
             "webhook_events": [],  # Default
@@ -154,27 +159,32 @@ class BatchMapper:
         Returns:
             ProcessingOptions domain value object
         """
-        # Map video quality string to domain quality
-        quality_mapping = {
-            "720p": "medium",
-            "1080p": "high", 
-            "480p": "low",
-            "4k": "high"
+        # Create enabled modalities set
+        enabled_modalities = set()
+        if options.enable_scene_detection:
+            enabled_modalities.add("video")
+        if options.enable_audio_analysis:
+            enabled_modalities.add("audio")
+        enabled_modalities.add("metadata")  # Always enabled
+        
+        # Default modality weights
+        modality_weights = {
+            "video": 0.5,
+            "audio": 0.3,
+            "metadata": 0.2
         }
-        video_quality = quality_mapping.get(options.output_quality, "medium")
         
         return ProcessingOptions(
-            confidence_threshold=options.highlight_threshold,
+            dimension_set_id=getattr(options, 'dimension_set_id', None),
+            type_registry_id=getattr(options, 'type_registry_id', None),
+            detection_strategy=DetectionStrategy.AI_ONLY,  # Default for batch
+            fusion_strategy=FusionStrategy.WEIGHTED,  # Default
+            enabled_modalities=enabled_modalities,
+            modality_weights=modality_weights,
+            min_confidence_threshold=options.highlight_threshold,
+            target_confidence_threshold=options.highlight_threshold,
+            exceptional_threshold=min(0.9, options.highlight_threshold + 0.15),
             min_highlight_duration=float(options.min_duration),
             max_highlight_duration=float(options.max_duration),
-            analyze_video=options.enable_scene_detection,
-            analyze_audio=options.enable_audio_analysis,
-            analyze_chat=False,  # Not applicable for batch processing
-            analyze_metadata=True,  # Always enabled
-            include_chat_sentiment=False,  # Not applicable for batch processing
-            include_viewer_metrics=False,  # Not applicable for batch processing  
-            video_quality=video_quality,
-            audio_quality="medium",  # Default
-            custom_filters={},  # Could be derived from custom_tags
-            excluded_categories=[]  # Default
+            processing_priority="balanced"
         )

@@ -2,24 +2,12 @@
 
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Any
-from enum import Enum
 
 from src.domain.entities.base import Entity
 from src.domain.value_objects.timestamp import Timestamp
 from src.domain.value_objects.duration import Duration
 from src.domain.value_objects.confidence_score import ConfidenceScore
 from src.domain.value_objects.url import Url
-
-
-class HighlightType(Enum):
-    """Type of highlight detected."""
-    GAMEPLAY = "gameplay"
-    REACTION = "reaction"
-    FUNNY = "funny"
-    SKILLFUL = "skillful"
-    EMOTIONAL = "emotional"
-    CLIMACTIC = "climactic"
-    CUSTOM = "custom"
 
 
 @dataclass
@@ -34,7 +22,7 @@ class Highlight(Entity[int]):
     start_time: Duration  # Offset from stream start
     end_time: Duration    # Offset from stream start
     confidence_score: ConfidenceScore
-    highlight_type: HighlightType
+    highlight_types: List[str] = field(default_factory=list)  # Flexible type IDs
     
     # Content details
     title: str
@@ -74,7 +62,7 @@ class Highlight(Entity[int]):
             start_time=self.start_time,
             end_time=self.end_time,
             confidence_score=self.confidence_score,
-            highlight_type=self.highlight_type,
+            highlight_types=self.highlight_types.copy(),
             title=self.title,
             description=self.description,
             thumbnail_url=thumbnail_url or self.thumbnail_url,
@@ -104,7 +92,7 @@ class Highlight(Entity[int]):
             start_time=self.start_time,
             end_time=self.end_time,
             confidence_score=self.confidence_score,
-            highlight_type=self.highlight_type,
+            highlight_types=self.highlight_types.copy(),
             title=self.title,
             description=self.description,
             thumbnail_url=self.thumbnail_url,
@@ -121,13 +109,13 @@ class Highlight(Entity[int]):
         )
     
     def matches_filter(self, min_confidence: Optional[float] = None,
-                      types: Optional[List[HighlightType]] = None,
+                      types: Optional[List[str]] = None,
                       tags: Optional[List[str]] = None) -> bool:
         """Check if highlight matches given filters."""
         if min_confidence and self.confidence_score.value < min_confidence:
             return False
         
-        if types and self.highlight_type not in types:
+        if types and not any(t in self.highlight_types for t in types):
             return False
         
         if tags and not any(tag in self.tags for tag in tags):

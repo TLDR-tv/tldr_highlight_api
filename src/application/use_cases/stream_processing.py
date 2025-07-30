@@ -14,7 +14,8 @@ from src.domain.repositories.user_repository import UserRepository
 from src.domain.repositories.stream_repository import StreamRepository
 from src.domain.repositories.highlight_repository import HighlightRepository
 from src.domain.repositories.highlight_agent_config_repository import HighlightAgentConfigRepository
-from src.domain.services.stream_processing_service import StreamProcessingService, ProcessingOptions
+from src.domain.services.stream_processing_service import StreamProcessingService
+from src.domain.value_objects.processing_options import ProcessingOptions, DetectionStrategy, FusionStrategy
 from src.domain.services.highlight_detection_service import HighlightDetectionService, DetectionResult
 from src.domain.services.webhook_delivery_service import WebhookDeliveryService
 from src.domain.services.usage_tracking_service import UsageTrackingService
@@ -162,13 +163,17 @@ class StreamProcessingUseCase(UseCase[StreamStartRequest, StreamStartResult]):
             processing_options = None
             if request.processing_options:
                 processing_options = ProcessingOptions(
-                    detect_gameplay=request.processing_options.get("detect_gameplay", True),
-                    detect_reactions=request.processing_options.get("detect_reactions", True),
-                    detect_funny_moments=request.processing_options.get("detect_funny_moments", True),
-                    detect_emotional_moments=request.processing_options.get("detect_emotional_moments", True),
-                    min_highlight_duration=request.processing_options.get("min_highlight_duration", 5.0),
-                    max_highlight_duration=request.processing_options.get("max_highlight_duration", 120.0),
-                    confidence_threshold=request.processing_options.get("confidence_threshold", 0.7)
+                    dimension_set_id=request.processing_options.get("dimension_set_id"),
+                    type_registry_id=request.processing_options.get("type_registry_id"),
+                    detection_strategy=DetectionStrategy(request.processing_options.get("detection_strategy", "ai_only")),
+                    fusion_strategy=FusionStrategy(request.processing_options.get("fusion_strategy", "weighted")),
+                    enabled_modalities=set(request.processing_options.get("enabled_modalities", ["video", "audio", "text"])),
+                    modality_weights=request.processing_options.get("modality_weights", {"video": 0.4, "audio": 0.3, "text": 0.3}),
+                    min_highlight_duration=request.processing_options.get("min_highlight_duration", 10.0),
+                    max_highlight_duration=request.processing_options.get("max_highlight_duration", 300.0),
+                    min_confidence_threshold=request.processing_options.get("min_confidence_threshold", 0.65),
+                    target_confidence_threshold=request.processing_options.get("target_confidence_threshold", 0.75),
+                    exceptional_threshold=request.processing_options.get("exceptional_threshold", 0.85)
                 )
             
             # Start stream processing with B2B agent
@@ -484,7 +489,7 @@ class StreamProcessingUseCase(UseCase[StreamStartRequest, StreamStartResult]):
                         user_id=stream.user_id,
                         resource_id=highlight.id,
                         metadata={
-                            "type": highlight.highlight_type.value,
+                            "types": highlight.highlight_types,
                             "confidence": highlight.confidence_score.value,
                             "duration_seconds": highlight.duration.value
                         }
