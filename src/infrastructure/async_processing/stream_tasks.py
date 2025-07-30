@@ -593,20 +593,26 @@ def detect_highlights_with_ai(
                 details={"task": "ai_highlight_detection_started"},
             )
 
-            # Initialize B2B agent (this would be injected in real implementation)
-            # For now, simulate the agent creation
-            from src.domain.entities.highlight_agent_config import HighlightAgentConfig
+            # Initialize B2B agent configuration (simplified)
+            from src.domain.entities.stream_processing_config import StreamProcessingConfig
 
             # Use default config if none specified
             if agent_config_id:
                 # In real implementation, fetch from repository
-                agent_config = HighlightAgentConfig.create_default_gaming_config(
-                    organization_id=1,  # Would get from stream/user
+                # For now, create a simplified config for streamlined processing
+                agent_config = StreamProcessingConfig.create_default(
+                    organization_id=stream.organization_id,
                     user_id=stream.user_id,
+                    dimension_set_id=1,  # Would be fetched from config
+                    name="Default Stream Processing"
                 )
             else:
-                agent_config = HighlightAgentConfig.create_default_gaming_config(
-                    organization_id=1, user_id=stream.user_id
+                # Create default simplified config
+                agent_config = StreamProcessingConfig.create_default(
+                    organization_id=stream.organization_id,
+                    user_id=stream.user_id,
+                    dimension_set_id=1,  # Would be fetched from config
+                    name="Default Stream Processing"
                 )
 
             # Initialize Gemini processor (now primary method)
@@ -626,7 +632,6 @@ def detect_highlights_with_ai(
                         model_name=getattr(
                             settings, "gemini_model", "gemini-2.0-flash-exp"
                         ),
-                        enable_refinement=True,
                     )
                     gemini_span.set_attribute("gemini.enabled", True)
                     gemini_span.set_attribute(

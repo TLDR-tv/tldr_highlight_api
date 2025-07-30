@@ -5,8 +5,7 @@ integrated with the flexible dimension framework for customizable highlight dete
 """
 
 import asyncio
-from typing import List, Dict, Any, Optional, Tuple
-from datetime import datetime
+from typing import List, Dict, Any
 import uuid
 import backoff
 
@@ -22,7 +21,6 @@ from src.domain.value_objects.scoring_config import ScoringDimensions
 from src.infrastructure.content_processing.schemas.gemini_schemas import (
     GeminiVideoAnalysis,
     GeminiHighlight,
-    HighlightRefinementBatch,
 )
 from src.infrastructure.observability import traced_service_method
 
@@ -38,26 +36,19 @@ class GeminiVideoProcessor:
         api_key: str,
         model_name: str = "gemini-2.0-flash-exp",
         max_retries: int = 3,
-        enable_refinement: bool = True,
-        cache_ttl_seconds: int = 3600,
     ):
-        """Initialize enhanced Gemini processor with dimension support.
+        """Initialize streamlined Gemini processor with dimension support.
 
         Args:
             api_key: Google API key for Gemini
             model_name: Gemini model to use
             max_retries: Maximum retries for API calls
-            enable_refinement: Whether to enable highlight refinement
-            cache_ttl_seconds: Cache TTL in seconds
         """
         self.client = genai.Client(api_key=api_key)
         self.model_name = model_name
         self.max_retries = max_retries
-        self.enable_refinement = enable_refinement
-        self.cache_ttl_seconds = cache_ttl_seconds
 
         self.uploaded_files: Dict[str, Any] = {}
-        self.analysis_cache: Dict[str, Tuple[GeminiVideoAnalysis, datetime]] = {}
         self.logger = logfire.get_logger(__name__)
 
     @traced_service_method(name="analyze_with_dimensions")
@@ -80,11 +71,7 @@ class GeminiVideoProcessor:
         Returns:
             GeminiVideoAnalysis with dimension-based scoring
         """
-        # Check cache
-        cache_key = self._get_cache_key(segment_info, dimension_set, agent_config)
-        cached_result = self._get_cached_analysis(cache_key)
-        if cached_result:
-            return cached_result
+        # Removed caching for streamlined processing
 
         uploaded_file = None
 
@@ -131,14 +118,7 @@ class GeminiVideoProcessor:
                     f"Dimension analysis complete: {len(response.highlights)} highlights found"
                 )
 
-            # Apply refinement if enabled
-            if self.enable_refinement and response.highlights:
-                response = await self._refine_highlights_with_dimensions(
-                    response, dimension_set, agent_config
-                )
-
-            # Cache result
-            self._cache_analysis(cache_key, response)
+            # Removed refinement pipeline and caching for streamlined processing
 
             return response
 
@@ -312,93 +292,7 @@ truly noteworthy moments.
 
         return analysis
 
-    async def _refine_highlights_with_dimensions(
-        self,
-        analysis: GeminiVideoAnalysis,
-        dimension_set: DimensionSet,
-        agent_config: HighlightAgentConfig,
-    ) -> GeminiVideoAnalysis:
-        """Refine highlights using dimension-aware quality assessment."""
-        if not analysis.highlights:
-            return analysis
-
-        refinement_prompt = f"""
-Review these detected highlights and provide refinement suggestions.
-Consider the dimension weights and overall quality.
-
-Dimension Set: {dimension_set.name}
-Minimum Confidence: {agent_config.min_confidence_threshold}
-
-For each highlight:
-1. Assess if dimension scores are accurate
-2. Suggest timestamp adjustments for better framing
-3. Identify overlapping highlights that should be merged
-4. Recommend removal of low-quality highlights
-5. Improve descriptions for clarity
-
-Focus on keeping only the highest quality moments that truly
-exemplify the important dimensions.
-"""
-
-        # Get refinement suggestions
-        refinement_batch = await self._get_refinement_suggestions(
-            analysis.highlights, refinement_prompt
-        )
-
-        # Apply refinements
-        refined_highlights = []
-        merge_map = {}
-
-        for refinement in refinement_batch.refinements:
-            if not refinement.should_keep:
-                continue
-
-            # Find original highlight
-            original = next(
-                (
-                    h
-                    for h in analysis.highlights
-                    if str(h.ranking_score) == refinement.highlight_id
-                ),
-                None,
-            )
-            if not original:
-                continue
-
-            # Apply adjustments
-            if refinement.merge_with:
-                merge_map[refinement.highlight_id] = refinement.merge_with
-            else:
-                # Update highlight with refinements
-                if refinement.adjusted_start_time:
-                    original.start_time = refinement.adjusted_start_time
-                if refinement.adjusted_end_time:
-                    original.end_time = refinement.adjusted_end_time
-                if refinement.refined_description:
-                    original.description = refinement.refined_description
-                if refinement.refined_type:
-                    original.type = refinement.refined_type
-
-                refined_highlights.append(original)
-
-        # Handle merges
-        # (Implementation depends on specific merge logic)
-
-        analysis.highlights = refined_highlights
-        return analysis
-
-    async def _get_refinement_suggestions(
-        self,
-        highlights: List[GeminiHighlight],
-        prompt: str,
-    ) -> HighlightRefinementBatch:
-        """Get refinement suggestions for highlights."""
-        # This would make another Gemini call with the refinement prompt
-        # For now, return a simple batch
-        return HighlightRefinementBatch(
-            refinements=[],
-            overall_quality=0.8,
-        )
+    # Removed complex refinement pipeline for streamlined processing
 
     def convert_to_highlight_candidates(
         self,
@@ -471,37 +365,7 @@ exemplify the important dimensions.
 
     # Utility methods
 
-    def _get_cache_key(
-        self,
-        segment_info: Dict[str, Any],
-        dimension_set: DimensionSet,
-        agent_config: HighlightAgentConfig,
-    ) -> str:
-        """Generate cache key for analysis results."""
-        return f"{segment_info.get('id')}_{dimension_set.id}_{agent_config.id}_{agent_config.version}"
-
-    def _get_cached_analysis(self, cache_key: str) -> Optional[GeminiVideoAnalysis]:
-        """Get cached analysis if still valid."""
-        if cache_key in self.analysis_cache:
-            analysis, timestamp = self.analysis_cache[cache_key]
-            if (datetime.utcnow() - timestamp).total_seconds() < self.cache_ttl_seconds:
-                return analysis
-            else:
-                del self.analysis_cache[cache_key]
-        return None
-
-    def _cache_analysis(self, cache_key: str, analysis: GeminiVideoAnalysis) -> None:
-        """Cache analysis result."""
-        self.analysis_cache[cache_key] = (analysis, datetime.utcnow())
-
-        # Limit cache size
-        if len(self.analysis_cache) > 100:
-            # Remove oldest entries
-            sorted_keys = sorted(
-                self.analysis_cache.keys(), key=lambda k: self.analysis_cache[k][1]
-            )
-            for key in sorted_keys[:20]:
-                del self.analysis_cache[key]
+    # Removed complex caching system for streamlined processing
 
     def _timestamp_to_seconds(self, timestamp: str) -> float:
         """Convert MM:SS or seconds timestamp to float seconds."""

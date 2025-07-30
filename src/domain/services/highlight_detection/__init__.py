@@ -25,8 +25,8 @@ from .base_detector import (
     DetectionConfig,
     ContentSegment,
     ModalityType,
-    HighlightCandidate,
 )
+from ...entities.highlight import HighlightCandidate
 from .fusion_scorer import FusionScorer, FusionConfig
 from .ranker import HighlightRanker, RankingConfig
 from .post_processor import HighlightPostProcessor, PostProcessorConfig

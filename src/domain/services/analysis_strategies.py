@@ -11,6 +11,7 @@ from datetime import datetime
 
 from ..entities.dimension_set import DimensionSet
 from ..entities.highlight_type_registry import HighlightTypeRegistry
+from ..entities.highlight import HighlightCandidate
 from ..value_objects.processing_options import ProcessingOptions
 from ..exceptions import ProcessingError
 
@@ -37,19 +38,8 @@ class AnalysisResult:
     strategy_used: str
 
 
-@dataclass
-class HighlightCandidate:
-    """A potential highlight identified by analysis."""
-
-    id: str
-    start_time: float
-    end_time: float
-    score: float
-    dimension_scores: Dict[str, float]
-    highlight_types: List[str]
-    confidence: float
-    description: str
-    metadata: Dict[str, Any]
+# HighlightCandidate is now defined in src.domain.entities.highlight
+# This file will be removed as part of the streamlining process
 
 
 class AnalysisStrategy(ABC):

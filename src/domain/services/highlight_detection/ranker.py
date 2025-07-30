@@ -17,7 +17,7 @@ from scipy.cluster.hierarchy import linkage, fcluster
 from scipy.spatial.distance import pdist, squareform
 from sklearn.cluster import DBSCAN
 
-from .base_detector import HighlightCandidate
+from ...entities.highlight import HighlightCandidate
 from ...utils.scoring_utils import (
     calculate_similarity_score,
     calculate_highlight_overlap,

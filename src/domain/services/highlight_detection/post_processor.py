@@ -16,7 +16,7 @@ import numpy as np
 from pydantic import BaseModel, Field
 from scipy.signal import savgol_filter
 
-from .base_detector import HighlightCandidate
+from ...entities.highlight import HighlightCandidate
 from ...utils.scoring_utils import (
     apply_temporal_smoothing,
 )

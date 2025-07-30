@@ -1,7 +1,8 @@
 """Highlight agent configuration domain entity.
 
-This entity represents the configuration for highlight detection agents,
-allowing B2B consumers to customize prompts, thresholds, and scoring weights.
+DEPRECATED: This complex configuration is being replaced by StreamProcessingConfig
+for the streamlined highlight detection flow. This file is kept for backward compatibility
+and will be removed in a future version.
 """
 
 from dataclasses import dataclass, field
@@ -339,3 +340,7 @@ class HighlightAgentConfig(Entity[int]):
                 typical_highlight_duration=45,
             ),
         )
+
+
+# Backward compatibility alias - will be removed
+# Use StreamProcessingConfig for new code

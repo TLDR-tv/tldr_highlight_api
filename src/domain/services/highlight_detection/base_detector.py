@@ -150,67 +150,8 @@ class DetectionResult(BaseModel):
         return self.weighted_score >= threshold
 
 
-@dataclass
-class HighlightCandidate:
-    """
-    A potential highlight identified by the detection system.
-
-    Combines results from multiple modalities and includes
-    temporal information and quality metrics.
-    """
-
-    start_time: float
-    end_time: float
-    score: float
-    confidence: float
-    modality_results: List[DetectionResult] = field(default_factory=list)
-    features: Dict[str, Any] = field(default_factory=dict)
-    tags: List[str] = field(default_factory=list)
-    candidate_id: str = field(default_factory=lambda: str(uuid4()))
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    quality_score: Optional[float] = None
-    deduplication_key: Optional[str] = None
-
-    @property
-    def duration(self) -> float:
-        """Get highlight duration in seconds."""
-        return self.end_time - self.start_time
-
-    @property
-    def midpoint(self) -> float:
-        """Get highlight midpoint timestamp."""
-        return (self.start_time + self.end_time) / 2
-
-    @property
-    def weighted_score(self) -> float:
-        """Get confidence-weighted score."""
-        return self.score * self.confidence
-
-    def get_modality_score(self, modality: ModalityType) -> float:
-        """Get score for specific modality."""
-        for result in self.modality_results:
-            if result.modality == modality:
-                return result.score
-        return 0.0
-
-    def has_modality(self, modality: ModalityType) -> bool:
-        """Check if candidate has results for modality."""
-        return any(r.modality == modality for r in self.modality_results)
-
-    def overlaps_with(
-        self, other: "HighlightCandidate", threshold: float = 0.1
-    ) -> bool:
-        """Check if this candidate overlaps significantly with another."""
-        overlap_start = max(self.start_time, other.start_time)
-        overlap_end = min(self.end_time, other.end_time)
-        overlap_duration = max(0, overlap_end - overlap_start)
-
-        min_duration = min(self.duration, other.duration)
-        if min_duration == 0:
-            return False
-
-        overlap_ratio = overlap_duration / min_duration
-        return overlap_ratio >= threshold
+# HighlightCandidate is now consolidated in src.domain.entities.highlight
+# This module will be simplified as part of the streamlining process
 
 
 class DetectionConfig(BaseModel):

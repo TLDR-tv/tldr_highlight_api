@@ -154,3 +154,56 @@ class Highlight(Entity[int]):
             return "low"
         else:
             return "very_low"
+
+
+@dataclass
+class HighlightCandidate:
+    """A potential highlight identified during analysis.
+    
+    This represents a candidate highlight before it becomes a final Highlight entity.
+    Used in the processing pipeline to evaluate potential highlights with dimension-based scoring.
+    """
+    
+    id: str
+    start_time: float  # Stream time in seconds
+    end_time: float    # Stream time in seconds
+    peak_time: float   # Peak moment within the highlight
+    
+    # Scoring and analysis
+    confidence: float  # 0.0 to 1.0 confidence in detection
+    final_score: float # 0.0 to 1.0 final weighted score
+    description: str
+    
+    # Dimension-based scoring
+    dimensions: Any = field(default_factory=dict)  # ScoringDimensions object
+    detected_keywords: List[str] = field(default_factory=list)
+    context_type: Optional[str] = None
+    
+    # Processing metadata
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    trigger_type: Optional[str] = None
+    
+    @property
+    def duration(self) -> float:
+        """Get highlight duration in seconds."""
+        return self.end_time - self.start_time
+    
+    def meets_threshold(self, threshold: float) -> bool:
+        """Check if candidate meets minimum threshold."""
+        return self.final_score >= threshold
+    
+    def to_highlight(self, stream_id: int) -> "Highlight":
+        """Convert candidate to final Highlight entity."""
+        return Highlight(
+            id=None,  # Will be assigned by repository
+            stream_id=stream_id,
+            start_time=Duration(self.start_time),
+            end_time=Duration(self.end_time),
+            confidence_score=ConfidenceScore(self.confidence),
+            title=self.description[:100],  # Truncate for title
+            description=self.description,
+            highlight_types=self.metadata.get("highlight_types", []),
+            tags=self.detected_keywords[:10],  # Use keywords as tags
+            video_analysis=self.metadata.get("video_analysis", {}),
+            processed_by=self.metadata.get("processed_by", "dimension_analysis"),
+        )

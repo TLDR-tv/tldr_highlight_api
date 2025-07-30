@@ -18,9 +18,9 @@ from scipy.stats import pearsonr
 
 from .base_detector import (
     DetectionResult,
-    HighlightCandidate,
     ModalityType,
 )
+from ...entities.highlight import HighlightCandidate
 from ...utils.scoring_utils import (
     calculate_confidence,
     calculate_temporal_correlation,

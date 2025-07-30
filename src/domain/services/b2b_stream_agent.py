@@ -7,17 +7,16 @@ according to their specific requirements.
 
 import asyncio
 import uuid
-from collections import deque
-from dataclasses import dataclass
+# deque removed for simplified processing
 from datetime import datetime
 from enum import Enum
-from typing import Dict, List, Optional, Any, Deque
+from typing import Dict, List, Optional, Any
 
 from ..entities.stream import Stream
 from ..entities.highlight import Highlight, HighlightCandidate
 from ..entities.highlight_agent_config import HighlightAgentConfig
+from ..entities.stream_processing_config import StreamProcessingConfig
 from ..entities.dimension_set import DimensionSet
-from ..value_objects.scoring_config import ScoringDimensions
 from ..value_objects.processing_options import ProcessingOptions
 from ..exceptions import BusinessRuleViolation, ProcessingError
 from src.infrastructure.observability import traced_service_method, metrics
@@ -35,15 +34,7 @@ class AgentStatus(str, Enum):
     ERROR = "error"
 
 
-@dataclass
-class AgentMemoryEntry:
-    """A single entry in agent memory for B2B context."""
-
-    timestamp: float  # Stream time in seconds
-    entry_type: str  # highlight, context, analysis, etc.
-    content: Dict[str, Any]
-    importance: float  # 0.0 to 1.0
-    consumer_context: Optional[Dict[str, Any]] = None
+# AgentMemoryEntry removed for streamlined processing
 
 
 class B2BStreamAgent:
@@ -60,7 +51,7 @@ class B2BStreamAgent:
     def __init__(
         self,
         stream: Stream,
-        agent_config: HighlightAgentConfig,
+        agent_config: HighlightAgentConfig | StreamProcessingConfig,  # Accept either config type
         gemini_processor: Any,  # Required Gemini processor
         dimension_set: DimensionSet,  # Required dimension set
         processing_options: Optional[ProcessingOptions] = None,
@@ -98,13 +89,8 @@ class B2BStreamAgent:
         self.candidates_evaluated = 0
         self.last_activity = datetime.utcnow()
 
-        # Memory system (bounded for B2B efficiency)
-        self.memory_entries: Deque[AgentMemoryEntry] = deque(maxlen=200)
-        self.recent_highlights: Deque[HighlightCandidate] = deque(maxlen=50)
-        self.error_history: Deque[str] = deque(maxlen=20)
-
-        # Context tracking
-        self.current_context: Dict[str, Any] = {}
+        # Simplified tracking
+        self.recent_highlights: List[HighlightCandidate] = []  # Keep last few for metrics
         self.stream_start_time = datetime.utcnow()
 
         # Control flags
@@ -112,61 +98,59 @@ class B2BStreamAgent:
         self._tasks: List[asyncio.Task] = []
 
         # Consumer-specific state
-        self.consumer_metrics: Dict[str, Any] = {
-            "config_version": agent_config.version,
-            "organization_id": agent_config.organization_id,
-            "content_type": agent_config.content_type,
-            "game_name": agent_config.game_name,
-        }
+        self.consumer_metrics: Dict[str, Any] = self._extract_consumer_metrics(agent_config)
 
     # ============================================================================
-    # MEMORY AND CONTEXT MANAGEMENT
+    # CONFIG COMPATIBILITY HELPERS
     # ============================================================================
+    
+    def _extract_consumer_metrics(self, config) -> Dict[str, Any]:
+        """Extract consumer metrics from either config type."""
+        if isinstance(config, StreamProcessingConfig):
+            return {
+                "config_type": "simplified",
+                "organization_id": config.organization_id,
+                "content_type": "general",  # Simplified config doesn't specify
+                "confidence_threshold": config.confidence_threshold,
+                "max_highlights": config.max_highlights,
+            }
+        else:  # HighlightAgentConfig
+            return {
+                "config_version": config.version,
+                "organization_id": config.organization_id,
+                "content_type": config.content_type,
+                "game_name": config.game_name,
+            }
+    
+    def _get_confidence_threshold(self) -> float:
+        """Get confidence threshold from either config type."""
+        if isinstance(self.agent_config, StreamProcessingConfig):
+            return self.agent_config.confidence_threshold
+        else:
+            return self.agent_config.min_confidence_threshold
+    
+    def _get_organization_id(self) -> int:
+        """Get organization ID from either config type."""
+        return self.agent_config.organization_id
+    
+    def _record_config_usage(self) -> None:
+        """Record usage on either config type."""
+        self.agent_config.record_usage()
 
-    def add_memory_entry(self, entry: AgentMemoryEntry) -> None:
-        """Add entry to agent memory with automatic cleanup."""
-        self.memory_entries.append(entry)
-
-    def get_recent_context(self, seconds: float = 300) -> List[AgentMemoryEntry]:
-        """Get memory entries from the last N seconds."""
-        if not self.memory_entries:
-            return []
-
-        current_time = (datetime.utcnow() - self.stream_start_time).total_seconds()
-        cutoff_time = current_time - seconds
-
-        return [
-            entry for entry in self.memory_entries if entry.timestamp >= cutoff_time
-        ]
-
-    def update_context(self, context_type: str, data: Dict[str, Any]) -> None:
-        """Update the current processing context."""
-        self.current_context[context_type] = data
-        self.last_activity = datetime.utcnow()
-
-        # Add to memory
-        self.add_memory_entry(
-            AgentMemoryEntry(
-                timestamp=(datetime.utcnow() - self.stream_start_time).total_seconds(),
-                entry_type="context_update",
-                content={"type": context_type, "data": data},
-                importance=0.3,
-                consumer_context={"config_version": self.agent_config.version},
-            )
-        )
+    # ============================================================================
+    # SIMPLIFIED CONTEXT MANAGEMENT  
+    # ============================================================================
 
     def get_context_for_prompt(self) -> Dict[str, Any]:
-        """Build context dictionary for prompt rendering."""
-        recent_highlights = [h.description for h in list(self.recent_highlights)[-3:]]
+        """Build basic context dictionary for prompt rendering."""
+        recent_highlights = [h.description for h in self.recent_highlights[-3:]] if self.recent_highlights else []
 
         return {
             "context": f"Stream: {self.stream.title}, Recent highlights: {'; '.join(recent_highlights) if recent_highlights else 'None'}",
-            "content_type": self.agent_config.content_type,
-            "game_name": self.agent_config.game_name or "Unknown",
-            "organization": self.agent_config.organization_id,
+            "content_type": self.consumer_metrics.get("content_type", "general"),
+            "organization": self._get_organization_id(),
             "stream_duration": str(datetime.utcnow() - self.stream_start_time),
             "highlights_so_far": len(self.recent_highlights),
-            "current_state": self.current_context.get("stream_state", "active"),
         }
 
     # ============================================================================
@@ -192,134 +176,31 @@ class B2BStreamAgent:
         # Delegate to Gemini dimension-based analysis
         return await self.analyze_video_segment_with_gemini(segment_data)
 
-    def _create_highlight_candidate(
-        self, analysis_result: Dict[str, Any], segment_data: Dict[str, Any]
-    ) -> Optional[HighlightCandidate]:
-        """Create a highlight candidate from analysis results."""
-        try:
-            # Extract dimensions from analysis
-            dimensions_data = analysis_result.get("dimensions", {})
-            dimensions = ScoringDimensions.from_dict(dimensions_data)
-
-            # Calculate final score using consumer configuration
-            detected_keywords = analysis_result.get("keywords", [])
-            context_type = analysis_result.get("context_type")
-
-            final_score = self.agent_config.calculate_highlight_score(
-                dimensions=dimensions.to_dict(),
-                keywords=detected_keywords,
-                context_type=context_type,
-            )
-
-            # Check if score meets consumer thresholds
-            highlight_type = analysis_result.get("type", "general")
-            if not self.agent_config.score_thresholds.meets_threshold(
-                final_score, highlight_type
-            ):
-                return None
-
-            return HighlightCandidate(
-                id=str(uuid.uuid4()),
-                start_time=analysis_result.get("start_time", 0),
-                end_time=analysis_result.get("end_time", 0),
-                peak_time=analysis_result.get("peak_time", 0),
-                description=analysis_result.get("description", ""),
-                confidence=analysis_result.get("confidence", 0.0),
-                dimensions=dimensions,
-                final_score=final_score,
-                detected_keywords=detected_keywords,
-                context_type=context_type,
-                metadata={
-                    "segment_id": segment_data.get("id"),
-                    "analysis_version": self.agent_config.version,
-                },
-            )
-
-        except Exception as e:
-            self.error_history.append(f"Candidate creation failed: {str(e)}")
-            return None
+    # Complex candidate creation removed - handled by GeminiVideoProcessor
 
     @traced_service_method(name="should_create_highlight")
     async def should_create_highlight(self, candidate: HighlightCandidate) -> bool:
-        """Determine if a highlight should be created using consumer rules."""
+        """Simplified highlight validation - just check basic threshold."""
         try:
             with logfire.span("evaluate_highlight_candidate") as span:
                 span.set_attribute("candidate.id", candidate.id)
                 span.set_attribute("candidate.score", candidate.final_score)
                 span.set_attribute("candidate.confidence", candidate.confidence)
 
-                # Check basic score threshold
-                if candidate.final_score < self.agent_config.min_confidence_threshold:
+                # Simple threshold check
+                if candidate.final_score < self._get_confidence_threshold():
                     span.set_attribute("decision", "rejected")
                     span.set_attribute("reason", "below_threshold")
                     return False
 
-            # Check timing constraints
-            timing = self.agent_config.timing_config
-
-            with logfire.span("check_timing_constraints") as timing_span:
-                # Check minimum spacing
-                if self.recent_highlights:
-                    last_highlight = self.recent_highlights[-1]
-                    time_since_last = candidate.start_time - last_highlight.end_time
-                    timing_span.set_attribute("time_since_last", time_since_last)
-                    timing_span.set_attribute("min_spacing", timing.min_spacing_seconds)
-
-                    if time_since_last < timing.min_spacing_seconds:
-                        span.set_attribute("decision", "rejected")
-                        span.set_attribute("reason", "too_close_to_previous")
-                        return False
-
-            # Check highlights per window limit
-            recent_window = [
-                h
-                for h in self.recent_highlights
-                if candidate.start_time - h.start_time <= 300  # 5 minutes
-            ]
-
-            if len(recent_window) >= timing.max_per_5min_window:
-                # Only allow if this is significantly better
-                if recent_window:
-                    best_recent_score = max(h.final_score for h in recent_window)
-                    if candidate.final_score <= best_recent_score + 0.1:
-                        return False
-
-            # Check similarity to recent highlights
-            for recent in list(self.recent_highlights)[-10:]:  # Check last 10
-                similarity = self._calculate_similarity(candidate, recent)
-                if similarity > self.agent_config.similarity_threshold:
-                    # Similar highlight exists, only create if significantly better
-                    if candidate.final_score <= recent.final_score + 0.05:
-                        return False
-
-            span.set_attribute("decision", "approved")
-            return True
+                span.set_attribute("decision", "approved")
+                return True
 
         except Exception as e:
-            self.error_history.append(f"Highlight decision failed: {str(e)}")
+            logfire.error("Highlight validation failed", error=str(e))
             return False
 
-    def _calculate_similarity(
-        self, candidate1: HighlightCandidate, candidate2: HighlightCandidate
-    ) -> float:
-        """Calculate similarity between two highlight candidates."""
-        # Time proximity (closer = more similar)
-        time_diff = abs(candidate1.start_time - candidate2.start_time)
-        time_similarity = max(0, 1 - (time_diff / 120))  # 2 minute window
-
-        # Description similarity (simple keyword overlap)
-        desc1_words = set(candidate1.description.lower().split())
-        desc2_words = set(candidate2.description.lower().split())
-
-        if desc1_words or desc2_words:
-            word_similarity = len(desc1_words & desc2_words) / len(
-                desc1_words | desc2_words
-            )
-        else:
-            word_similarity = 0
-
-        # Combine similarities
-        return (time_similarity * 0.6) + (word_similarity * 0.4)
+    # Similarity calculation removed for streamlined processing
 
     @traced_service_method(name="create_highlight")
     async def create_highlight(
@@ -330,10 +211,10 @@ class B2BStreamAgent:
             with logfire.span("create_highlight_from_candidate") as span:
                 span.set_attribute("candidate.id", candidate.id)
                 span.set_attribute("candidate.score", candidate.final_score)
-                span.set_attribute("organization.id", self.agent_config.organization_id)
+                span.set_attribute("organization.id", self._get_organization_id())
 
                 # Record usage in configuration
-                self.agent_config.record_usage()
+                self._record_config_usage()
 
             # Create highlight entity
             highlight = Highlight(
@@ -348,22 +229,24 @@ class B2BStreamAgent:
                     "agent_id": self.agent_id,
                     "config_version": self.agent_config.version,
                     "final_score": candidate.final_score,
-                    "dimensions": candidate.dimensions.to_dict(),
+                    "dimensions": candidate.dimensions.to_dict() if hasattr(candidate.dimensions, 'to_dict') else candidate.dimensions,
                     "keywords": candidate.detected_keywords,
                     "context_type": candidate.context_type,
                     "trigger_type": candidate.trigger_type,
                 },
             )
 
-            # Add to recent highlights tracking
+            # Add to recent highlights tracking (keep last 10 for metrics)
             self.recent_highlights.append(candidate)
+            if len(self.recent_highlights) > 10:
+                self.recent_highlights.pop(0)
             self.highlights_created += 1
 
             # Track highlight creation metrics
             metrics.increment_highlights_detected(
                 count=1,
                 platform=self.stream.platform.value,
-                organization_id=str(self.agent_config.organization_id),
+                organization_id=str(self._get_organization_id()),
                 detection_method="b2b_agent",
             )
 
@@ -377,24 +260,6 @@ class B2BStreamAgent:
             span.set_attribute("highlight.created", True)
             span.set_attribute("highlights.total", self.highlights_created)
 
-            # Add to memory
-            self.add_memory_entry(
-                AgentMemoryEntry(
-                    timestamp=candidate.start_time,
-                    entry_type="highlight_created",
-                    content={
-                        "candidate_id": candidate.id,
-                        "score": candidate.final_score,
-                        "description": candidate.description,
-                    },
-                    importance=0.9,
-                    consumer_context={
-                        "config_version": self.agent_config.version,
-                        "organization_id": self.agent_config.organization_id,
-                    },
-                )
-            )
-
             # Log significant highlights
             if candidate.final_score > 0.9:
                 logfire.info(
@@ -403,7 +268,7 @@ class B2BStreamAgent:
                     score=candidate.final_score,
                     confidence=candidate.confidence,
                     description=highlight.description[:100],
-                    organization_id=self.agent_config.organization_id,
+                    organization_id=self._get_organization_id(),
                     agent_id=self.agent_id,
                 )
 
@@ -411,14 +276,13 @@ class B2BStreamAgent:
 
         except Exception as e:
             error_msg = f"Highlight creation failed: {str(e)}"
-            self.error_history.append(error_msg)
 
             logfire.error(
                 "agent.highlight.creation_failed",
                 error=str(e),
                 candidate_id=candidate.id,
                 agent_id=self.agent_id,
-                organization_id=self.agent_config.organization_id,
+                organization_id=self._get_organization_id(),
             )
 
             raise ProcessingError(error_msg) from e
@@ -471,52 +335,19 @@ class B2BStreamAgent:
                 )
 
                 span.set_attribute("highlights.found", len(analysis.highlights))
-                span.set_attribute(
-                    "processing.refinement_enabled",
-                    self.gemini_processor.enable_refinement,
-                )
+                span.set_attribute("processing.refinement_enabled", False)  # Refinement removed
 
             # Convert to highlight candidates using dimension framework
             candidates = self.gemini_processor.convert_to_highlight_candidates(
                 analysis,
                 self.dimension_set,
                 segment_info,
-                min_confidence=self.agent_config.min_confidence_threshold,
+                min_confidence=self._get_confidence_threshold(),
             )
 
             # Update statistics
             self.segments_processed += 1
             self.candidates_evaluated += len(candidates)
-
-            # Add to memory
-            self.add_memory_entry(
-                AgentMemoryEntry(
-                    timestamp=(
-                        datetime.utcnow() - self.stream_start_time
-                    ).total_seconds(),
-                    entry_type="gemini_video_analysis",
-                    content={
-                        "segment_id": segment_data.get("id"),
-                        "candidates_found": len(candidates),
-                        "processing_time": analysis.processing_time,
-                        "has_transcript": bool(analysis.transcript)
-                        if hasattr(analysis, "transcript")
-                        else False,
-                        "scene_count": len(analysis.scene_descriptions)
-                        if hasattr(analysis, "scene_descriptions")
-                        and analysis.scene_descriptions
-                        else 0,
-                        "dimension_set_used": self.dimension_set.name
-                        if self.dimension_set
-                        else None,
-                    },
-                    importance=0.8 if candidates else 0.4,
-                    consumer_context={
-                        "config_version": self.agent_config.version,
-                        "used_gemini": True,
-                    },
-                )
-            )
 
             # Track high-scoring candidates
             for candidate in candidates:
@@ -526,7 +357,7 @@ class B2BStreamAgent:
                         candidate_id=candidate.id,
                         score=candidate.final_score,
                         description=candidate.description[:100],
-                        organization_id=self.agent_config.organization_id,
+                        organization_id=self._get_organization_id(),
                         agent_id=self.agent_id,
                     )
 
@@ -534,14 +365,13 @@ class B2BStreamAgent:
 
         except Exception as e:
             error_msg = f"Gemini video analysis failed: {str(e)}"
-            self.error_history.append(error_msg)
 
             logfire.error(
                 "agent.gemini_analysis.failed",
                 error=str(e),
                 segment_id=segment_data.get("id"),
                 agent_id=self.agent_id,
-                organization_id=self.agent_config.organization_id,
+                organization_id=self._get_organization_id(),
             )
 
             # Re-raise error as Gemini is now the required method
@@ -565,16 +395,12 @@ class B2BStreamAgent:
                 self._running = True
                 self.started_at = datetime.utcnow()
 
-                # Validate configuration
-                config_errors = self.agent_config.validate_configuration()
-                if config_errors:
-                    span.set_attribute("error", True)
-                    span.set_attribute(
-                        "error.message", f"Invalid configuration: {config_errors}"
-                    )
-                    raise BusinessRuleViolation(
-                        f"Invalid configuration: {config_errors}"
-                    )
+                # Simple validation for streamlined config
+                if isinstance(self.agent_config, StreamProcessingConfig):
+                    if not self.agent_config.validate():
+                        span.set_attribute("error", True)
+                        span.set_attribute("error.message", "Invalid configuration parameters")
+                        raise BusinessRuleViolation("Invalid configuration parameters")
 
                 span.set_attribute("status", "active")
 
@@ -583,7 +409,7 @@ class B2BStreamAgent:
                     "agent.started",
                     agent_id=self.agent_id,
                     stream_id=self.stream.id,
-                    organization_id=self.agent_config.organization_id,
+                    organization_id=self._get_organization_id(),
                     config_type=self.agent_config.config_type,
                     content_type=self.agent_config.content_type,
                 )
@@ -594,14 +420,13 @@ class B2BStreamAgent:
 
         except Exception as e:
             self.status = AgentStatus.ERROR
-            self.error_history.append(f"Agent start failed: {str(e)}")
 
             logfire.error(
                 "agent.start.failed",
                 error=str(e),
                 agent_id=self.agent_id,
                 stream_id=self.stream.id,
-                organization_id=self.agent_config.organization_id,
+                organization_id=self._get_organization_id(),
             )
 
             raise
@@ -633,7 +458,7 @@ class B2BStreamAgent:
                 "agent.stopped",
                 agent_id=self.agent_id,
                 stream_id=self.stream.id,
-                organization_id=self.agent_config.organization_id,
+                organization_id=self._get_organization_id(),
                 uptime_seconds=uptime,
                 highlights_created=self.highlights_created,
                 segments_processed=self.segments_processed,
@@ -651,10 +476,9 @@ class B2BStreamAgent:
             "status": self.status.value,
             "uptime_seconds": uptime,
             "configuration": {
-                "version": self.agent_config.version,
-                "organization_id": self.agent_config.organization_id,
-                "content_type": self.agent_config.content_type,
-                "game_name": self.agent_config.game_name,
+                "organization_id": self._get_organization_id(),
+                "config_type": "simplified" if isinstance(self.agent_config, StreamProcessingConfig) else "legacy",
+                "confidence_threshold": self._get_confidence_threshold(),
             },
             "processing_stats": {
                 "segments_processed": self.segments_processed,
@@ -672,15 +496,8 @@ class B2BStreamAgent:
                 / max(1, len(self.recent_highlights)),
                 "score_distribution": self._get_score_distribution(),
             },
-            "memory_stats": {
-                "memory_entries": len(self.memory_entries),
-                "recent_highlights": len(self.recent_highlights),
-                "error_count": len(self.error_history),
-            },
+            "recent_highlights_count": len(self.recent_highlights),
             "consumer_metrics": self.consumer_metrics,
-            "recent_errors": list(self.error_history)[-5:]
-            if self.error_history
-            else [],
         }
 
     def _get_score_distribution(self) -> Dict[str, int]:

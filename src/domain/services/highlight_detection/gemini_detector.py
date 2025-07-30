@@ -18,9 +18,9 @@ from .base_detector import (
     ContentSegment,
     DetectionConfig,
     DetectionResult,
-    HighlightCandidate,
     ModalityType,
 )
+from ...entities.highlight import HighlightCandidate
 from ..content_processing.gemini_processor import (
     GeminiProcessorConfig,
     GeminiHighlight,
