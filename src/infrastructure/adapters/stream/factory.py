@@ -11,6 +11,7 @@ from urllib.parse import urlparse
 from aiohttp import ClientSession
 
 from .base import StreamAdapter
+
 # from .twitch import TwitchStreamAdapter  # Removed for simplification
 # from .youtube import YouTubeStreamAdapter  # Removed for simplification
 from .rtmp import RTMPStreamAdapter

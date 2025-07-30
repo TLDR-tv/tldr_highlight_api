@@ -39,7 +39,7 @@ class MetricsCollector:
                 "stream_type": stream_type,
             },
         )
-        
+
         # Send to Logfire
         logfire.info(
             "Stream started",
@@ -262,10 +262,10 @@ class MetricsCollector:
                 "status_code": str(status_code),
             },
         )
-        
+
         # Record response time
         self._record_histogram("api_response_time_ms", response_time_ms)
-        
+
         # Send to Logfire
         logfire.info(
             "API call tracked",
@@ -292,10 +292,10 @@ class MetricsCollector:
                 "organization_id": organization_id,
             },
         )
-        
+
         # Record processing time
         self._record_histogram("stream_processing_minutes", processing_minutes)
-        
+
         # Send to Logfire
         logfire.info(
             "Stream processing tracked",
@@ -322,7 +322,7 @@ class MetricsCollector:
                 "status": status,
             },
         )
-        
+
         # Send to Logfire
         logfire.info(
             "Webhook delivery tracked",

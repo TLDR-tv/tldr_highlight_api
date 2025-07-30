@@ -114,8 +114,6 @@ async def get_stream_processing_use_case(
     )
 
 
-
-
 async def get_webhook_processing_use_case(
     webhook_event_repo: WebhookEventRepository = Depends(get_webhook_event_repository),
     user_repo: UserRepository = Depends(get_user_repository),

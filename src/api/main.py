@@ -211,7 +211,6 @@ def create_app() -> FastAPI:
         streams_router, prefix=f"{settings.api_v1_prefix}/streams", tags=["streams"]
     )
 
-
     app.include_router(
         highlights_router,
         prefix=f"{settings.api_v1_prefix}/highlights",

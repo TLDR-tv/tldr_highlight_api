@@ -75,8 +75,6 @@ async def get_highlight_repository(
     return HighlightRepository(db)
 
 
-
-
 async def get_webhook_repository(
     db: AsyncSession = Depends(get_db_session),
 ) -> WebhookRepository:

@@ -33,6 +33,7 @@ async def receive_stream_webhook(
     x_api_key: Optional[str] = Header(None),
     x_webhook_signature: Optional[str] = Header(None),
     x_webhook_timestamp: Optional[str] = Header(None),
+    x_webhook_platform: Optional[str] = Header(None),
 ) -> WebhookResponse:
     """Receive webhook for stream events (start, stop, update).
 

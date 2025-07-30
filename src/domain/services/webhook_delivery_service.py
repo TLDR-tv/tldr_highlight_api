@@ -24,7 +24,6 @@ from src.domain.value_objects.timestamp import Timestamp
 from src.domain.repositories.webhook_repository import WebhookRepository
 from src.domain.repositories.stream_repository import StreamRepository
 from src.domain.repositories.highlight_repository import HighlightRepository
-from src.domain.repositories.batch_repository import BatchRepository
 from src.domain.exceptions import EntityNotFoundError
 
 
@@ -46,7 +45,6 @@ class WebhookDeliveryService(BaseDomainService):
         webhook_repo: WebhookRepository,
         stream_repo: StreamRepository,
         highlight_repo: HighlightRepository,
-        batch_repo: BatchRepository,
         http_client: Optional[aiohttp.ClientSession] = None,
     ):
         """Initialize webhook delivery service.
@@ -55,14 +53,12 @@ class WebhookDeliveryService(BaseDomainService):
             webhook_repo: Repository for webhook operations
             stream_repo: Repository for stream operations
             highlight_repo: Repository for highlight operations
-            batch_repo: Repository for batch operations
             http_client: Optional HTTP client for deliveries
         """
         super().__init__()
         self.webhook_repo = webhook_repo
         self.stream_repo = stream_repo
         self.highlight_repo = highlight_repo
-        self.batch_repo = batch_repo
         self._http_client = http_client
 
     async def trigger_event(
@@ -420,20 +416,6 @@ class WebhookDeliveryService(BaseDomainService):
                     "confidence_score": highlight.confidence_score.value,
                     "duration_seconds": highlight.duration.value,
                     "type": highlight.highlight_type.value,
-                }
-
-        elif event == WebhookEvent.BATCH_COMPLETED:
-            batch = await self.batch_repo.get(resource_id)
-            if batch:
-                base_payload["data"] = {
-                    "batch_id": batch.id,
-                    "name": batch.name,
-                    "total_items": batch.total_items,
-                    "successful_items": batch.successful_items,
-                    "failed_items": batch.failed_items,
-                    "completed_at": batch.completed_at.iso_string
-                    if batch.completed_at
-                    else None,
                 }
 
         return base_payload

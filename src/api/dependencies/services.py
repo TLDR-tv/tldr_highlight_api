@@ -89,14 +89,12 @@ async def get_webhook_delivery_service(
     webhook_repo: WebhookRepository = Depends(get_webhook_repository),
     stream_repo: StreamRepository = Depends(get_stream_repository),
     highlight_repo: HighlightRepository = Depends(get_highlight_repository),
-    batch_repo: BatchRepository = Depends(get_batch_repository),
 ) -> WebhookDeliveryService:
     """Get webhook delivery service instance."""
     return WebhookDeliveryService(
         webhook_repo=webhook_repo,
         stream_repo=stream_repo,
         highlight_repo=highlight_repo,
-        batch_repo=batch_repo,
     )
 
 

@@ -66,7 +66,7 @@ async def get_organization(
     if not result.organization:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Organization data not available"
+            detail="Organization data not available",
         )
     return mapper.to_organization_response(result.organization)
 
@@ -112,7 +112,7 @@ async def update_organization(
     if not result.organization:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Organization data not available"
+            detail="Organization data not available",
         )
     return mapper.to_organization_response(result.organization)
 
@@ -205,7 +205,7 @@ async def add_user_to_organization(
     if not result.user:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="User data not available"
+            detail="User data not available",
         )
     return mapper.to_add_user_response(result.user, org_id, user_data.role or "member")
 
@@ -320,7 +320,7 @@ async def get_organization_usage(
     if not org_result.organization:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Organization data not available"
+            detail="Organization data not available",
         )
     plan_limits = org_result.organization.plan_limits
 

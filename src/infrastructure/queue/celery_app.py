@@ -38,11 +38,15 @@ class LoggingTask(Task):
         """Success callback."""
         logger.info(f"Task {self.name}[{task_id}] succeeded")
 
-    def on_retry(self, exc: Exception, task_id: str, args: tuple, kwargs: dict, einfo: Any) -> None:
+    def on_retry(
+        self, exc: Exception, task_id: str, args: tuple, kwargs: dict, einfo: Any
+    ) -> None:
         """Retry callback."""
         logger.warning(f"Task {self.name}[{task_id}] retrying: {exc}")
 
-    def on_failure(self, exc: Exception, task_id: str, args: tuple, kwargs: dict, einfo: Any) -> None:
+    def on_failure(
+        self, exc: Exception, task_id: str, args: tuple, kwargs: dict, einfo: Any
+    ) -> None:
         """Failure callback."""
         logger.error(f"Task {self.name}[{task_id}] failed: {exc}", exc_info=einfo)
 
@@ -174,7 +178,12 @@ def setup_signal_handlers() -> None:
 
     @task_prerun.connect
     def task_prerun_handler(
-        sender: Any = None, task_id: Optional[str] = None, task: Optional[Task] = None, args: Optional[tuple] = None, kwargs: Optional[dict] = None, **kw: Any
+        sender: Any = None,
+        task_id: Optional[str] = None,
+        task: Optional[Task] = None,
+        args: Optional[tuple] = None,
+        kwargs: Optional[dict] = None,
+        **kw: Any,
     ) -> None:
         """Handle task pre-run signal."""
         logger.info(
@@ -196,18 +205,26 @@ def setup_signal_handlers() -> None:
         logger.info(f"Completed task {task.name}[{task_id}] with state={state}")
 
     @task_success.connect
-    def task_success_handler(sender: Any = None, result: Any = None, **kwargs: Any) -> None:
+    def task_success_handler(
+        sender: Any = None, result: Any = None, **kwargs: Any
+    ) -> None:
         """Handle task success signal."""
         logger.debug(f"Task {sender.name} succeeded with result: {result}")
 
     @task_retry.connect
-    def task_retry_handler(sender: Any = None, reason: Any = None, **kwargs: Any) -> None:
+    def task_retry_handler(
+        sender: Any = None, reason: Any = None, **kwargs: Any
+    ) -> None:
         """Handle task retry signal."""
         logger.warning(f"Task {sender.name} retrying, reason: {reason}")
 
     @task_failure.connect
     def task_failure_handler(
-        sender: Any = None, task_id: Optional[str] = None, exception: Optional[Exception] = None, traceback: Any = None, **kwargs: Any
+        sender: Any = None,
+        task_id: Optional[str] = None,
+        exception: Optional[Exception] = None,
+        traceback: Any = None,
+        **kwargs: Any,
     ) -> None:
         """Handle task failure signal."""
         logger.error(

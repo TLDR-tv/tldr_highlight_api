@@ -4,12 +4,11 @@ This service handles tracking of resource usage for analytics and future billing
 without complex billing calculations. Metrics are sent to Logfire for monitoring.
 """
 
-from typing import Dict, Any, Optional, List
-from datetime import datetime, timedelta
+from typing import Dict, Any, Optional
+from datetime import datetime
 
 from src.domain.services.base import BaseDomainService
 from src.domain.entities.usage_record import UsageRecord, UsageType
-from src.domain.entities.organization import Organization
 from src.domain.value_objects.timestamp import Timestamp
 from src.domain.repositories.usage_record_repository import UsageRecordRepository
 from src.domain.repositories.organization_repository import OrganizationRepository
@@ -95,7 +94,7 @@ class UsageTrackingService(BaseDomainService):
 
         # Save usage record
         saved_record = await self.usage_repo.create(usage_record)
-        
+
         # Log to metrics (this will be sent to Logfire)
         self._log_usage_metric(
             "api_call",
@@ -106,7 +105,7 @@ class UsageTrackingService(BaseDomainService):
                 "method": method,
                 "status_code": status_code,
                 "response_time_ms": response_time_ms,
-            }
+            },
         )
 
         return saved_record
@@ -151,7 +150,7 @@ class UsageTrackingService(BaseDomainService):
         )
 
         saved_record = await self.usage_repo.create(usage_record)
-        
+
         # Log to metrics
         self._log_usage_metric(
             "stream_processing",
@@ -160,7 +159,7 @@ class UsageTrackingService(BaseDomainService):
                 "organization_id": organization_id,
                 "stream_id": stream_id,
                 "processing_minutes": processing_minutes,
-            }
+            },
         )
 
         return saved_record
@@ -204,7 +203,7 @@ class UsageTrackingService(BaseDomainService):
         )
 
         saved_record = await self.usage_repo.create(usage_record)
-        
+
         # Log to metrics
         self._log_usage_metric(
             "webhook_delivery",
@@ -212,7 +211,7 @@ class UsageTrackingService(BaseDomainService):
                 "user_id": user_id,
                 "organization_id": organization_id,
                 "webhook_id": webhook_id,
-            }
+            },
         )
 
         return saved_record
@@ -248,7 +247,7 @@ class UsageTrackingService(BaseDomainService):
                     "unit": record.unit,
                     "count": 0,
                 }
-            
+
             usage_by_type[usage_type]["quantity"] += record.quantity
             usage_by_type[usage_type]["count"] += 1
 
@@ -269,10 +268,10 @@ class UsageTrackingService(BaseDomainService):
         """
         # Import metrics collector here to avoid circular imports
         from src.infrastructure.observability.logfire_metrics import MetricsCollector
-        
+
         # Get global metrics collector instance
         metrics_collector = MetricsCollector()
-        
+
         # Send appropriate metric based on type
         if metric_name == "api_call":
             metrics_collector.track_api_call_usage(
@@ -297,7 +296,7 @@ class UsageTrackingService(BaseDomainService):
                 webhook_id=str(attributes["webhook_id"]),
                 success=True,  # Default to success, can be enhanced later
             )
-        
+
         # Also log locally for debugging
         self.logger.info(
             f"Usage metric: {metric_name}",
@@ -305,5 +304,5 @@ class UsageTrackingService(BaseDomainService):
                 "metric_name": metric_name,
                 "attributes": attributes,
                 "timestamp": datetime.utcnow().isoformat(),
-            }
+            },
         )
