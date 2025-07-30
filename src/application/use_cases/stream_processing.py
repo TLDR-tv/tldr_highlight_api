@@ -24,6 +24,8 @@ from src.domain.exceptions import (
     BusinessRuleViolation,
     InvalidResourceStateError
 )
+from src.infrastructure.observability import traced_use_case, metrics, with_span
+import logfire
 
 
 @dataclass
@@ -130,6 +132,7 @@ class StreamProcessingUseCase(UseCase[StreamStartRequest, StreamStartResult]):
         self.webhook_service = webhook_service
         self.usage_service = usage_service
     
+    @traced_use_case(name="start_stream")
     async def start_stream(self, request: StreamStartRequest) -> StreamStartResult:
         """Start processing a stream.
         
@@ -140,13 +143,20 @@ class StreamProcessingUseCase(UseCase[StreamStartRequest, StreamStartResult]):
             Stream start result
         """
         try:
-            # Validate user exists
-            user = await self.user_repo.get(request.user_id)
-            if not user:
-                return StreamStartResult(
-                    status=ResultStatus.NOT_FOUND,
-                    errors=["User not found"]
-                )
+            with logfire.span("start_stream.transaction") as span:
+                span.set_attribute("user.id", request.user_id)
+                span.set_attribute("stream.url", request.url[:50] + "..." if len(request.url) > 50 else request.url)
+                span.set_attribute("stream.title", request.title)
+                
+                # Validate user exists
+                user = await self.user_repo.get(request.user_id)
+                if not user:
+                    span.set_attribute("error", True)
+                    span.set_attribute("error.type", "user_not_found")
+                    return StreamStartResult(
+                        status=ResultStatus.NOT_FOUND,
+                        errors=["User not found"]
+                    )
             
             # Parse processing options
             processing_options = None
@@ -162,33 +172,60 @@ class StreamProcessingUseCase(UseCase[StreamStartRequest, StreamStartResult]):
                 )
             
             # Start stream processing with B2B agent
-            stream = await self.stream_service.start_stream_processing(
-                user_id=request.user_id,
-                url=request.url,
-                title=request.title,
-                processing_options=processing_options,
-                agent_config_id=request.agent_config_id
-            )
+            with logfire.span("start_stream_processing") as processing_span:
+                stream = await self.stream_service.start_stream_processing(
+                    user_id=request.user_id,
+                    url=request.url,
+                    title=request.title,
+                    processing_options=processing_options,
+                    agent_config_id=request.agent_config_id
+                )
+                processing_span.set_attribute("stream.id", stream.id)
+                processing_span.set_attribute("stream.platform", stream.platform.value)
             
             # Track API usage
-            await self.usage_service.track_api_call(
-                user_id=request.user_id,
-                api_key_id=1,  # Would come from auth context
-                endpoint="/streams",
-                method="POST",
-                response_time_ms=100,  # Would be measured
-                status_code=201
-            )
+            with logfire.span("track_api_usage"):
+                await self.usage_service.track_api_call(
+                    user_id=request.user_id,
+                    api_key_id=1,  # Would come from auth context
+                    endpoint="/streams",
+                    method="POST",
+                    response_time_ms=100,  # Would be measured
+                    status_code=201
+                )
+                
+                # Track use case metrics
+                metrics.increment_api_calls(
+                    endpoint="/streams",
+                    method="POST",
+                    status_code=201,
+                    organization_id=str(stream.organization_id) if hasattr(stream, 'organization_id') else "none"
+                )
             
             # Trigger webhook
-            await self.webhook_service.trigger_event(
-                event=WebhookEvent.STREAM_STARTED,
+            with logfire.span("trigger_webhook") as webhook_span:
+                await self.webhook_service.trigger_event(
+                    event=WebhookEvent.STREAM_STARTED,
+                    user_id=request.user_id,
+                    resource_id=stream.id,
+                    metadata={
+                        "platform": stream.platform.value,
+                        "title": stream.title
+                    }
+                )
+                webhook_span.set_attribute("webhook.event", WebhookEvent.STREAM_STARTED.value)
+                webhook_span.set_attribute("webhook.resource_id", stream.id)
+            
+            span.set_attribute("success", True)
+            span.set_attribute("stream.id", stream.id)
+            
+            # Log successful stream start
+            logfire.info(
+                "use_case.stream.started",
                 user_id=request.user_id,
-                resource_id=stream.id,
-                metadata={
-                    "platform": stream.platform.value,
-                    "title": stream.title
-                }
+                stream_id=stream.id,
+                platform=stream.platform.value,
+                agent_config_id=request.agent_config_id
             )
             
             return StreamStartResult(
@@ -200,21 +237,38 @@ class StreamProcessingUseCase(UseCase[StreamStartRequest, StreamStartResult]):
             )
             
         except QuotaExceededError as e:
+            logfire.warning(
+                "use_case.stream.quota_exceeded",
+                user_id=request.user_id,
+                error=str(e)
+            )
             return StreamStartResult(
                 status=ResultStatus.QUOTA_EXCEEDED,
                 errors=[str(e)]
             )
         except BusinessRuleViolation as e:
+            logfire.warning(
+                "use_case.stream.validation_error",
+                user_id=request.user_id,
+                error=str(e)
+            )
             return StreamStartResult(
                 status=ResultStatus.VALIDATION_ERROR,
                 errors=[str(e)]
             )
         except Exception as e:
+            logfire.error(
+                "use_case.stream.start_failed",
+                user_id=request.user_id,
+                error=str(e),
+                exc_info=True
+            )
             return StreamStartResult(
                 status=ResultStatus.FAILURE,
                 errors=[f"Failed to start stream: {str(e)}"]
             )
     
+    @traced_use_case(name="stop_stream")
     async def stop_stream(self, request: StreamStopRequest) -> StreamStopResult:
         """Stop processing a stream.
         
@@ -225,13 +279,20 @@ class StreamProcessingUseCase(UseCase[StreamStartRequest, StreamStartResult]):
             Stream stop result
         """
         try:
-            # Get stream
-            stream = await self.stream_repo.get(request.stream_id)
-            if not stream:
-                return StreamStopResult(
-                    status=ResultStatus.NOT_FOUND,
-                    errors=["Stream not found"]
-                )
+            with logfire.span("stop_stream.transaction") as span:
+                span.set_attribute("user.id", request.user_id)
+                span.set_attribute("stream.id", request.stream_id)
+                span.set_attribute("force", request.force)
+                
+                # Get stream
+                stream = await self.stream_repo.get(request.stream_id)
+                if not stream:
+                    span.set_attribute("error", True)
+                    span.set_attribute("error.type", "stream_not_found")
+                    return StreamStopResult(
+                        status=ResultStatus.NOT_FOUND,
+                        errors=["Stream not found"]
+                    )
             
             # Verify ownership
             if stream.user_id != request.user_id:
@@ -251,19 +312,30 @@ class StreamProcessingUseCase(UseCase[StreamStartRequest, StreamStartResult]):
             
             # Calculate processing duration
             duration_minutes = None
-            if stopped_stream.started_at and stopped_stream.completed_at:
-                duration_seconds = (
-                    stopped_stream.completed_at.value - stopped_stream.started_at.value
-                ).total_seconds()
-                duration_minutes = duration_seconds / 60
-                
-                # Track stream processing usage
-                await self.usage_service.track_stream_processing(
-                    user_id=request.user_id,
-                    stream_id=request.stream_id,
-                    duration_minutes=duration_minutes,
-                    highlights_generated=len(highlights)
-                )
+            with logfire.span("calculate_usage") as usage_span:
+                if stopped_stream.started_at and stopped_stream.completed_at:
+                    duration_seconds = (
+                        stopped_stream.completed_at.value - stopped_stream.started_at.value
+                    ).total_seconds()
+                    duration_minutes = duration_seconds / 60
+                    
+                    usage_span.set_attribute("duration_minutes", duration_minutes)
+                    usage_span.set_attribute("highlights_count", len(highlights))
+                    
+                    # Track stream processing usage
+                    await self.usage_service.track_stream_processing(
+                        user_id=request.user_id,
+                        stream_id=request.stream_id,
+                        duration_minutes=duration_minutes,
+                        highlights_generated=len(highlights)
+                    )
+                    
+                    # Track completion metrics
+                    metrics.record_stream_duration(
+                        duration_minutes=duration_minutes,
+                        platform=stopped_stream.platform.value,
+                        highlights_count=len(highlights)
+                    )
             
             # Trigger webhook
             await self.webhook_service.trigger_event(
@@ -275,6 +347,21 @@ class StreamProcessingUseCase(UseCase[StreamStartRequest, StreamStartResult]):
                     "highlights_count": len(highlights),
                     "forced_stop": request.force
                 }
+            )
+            
+            span.set_attribute("success", True)
+            span.set_attribute("final_status", stopped_stream.status.value)
+            span.set_attribute("highlights_count", len(highlights))
+            
+            # Log successful stream stop
+            logfire.info(
+                "use_case.stream.stopped",
+                user_id=request.user_id,
+                stream_id=request.stream_id,
+                final_status=stopped_stream.status.value,
+                highlights_count=len(highlights),
+                duration_minutes=duration_minutes,
+                forced=request.force
             )
             
             return StreamStopResult(
@@ -297,6 +384,7 @@ class StreamProcessingUseCase(UseCase[StreamStartRequest, StreamStartResult]):
                 errors=[f"Failed to stop stream: {str(e)}"]
             )
     
+    @traced_use_case(name="get_stream_status")
     async def get_stream_status(self, request: StreamStatusRequest) -> StreamStatusResult:
         """Get current status of a stream.
         
@@ -351,6 +439,7 @@ class StreamProcessingUseCase(UseCase[StreamStartRequest, StreamStartResult]):
                 errors=[f"Failed to get stream status: {str(e)}"]
             )
     
+    @traced_use_case(name="process_highlights")
     async def process_highlights(self, request: ProcessHighlightsRequest) -> ProcessHighlightsResult:
         """Process detection results and create highlights.
         
@@ -361,13 +450,21 @@ class StreamProcessingUseCase(UseCase[StreamStartRequest, StreamStartResult]):
             Processing result
         """
         try:
-            # Process detection results
-            highlights = await self.highlight_service.process_detection_results(
-                stream_id=request.stream_id,
-                video_results=request.video_results,
-                audio_results=request.audio_results,
-                chat_results=request.chat_results
-            )
+            with logfire.span("process_highlights.transaction") as span:
+                span.set_attribute("stream.id", request.stream_id)
+                span.set_attribute("video_results.count", len(request.video_results))
+                span.set_attribute("audio_results.count", len(request.audio_results))
+                span.set_attribute("chat_results.count", len(request.chat_results))
+                
+                # Process detection results
+                highlights = await self.highlight_service.process_detection_results(
+                    stream_id=request.stream_id,
+                    video_results=request.video_results,
+                    audio_results=request.audio_results,
+                    chat_results=request.chat_results
+                )
+                
+                span.set_attribute("highlights.created", len(highlights))
             
             # Get stream for user ID
             stream = await self.stream_repo.get(request.stream_id)
@@ -378,17 +475,37 @@ class StreamProcessingUseCase(UseCase[StreamStartRequest, StreamStartResult]):
                 )
             
             # Trigger webhooks for each highlight
-            for highlight in highlights:
-                await self.webhook_service.trigger_event(
-                    event=WebhookEvent.HIGHLIGHT_DETECTED,
-                    user_id=stream.user_id,
-                    resource_id=highlight.id,
-                    metadata={
-                        "type": highlight.highlight_type.value,
-                        "confidence": highlight.confidence_score.value,
-                        "duration_seconds": highlight.duration.value
-                    }
-                )
+            with logfire.span("trigger_highlight_webhooks") as webhook_span:
+                webhook_span.set_attribute("webhooks.count", len(highlights))
+                
+                for i, highlight in enumerate(highlights):
+                    await self.webhook_service.trigger_event(
+                        event=WebhookEvent.HIGHLIGHT_DETECTED,
+                        user_id=stream.user_id,
+                        resource_id=highlight.id,
+                        metadata={
+                            "type": highlight.highlight_type.value,
+                            "confidence": highlight.confidence_score.value,
+                            "duration_seconds": highlight.duration.value
+                        }
+                    )
+                    
+                    # Track highlight metrics
+                    metrics.record_highlight_confidence(
+                        confidence=highlight.confidence_score.value,
+                        detection_method="highlight_service",
+                        platform=stream.platform.value if hasattr(stream, 'platform') else "unknown"
+                    )
+            
+            span.set_attribute("success", True)
+            
+            # Log highlight processing completion
+            logfire.info(
+                "use_case.highlights.processed",
+                stream_id=request.stream_id,
+                highlights_created=len(highlights),
+                total_results=len(request.video_results) + len(request.audio_results) + len(request.chat_results)
+            )
             
             return ProcessHighlightsResult(
                 status=ResultStatus.SUCCESS,

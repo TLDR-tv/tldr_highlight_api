@@ -30,6 +30,12 @@ from src.domain.repositories.organization_repository import OrganizationReposito
 from src.domain.repositories.usage_record_repository import UsageRecordRepository
 from src.domain.repositories.highlight_repository import HighlightRepository
 from src.domain.repositories.highlight_agent_config_repository import HighlightAgentConfigRepository
+from src.infrastructure.observability import (
+    traced_service_method,
+    metrics,
+    with_span,
+)
+import logfire
 
 
 class StreamProcessingService(BaseDomainService):
@@ -70,6 +76,7 @@ class StreamProcessingService(BaseDomainService):
         self.agent_config_repo = agent_config_repo
         self.content_analyzer = content_analyzer
     
+    @traced_service_method(name="start_stream_processing")
     async def start_stream_processing(
         self,
         user_id: int,
@@ -98,18 +105,33 @@ class StreamProcessingService(BaseDomainService):
             BusinessRuleViolation: If business rules are violated
         """
         # Get user and validate
-        user = await self.user_repo.get(user_id)
-        if not user:
-            raise EntityNotFoundError(f"User {user_id} not found")
+        with logfire.span("validate_user") as span:
+            span.set_attribute("user.id", user_id)
+            user = await self.user_repo.get(user_id)
+            if not user:
+                span.set_attribute("error", True)
+                span.set_attribute("error.message", f"User {user_id} not found")
+                raise EntityNotFoundError(f"User {user_id} not found")
+            span.set_attribute("user.found", True)
         
         # Get user's organization for quota checking
-        org = await self._get_user_organization(user_id)
+        with logfire.span("get_organization") as span:
+            org = await self._get_user_organization(user_id)
+            if org:
+                span.set_attribute("organization.id", org.id)
+                span.set_attribute("organization.name", org.name)
+                logfire.set_attribute("organization.id", org.id)
         
         # Check concurrent stream limit
-        await self._check_concurrent_stream_limit(user_id, org)
+        with logfire.span("check_quota") as span:
+            await self._check_concurrent_stream_limit(user_id, org)
+            span.set_attribute("quota.check_passed", True)
         
         # Determine platform from URL
-        platform = self._detect_platform(url)
+        with logfire.span("detect_platform") as span:
+            platform = self._detect_platform(url)
+            span.set_attribute("stream.platform", platform.value)
+            span.set_attribute("stream.url", url[:50] + "..." if len(url) > 50 else url)
         
         # Create stream entity
         stream = Stream(
@@ -126,24 +148,38 @@ class StreamProcessingService(BaseDomainService):
         )
         
         # Save stream
-        saved_stream = await self.stream_repo.save(stream)
+        with logfire.span("save_stream") as span:
+            saved_stream = await self.stream_repo.save(stream)
+            span.set_attribute("stream.id", saved_stream.id)
+            span.set_attribute("stream.platform", saved_stream.platform.value)
+            metrics.increment_stream_started(
+                platform=saved_stream.platform.value,
+                organization_id=str(org.id) if org else "none",
+                stream_type="live"
+            )
         
         # Get or create agent configuration
-        agent_config = await self._get_or_create_agent_config(
-            user_id=user_id,
-            organization_id=org.id if org else None,
-            agent_config_id=agent_config_id,
-            url=url
-        )
+        with logfire.span("get_agent_config") as span:
+            agent_config = await self._get_or_create_agent_config(
+                user_id=user_id,
+                organization_id=org.id if org else None,
+                agent_config_id=agent_config_id,
+                url=url
+            )
+            span.set_attribute("agent_config.id", agent_config.id if hasattr(agent_config, 'id') else None)
+            span.set_attribute("agent_config.type", agent_config.config_type if hasattr(agent_config, 'config_type') else None)
         
         # Trigger FFmpeg stream ingestion task (which will chain to AI detection)
-        from src.infrastructure.async_processing.stream_tasks import ingest_stream_with_ffmpeg
-        
-        task_result = ingest_stream_with_ffmpeg.delay(
-            stream_id=saved_stream.id,
-            chunk_duration=30,  # 30 second chunks
-            agent_config_id=agent_config_id
-        )
+        with logfire.span("trigger_async_processing") as span:
+            from src.infrastructure.async_processing.stream_tasks import ingest_stream_with_ffmpeg
+            
+            task_result = ingest_stream_with_ffmpeg.delay(
+                stream_id=saved_stream.id,
+                chunk_duration=30,  # 30 second chunks
+                agent_config_id=agent_config_id
+            )
+            span.set_attribute("task.id", task_result.id)
+            span.set_attribute("task.name", "ingest_stream_with_ffmpeg")
         
         # Store task ID for monitoring
         saved_stream.metadata = {
@@ -153,18 +189,31 @@ class StreamProcessingService(BaseDomainService):
         await self.stream_repo.save(saved_stream)
         
         # Create initial usage record
-        usage_record = UsageRecord.for_stream_processing(
-            user_id=user_id,
-            stream_id=saved_stream.id,
-            duration_minutes=0,  # Will be updated as processing continues
-            organization_id=org.id if org else None
-        )
-        await self.usage_repo.save(usage_record)
+        with logfire.span("create_usage_record") as span:
+            usage_record = UsageRecord.for_stream_processing(
+                user_id=user_id,
+                stream_id=saved_stream.id,
+                duration_minutes=0,  # Will be updated as processing continues
+                organization_id=org.id if org else None
+            )
+            await self.usage_repo.save(usage_record)
+            span.set_attribute("usage_record.created", True)
         
         self.logger.info(f"Started stream processing with B2B agent: {saved_stream.id} for user {user_id}")
         
+        # Log stream start event
+        logfire.info(
+            "stream.processing.started",
+            stream_id=saved_stream.id,
+            user_id=user_id,
+            platform=saved_stream.platform.value,
+            organization_id=org.id if org else None,
+            agent_config_id=agent_config_id
+        )
+        
         return saved_stream
     
+    @traced_service_method(name="update_stream_status")
     async def update_stream_status(
         self,
         stream_id: int,
@@ -188,9 +237,14 @@ class StreamProcessingService(BaseDomainService):
             InvalidStateTransition: If status transition is invalid
         """
         # Get stream
-        stream = await self.stream_repo.get(stream_id)
-        if not stream:
-            raise EntityNotFoundError(f"Stream {stream_id} not found")
+        with logfire.span("get_stream_for_update") as span:
+            span.set_attribute("stream.id", stream_id)
+            span.set_attribute("new_status", new_status.value)
+            stream = await self.stream_repo.get(stream_id)
+            if not stream:
+                span.set_attribute("error", True)
+                raise EntityNotFoundError(f"Stream {stream_id} not found")
+            span.set_attribute("current_status", stream.status.value)
         
         # Validate state transition
         if not self._is_valid_transition(stream.status, new_status):
@@ -228,7 +282,10 @@ class StreamProcessingService(BaseDomainService):
             )
         
         # Save updated stream
-        saved_stream = await self.stream_repo.save(updated_stream)
+        with logfire.span("save_updated_stream") as span:
+            saved_stream = await self.stream_repo.save(updated_stream)
+            span.set_attribute("stream.id", saved_stream.id)
+            span.set_attribute("stream.status", saved_stream.status.value)
         
         # Cancel Celery tasks if stream is being cancelled
         if new_status == StreamStatus.CANCELLED:
@@ -236,12 +293,33 @@ class StreamProcessingService(BaseDomainService):
         
         # Update usage record if completed
         if new_status in [StreamStatus.COMPLETED, StreamStatus.FAILED]:
-            await self._finalize_stream_usage(saved_stream)
+            with logfire.span("finalize_usage") as span:
+                await self._finalize_stream_usage(saved_stream)
+                span.set_attribute("stream.final_status", new_status.value)
+                
+                # Track stream completion metrics
+                if hasattr(saved_stream, 'organization_id'):
+                    metrics.increment_stream_completed(
+                        platform=saved_stream.platform.value,
+                        organization_id=str(saved_stream.organization_id) if saved_stream.organization_id else "none",
+                        stream_type="live",
+                        success=(new_status == StreamStatus.COMPLETED)
+                    )
         
         self.logger.info(f"Updated stream {stream_id} status to {new_status.value}")
         
+        # Log status update event
+        logfire.info(
+            "stream.status.updated",
+            stream_id=stream_id,
+            old_status=stream.status.value,
+            new_status=new_status.value,
+            error_message=error_message
+        )
+        
         return saved_stream
     
+    @traced_service_method(name="get_user_active_streams")
     async def get_user_active_streams(self, user_id: int) -> List[Stream]:
         """Get all active streams for a user.
         
@@ -256,6 +334,7 @@ class StreamProcessingService(BaseDomainService):
             status=StreamStatus.PROCESSING
         )
     
+    @traced_service_method(name="get_stream_with_highlights")
     async def get_stream_with_highlights(self, stream_id: int, user_id: int) -> Optional[Stream]:
         """Get stream with highlights, verifying ownership.
         
@@ -285,6 +364,7 @@ class StreamProcessingService(BaseDomainService):
         
         return stream
     
+    @traced_service_method(name="calculate_stream_cost")
     async def calculate_stream_cost(self, stream_id: int) -> Dict[str, Any]:
         """Calculate the cost of processing a stream.
         
@@ -302,11 +382,23 @@ class StreamProcessingService(BaseDomainService):
         usage_records = await self.usage_repo.get_by_resource(stream_id, "stream")
         
         # Calculate costs
-        total_minutes = sum(record.quantity for record in usage_records)
-        total_cost = sum(record.total_cost or 0 for record in usage_records)
-        
-        # Get highlight count
-        highlights = await self.highlight_repo.get_by_stream(stream_id)
+        with logfire.span("calculate_costs") as span:
+            total_minutes = sum(record.quantity for record in usage_records)
+            total_cost = sum(record.total_cost or 0 for record in usage_records)
+            
+            # Get highlight count
+            highlights = await self.highlight_repo.get_by_stream(stream_id)
+            
+            span.set_attribute("cost.total_minutes", total_minutes)
+            span.set_attribute("cost.total_amount", total_cost)
+            span.set_attribute("cost.highlight_count", len(highlights))
+            
+            # Record cost metrics
+            metrics.record_stream_cost(
+                cost=total_cost,
+                duration_minutes=total_minutes,
+                platform=stream.platform.value
+            )
         
         return {
             "stream_id": stream_id,
@@ -361,6 +453,7 @@ class StreamProcessingService(BaseDomainService):
             self.logger.error(f"Error getting task status for stream {stream_id}: {str(e)}")
             return None
     
+    @traced_service_method(name="stop_stream_processing")
     async def stop_stream_processing(
         self,
         stream_id: int,
@@ -393,6 +486,7 @@ class StreamProcessingService(BaseDomainService):
         orgs = await self.org_repo.get_by_owner(user_id)
         return orgs[0] if orgs else None
     
+    @with_span("check_concurrent_stream_limit")
     async def _check_concurrent_stream_limit(self, user_id: int, org: Optional[Organization]):
         """Check if user can start another concurrent stream."""
         active_streams = await self.stream_repo.get_active_streams()
@@ -404,6 +498,13 @@ class StreamProcessingService(BaseDomainService):
             limit = org.plan_limits.concurrent_streams
         
         if user_active_count >= limit:
+            logfire.warning(
+                "quota.exceeded",
+                user_id=user_id,
+                organization_id=org.id if org else None,
+                limit=limit,
+                current_count=user_active_count
+            )
             raise QuotaExceededError(
                 f"Concurrent stream limit ({limit}) exceeded. "
                 f"Please wait for current streams to complete."
@@ -443,6 +544,7 @@ class StreamProcessingService(BaseDomainService):
         merged.update(updates)
         return merged
     
+    @with_span("finalize_stream_usage")
     async def _finalize_stream_usage(self, stream: Stream):
         """Finalize usage records when stream completes."""
         if not stream.duration_seconds:
@@ -458,6 +560,7 @@ class StreamProcessingService(BaseDomainService):
                 completed_record = record.complete(quantity=duration_minutes)
                 await self.usage_repo.save(completed_record)
     
+    @with_span("cancel_stream_tasks")
     async def _cancel_stream_tasks(self, stream_id: int) -> None:
         """Cancel running Celery tasks for a stream."""
         try:

@@ -18,6 +18,8 @@ from ..entities.highlight import Highlight, HighlightCandidate
 from ..entities.highlight_agent_config import HighlightAgentConfig
 from ..value_objects.scoring_config import ScoringDimensions
 from ..exceptions import BusinessRuleViolation, ProcessingError
+from src.infrastructure.observability import traced_service_method, metrics, with_span
+import logfire
 
 
 class AgentStatus(str, Enum):
@@ -171,6 +173,7 @@ class B2BStreamAgent:
     # HIGHLIGHT ANALYSIS AND SCORING
     # ============================================================================
     
+    @traced_service_method(name="analyze_content_segment")
     async def analyze_content_segment(
         self,
         segment_data: Dict[str, Any]  # Generic segment data
@@ -186,27 +189,63 @@ class B2BStreamAgent:
         try:
             self.segments_processed += 1
             
-            if not self.content_analyzer:
-                return []
+            with logfire.span("segment_analysis.start") as span:
+                span.set_attribute("segment.id", segment_data.get("id", "unknown"))
+                span.set_attribute("agent.id", self.agent_id)
+                span.set_attribute("organization.id", self.agent_config.organization_id)
+                
+                if not self.content_analyzer:
+                    span.set_attribute("skipped", True)
+                    span.set_attribute("reason", "no_content_analyzer")
+                    return []
             
             # Get effective prompt with consumer customization
-            context = self.get_context_for_prompt()
-            analysis_prompt = self.agent_config.get_effective_prompt(context)
+            with logfire.span("prepare_analysis_prompt") as span:
+                context = self.get_context_for_prompt()
+                analysis_prompt = self.agent_config.get_effective_prompt(context)
+                span.set_attribute("prompt.length", len(analysis_prompt))
+                span.set_attribute("context.highlights_count", len(self.recent_highlights))
             
             # Analyze using configured prompt
-            analysis_result = await self.content_analyzer.analyze_with_prompt(
-                segment_data=segment_data,
-                prompt=analysis_prompt,
-                scoring_config=self.agent_config.dimension_weights
-            )
+            with logfire.span("content_analyzer.analyze") as span:
+                analysis_start = datetime.utcnow()
+                analysis_result = await self.content_analyzer.analyze_with_prompt(
+                    segment_data=segment_data,
+                    prompt=analysis_prompt,
+                    scoring_config=self.agent_config.dimension_weights
+                )
+                analysis_duration = (datetime.utcnow() - analysis_start).total_seconds()
+                span.set_attribute("analysis.duration_seconds", analysis_duration)
+                span.set_attribute("analysis.candidates_found", len(analysis_result.get("candidates", [])))
+                
+                # Track AI analysis metrics
+                metrics.record_highlight_processing_time(
+                    duration_seconds=analysis_duration,
+                    stage="ai_analysis",
+                    platform=self.stream.platform.value
+                )
             
             # Convert analysis to highlight candidates
             candidates = []
-            for result in analysis_result.get("candidates", []):
-                candidate = self._create_highlight_candidate(result, segment_data)
-                if candidate:
-                    candidates.append(candidate)
-                    self.candidates_evaluated += 1
+            with logfire.span("create_candidates") as span:
+                for i, result in enumerate(analysis_result.get("candidates", [])):
+                    candidate = self._create_highlight_candidate(result, segment_data)
+                    if candidate:
+                        candidates.append(candidate)
+                        self.candidates_evaluated += 1
+                        
+                        # Track high-scoring candidates
+                        if candidate.final_score > 0.8:
+                            logfire.info(
+                                "highlight.candidate.high_score",
+                                candidate_id=candidate.id,
+                                score=candidate.final_score,
+                                description=candidate.description[:100],
+                                organization_id=self.agent_config.organization_id
+                            )
+                
+                span.set_attribute("candidates.created", len(candidates))
+                span.set_attribute("candidates.evaluated_total", self.candidates_evaluated)
             
             # Add analysis to memory
             self.add_memory_entry(AgentMemoryEntry(
@@ -229,6 +268,15 @@ class B2BStreamAgent:
         except Exception as e:
             error_msg = f"Content analysis failed: {str(e)}"
             self.error_history.append(error_msg)
+            
+            logfire.error(
+                "agent.analysis.failed",
+                error=str(e),
+                segment_id=segment_data.get("id", "unknown"),
+                agent_id=self.agent_id,
+                organization_id=self.agent_config.organization_id
+            )
+            
             raise ProcessingError(error_msg) from e
     
     def _create_highlight_candidate(
@@ -278,22 +326,36 @@ class B2BStreamAgent:
             self.error_history.append(f"Candidate creation failed: {str(e)}")
             return None
     
+    @traced_service_method(name="should_create_highlight")
     async def should_create_highlight(self, candidate: HighlightCandidate) -> bool:
         """Determine if a highlight should be created using consumer rules."""
         try:
-            # Check basic score threshold
-            if candidate.final_score < self.agent_config.min_confidence_threshold:
-                return False
+            with logfire.span("evaluate_highlight_candidate") as span:
+                span.set_attribute("candidate.id", candidate.id)
+                span.set_attribute("candidate.score", candidate.final_score)
+                span.set_attribute("candidate.confidence", candidate.confidence)
+                
+                # Check basic score threshold
+                if candidate.final_score < self.agent_config.min_confidence_threshold:
+                    span.set_attribute("decision", "rejected")
+                    span.set_attribute("reason", "below_threshold")
+                    return False
             
             # Check timing constraints
             timing = self.agent_config.timing_config
             
-            # Check minimum spacing
-            if self.recent_highlights:
-                last_highlight = self.recent_highlights[-1]
-                time_since_last = candidate.start_time - last_highlight.end_time
-                if time_since_last < timing.min_spacing_seconds:
-                    return False
+            with logfire.span("check_timing_constraints") as timing_span:
+                # Check minimum spacing
+                if self.recent_highlights:
+                    last_highlight = self.recent_highlights[-1]
+                    time_since_last = candidate.start_time - last_highlight.end_time
+                    timing_span.set_attribute("time_since_last", time_since_last)
+                    timing_span.set_attribute("min_spacing", timing.min_spacing_seconds)
+                    
+                    if time_since_last < timing.min_spacing_seconds:
+                        span.set_attribute("decision", "rejected")
+                        span.set_attribute("reason", "too_close_to_previous")
+                        return False
             
             # Check highlights per window limit
             recent_window = [
@@ -316,6 +378,7 @@ class B2BStreamAgent:
                     if candidate.final_score <= recent.final_score + 0.05:
                         return False
             
+            span.set_attribute("decision", "approved")
             return True
             
         except Exception as e:
@@ -344,11 +407,17 @@ class B2BStreamAgent:
         # Combine similarities
         return (time_similarity * 0.6) + (word_similarity * 0.4)
     
+    @traced_service_method(name="create_highlight")
     async def create_highlight(self, candidate: HighlightCandidate) -> Optional[Highlight]:
         """Create a highlight from an approved candidate."""
         try:
-            # Record usage in configuration
-            self.agent_config.record_usage()
+            with logfire.span("create_highlight_from_candidate") as span:
+                span.set_attribute("candidate.id", candidate.id)
+                span.set_attribute("candidate.score", candidate.final_score)
+                span.set_attribute("organization.id", self.agent_config.organization_id)
+                
+                # Record usage in configuration
+                self.agent_config.record_usage()
             
             # Create highlight entity
             highlight = Highlight(
@@ -374,6 +443,24 @@ class B2BStreamAgent:
             self.recent_highlights.append(candidate)
             self.highlights_created += 1
             
+            # Track highlight creation metrics
+            metrics.increment_highlights_detected(
+                count=1,
+                platform=self.stream.platform.value,
+                organization_id=str(self.agent_config.organization_id),
+                detection_method="b2b_agent"
+            )
+            
+            # Track confidence distribution
+            metrics.record_highlight_confidence(
+                confidence=candidate.confidence,
+                detection_method="b2b_agent",
+                platform=self.stream.platform.value
+            )
+            
+            span.set_attribute("highlight.created", True)
+            span.set_attribute("highlights.total", self.highlights_created)
+            
             # Add to memory
             self.add_memory_entry(AgentMemoryEntry(
                 timestamp=candidate.start_time,
@@ -390,28 +477,70 @@ class B2BStreamAgent:
                 }
             ))
             
+            # Log significant highlights
+            if candidate.final_score > 0.9:
+                logfire.info(
+                    "highlight.created.high_value",
+                    highlight_id=highlight.id,
+                    score=candidate.final_score,
+                    confidence=candidate.confidence,
+                    description=highlight.description[:100],
+                    organization_id=self.agent_config.organization_id,
+                    agent_id=self.agent_id
+                )
+            
             return highlight
             
         except Exception as e:
             error_msg = f"Highlight creation failed: {str(e)}"
             self.error_history.append(error_msg)
+            
+            logfire.error(
+                "agent.highlight.creation_failed",
+                error=str(e),
+                candidate_id=candidate.id,
+                agent_id=self.agent_id,
+                organization_id=self.agent_config.organization_id
+            )
+            
             raise ProcessingError(error_msg) from e
     
     # ============================================================================
     # AGENT LIFECYCLE
     # ============================================================================
     
+    @traced_service_method(name="start_b2b_agent")
     async def start(self) -> None:
         """Start the B2B stream agent."""
         try:
-            self.status = AgentStatus.ACTIVE
-            self._running = True
-            self.started_at = datetime.utcnow()
-            
-            # Validate configuration
-            config_errors = self.agent_config.validate_configuration()
-            if config_errors:
-                raise BusinessRuleViolation(f"Invalid configuration: {config_errors}")
+            with logfire.span("agent.start") as span:
+                span.set_attribute("agent.id", self.agent_id)
+                span.set_attribute("stream.id", self.stream.id)
+                span.set_attribute("organization.id", self.agent_config.organization_id)
+                span.set_attribute("config.version", self.agent_config.version)
+                
+                self.status = AgentStatus.ACTIVE
+                self._running = True
+                self.started_at = datetime.utcnow()
+                
+                # Validate configuration
+                config_errors = self.agent_config.validate_configuration()
+                if config_errors:
+                    span.set_attribute("error", True)
+                    span.set_attribute("error.message", f"Invalid configuration: {config_errors}")
+                    raise BusinessRuleViolation(f"Invalid configuration: {config_errors}")
+                
+                span.set_attribute("status", "active")
+                
+                # Log agent start event
+                logfire.info(
+                    "agent.started",
+                    agent_id=self.agent_id,
+                    stream_id=self.stream.id,
+                    organization_id=self.agent_config.organization_id,
+                    config_type=self.agent_config.config_type,
+                    content_type=self.agent_config.content_type
+                )
             
             # Initialize tasks based on configuration
             # Note: This is a simplified version - full implementation would
@@ -420,22 +549,51 @@ class B2BStreamAgent:
         except Exception as e:
             self.status = AgentStatus.ERROR
             self.error_history.append(f"Agent start failed: {str(e)}")
+            
+            logfire.error(
+                "agent.start.failed",
+                error=str(e),
+                agent_id=self.agent_id,
+                stream_id=self.stream.id,
+                organization_id=self.agent_config.organization_id
+            )
+            
             raise
     
+    @traced_service_method(name="stop_b2b_agent")
     async def stop(self) -> None:
         """Stop the B2B stream agent."""
-        self._running = False
-        self.status = AgentStatus.STOPPING
-        
-        # Cancel all tasks
-        for task in self._tasks:
-            task.cancel()
-        
-        # Wait for cleanup
-        if self._tasks:
-            await asyncio.gather(*self._tasks, return_exceptions=True)
-        
-        self.status = AgentStatus.STOPPED
+        with logfire.span("agent.stop") as span:
+            span.set_attribute("agent.id", self.agent_id)
+            span.set_attribute("highlights.created", self.highlights_created)
+            span.set_attribute("segments.processed", self.segments_processed)
+            
+            self._running = False
+            self.status = AgentStatus.STOPPING
+            
+            # Cancel all tasks
+            for task in self._tasks:
+                task.cancel()
+            
+            # Wait for cleanup
+            if self._tasks:
+                await asyncio.gather(*self._tasks, return_exceptions=True)
+            
+            self.status = AgentStatus.STOPPED
+            
+            # Log agent stop event with final metrics
+            uptime = (datetime.utcnow() - self.started_at).total_seconds()
+            logfire.info(
+                "agent.stopped",
+                agent_id=self.agent_id,
+                stream_id=self.stream.id,
+                organization_id=self.agent_config.organization_id,
+                uptime_seconds=uptime,
+                highlights_created=self.highlights_created,
+                segments_processed=self.segments_processed,
+                candidates_evaluated=self.candidates_evaluated,
+                success_rate=self.highlights_created / max(1, self.candidates_evaluated)
+            )
     
     def get_performance_metrics(self) -> Dict[str, Any]:
         """Get comprehensive performance metrics for B2B reporting."""

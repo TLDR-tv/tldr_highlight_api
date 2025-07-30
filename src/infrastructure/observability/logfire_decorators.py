@@ -376,3 +376,8 @@ def traced_repository_method(name: Optional[str] = None) -> Callable:
 def traced_background_task(name: Optional[str] = None) -> Callable:
     """Trace a background task with standard attributes."""
     return traced(name, span_type="span", operation_type="background_task")
+
+
+def traced_use_case(name: Optional[str] = None) -> Callable:
+    """Trace a use case with standard attributes."""
+    return traced(name, span_type="span", operation_type="use_case")
