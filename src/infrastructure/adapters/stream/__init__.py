@@ -1,0 +1,45 @@
+"""Stream adapters infrastructure module.
+
+Provides adapters for various streaming platforms as infrastructure components.
+"""
+
+from .base import (
+    StreamAdapter,
+    StreamConnection,
+    StreamMetadata,
+    ConnectionStatus,
+    StreamHealth,
+    StreamAdapterError,
+    ConnectionError,
+    AuthenticationError,
+    RateLimitError,
+    StreamNotFoundError,
+    StreamOfflineError,
+)
+from .factory import StreamAdapterFactory, get_stream_adapter
+from .twitch import TwitchStreamAdapter
+from .youtube import YouTubeStreamAdapter
+from .rtmp import RTMPStreamAdapter
+
+__all__ = [
+    # Base protocol and types
+    "StreamAdapter",
+    "StreamConnection",
+    "StreamMetadata",
+    "ConnectionStatus",
+    "StreamHealth",
+    # Exceptions
+    "StreamAdapterError",
+    "ConnectionError",
+    "AuthenticationError",
+    "RateLimitError",
+    "StreamNotFoundError",
+    "StreamOfflineError",
+    # Factory
+    "StreamAdapterFactory",
+    "get_stream_adapter",
+    # Implementations
+    "TwitchStreamAdapter",
+    "YouTubeStreamAdapter",
+    "RTMPStreamAdapter",
+]
