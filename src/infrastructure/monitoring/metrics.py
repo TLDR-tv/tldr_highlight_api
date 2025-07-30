@@ -14,7 +14,7 @@ from enum import Enum
 from typing import Dict, List, Optional, Any, Callable, Deque
 from threading import Lock
 
-from src.core.config import get_settings
+from src.infrastructure.config import get_settings
 
 
 logger = logging.getLogger(__name__)

@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from typing import Callable, Any, Optional, Dict, List
 from datetime import datetime
 
-from src.core.config import get_settings
+from src.infrastructure.config import get_settings
 
 
 logger = logging.getLogger(__name__)
