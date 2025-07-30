@@ -1,6 +1,5 @@
 """Mapper for HighlightTypeRegistry domain entity to persistence model conversion."""
 
-
 from src.infrastructure.persistence.mappers.base import Mapper
 from src.domain.entities.highlight_type_registry import (
     HighlightTypeRegistry as DomainHighlightTypeRegistry,

@@ -31,11 +31,12 @@ class BaseDomainService:
     Provides common functionality like logging setup.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize base domain service."""
         self._logger = logging.getLogger(self.__class__.__module__)
 
     @property
     def logger(self) -> logging.Logger:
         """Service-specific logger."""
-        return self._logger
+        logger: logging.Logger = self._logger
+        return logger

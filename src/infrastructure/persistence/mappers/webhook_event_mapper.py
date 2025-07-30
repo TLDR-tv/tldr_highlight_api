@@ -1,6 +1,5 @@
 """Mapper for webhook event entities."""
 
-
 from src.domain.entities.webhook_event import (
     WebhookEvent as DomainWebhookEvent,
 )

@@ -39,7 +39,7 @@ class HighlightMapper:
         # Extract individual filter parameters
         stream_id = None
         min_confidence = None
-        
+
         if filters:
             stream_id = filters.stream_id
             min_confidence = filters.min_confidence
@@ -49,7 +49,7 @@ class HighlightMapper:
             stream_id=stream_id,
             min_confidence=min_confidence,
             page=page,
-            per_page=per_page
+            per_page=per_page,
         )
 
     @staticmethod

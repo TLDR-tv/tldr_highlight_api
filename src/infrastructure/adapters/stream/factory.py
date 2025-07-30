@@ -11,8 +11,8 @@ from urllib.parse import urlparse
 from aiohttp import ClientSession
 
 from .base import StreamAdapter
-from .twitch import TwitchStreamAdapter
-from .youtube import YouTubeStreamAdapter
+# from .twitch import TwitchStreamAdapter  # Removed for simplification
+# from .youtube import YouTubeStreamAdapter  # Removed for simplification
 from .rtmp import RTMPStreamAdapter
 
 logger = logging.getLogger(__name__)
@@ -21,10 +21,10 @@ logger = logging.getLogger(__name__)
 class StreamAdapterFactory:
     """Factory for creating stream adapters based on URL or platform."""
 
-    # Registry of adapter implementations
+    # Registry of adapter implementations (simplified)
     _adapters: Dict[str, Type[StreamAdapter]] = {
-        "twitch": TwitchStreamAdapter,
-        "youtube": YouTubeStreamAdapter,
+        # "twitch": TwitchStreamAdapter,  # Removed for simplification
+        # "youtube": YouTubeStreamAdapter,  # Removed for simplification
         "rtmp": RTMPStreamAdapter,
         "rtmps": RTMPStreamAdapter,
     }

@@ -243,31 +243,36 @@ class FLVParser:
 
     def read_ui8(self) -> int:
         """Read unsigned 8-bit integer."""
-        return struct.unpack("B", self.read_bytes(1))[0]
+        result: tuple[int] = struct.unpack("B", self.read_bytes(1))
+        return result[0]
 
     def read_ui16(self) -> int:
         """Read unsigned 16-bit integer (big-endian)."""
-        return struct.unpack(">H", self.read_bytes(2))[0]
+        result: tuple[int] = struct.unpack(">H", self.read_bytes(2))
+        return result[0]
 
     def read_ui24(self) -> int:
         """Read unsigned 24-bit integer (big-endian)."""
         data = self.read_bytes(3)
-        return struct.unpack(">I", b"\\x00" + data)[0]
+        result: tuple[int] = struct.unpack(">I", b"\\x00" + data)
+        return result[0]
 
     def read_ui32(self) -> int:
         """Read unsigned 32-bit integer (big-endian)."""
-        return struct.unpack(">I", self.read_bytes(4))[0]
+        result: tuple[int] = struct.unpack(">I", self.read_bytes(4))
+        return result[0]
 
     def read_double(self) -> float:
         """Read 64-bit double (big-endian)."""
-        return struct.unpack(">d", self.read_bytes(8))[0]
+        result: tuple[float] = struct.unpack(">d", self.read_bytes(8))
+        return result[0]
 
     def parse_header(self) -> FLVHeader:
         """Parse FLV file header."""
         try:
             signature = self.read_bytes(3)
             if signature != self.FLV_SIGNATURE:
-                raise ValueError(f"Invalid FLV signature: {signature}")
+                raise ValueError(f"Invalid FLV signature: {signature!r}")
 
             version = self.read_ui8()
             type_flags = self.read_ui8()
@@ -449,6 +454,7 @@ class FLVParser:
 
         try:
             value_type = self.read_ui8()
+            value: Any
 
             if value_type == AMFDataType.NUMBER.value:
                 value = self.read_double()
@@ -555,6 +561,7 @@ class FLVParser:
             header = self.parse_tag_header()
 
             # Parse tag data based on type
+            data: Union[FLVAudioTag, FLVVideoTag, FLVScriptTag]
             if header.tag_type == FLVTagType.AUDIO:
                 data = self.parse_audio_tag(header.data_size)
             elif header.tag_type == FLVTagType.VIDEO:

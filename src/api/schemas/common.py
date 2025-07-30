@@ -279,7 +279,7 @@ class ResourceQuota(BaseModel):
 
 
 # Common HTTP status responses for OpenAPI documentation
-COMMON_RESPONSES = {
+COMMON_RESPONSES: Dict[int, Dict[str, Any]] = {
     400: {"description": "Bad Request", "model": ErrorResponse},
     401: {"description": "Unauthorized", "model": ErrorResponse},
     403: {"description": "Forbidden", "model": ErrorResponse},

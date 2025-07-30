@@ -89,9 +89,7 @@ def traced(
                     )
                     attributes["kwargs"] = _safe_repr_dict(kwargs)
 
-                with logfire.span(
-                    span_name, _span_type=span_type, **attributes
-                ) as _:
+                with logfire.span(span_name, _span_type=span_type, **attributes) as _:
                     try:
                         result = func(*args, **kwargs)
 

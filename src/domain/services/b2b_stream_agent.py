@@ -46,8 +46,6 @@ class AgentMemoryEntry:
     consumer_context: Optional[Dict[str, Any]] = None
 
 
-
-
 class B2BStreamAgent:
     """B2B Stream processing agent with configurable highlight detection.
 
@@ -81,7 +79,7 @@ class B2BStreamAgent:
         self.gemini_processor = gemini_processor
         self.dimension_set = dimension_set
         self.processing_options = processing_options or ProcessingOptions()
-        
+
         # Validate required components
         if not self.gemini_processor:
             raise ValueError("Gemini processor is required for highlight detection")
@@ -432,7 +430,7 @@ class B2BStreamAgent:
     ) -> List[HighlightCandidate]:
         """
         Analyze a video segment using Gemini's video understanding with dimension framework.
-        
+
         This is the primary and only method for highlight detection, using:
         1. Dimension set for structured scoring
         2. Gemini's video understanding API
@@ -440,13 +438,13 @@ class B2BStreamAgent:
         4. Automated refinement and validation
         5. Ranked highlight candidates
         """
-            
+
         try:
             # Get video file path
             video_path = segment_data.get("path")
             if not video_path:
                 raise ValueError("No video path in segment data")
-            
+
             # Prepare segment info
             segment_info = {
                 "id": segment_data.get("id"),
@@ -455,57 +453,71 @@ class B2BStreamAgent:
                 "duration": segment_data.get("duration", 0),
                 "context": self.get_context_for_prompt(),
             }
-            
+
             # Analyze with Gemini using dimension framework
             with logfire.span("gemini_dimension_analysis") as span:
                 span.set_attribute("segment.id", segment_data.get("id"))
                 span.set_attribute("dimension_set.name", self.dimension_set.name)
-                span.set_attribute("dimension_count", len(self.dimension_set.dimensions))
+                span.set_attribute(
+                    "dimension_count", len(self.dimension_set.dimensions)
+                )
                 span.set_attribute("agent.config_version", self.agent_config.version)
-                
+
                 analysis = await self.gemini_processor.analyze_video_with_dimensions(
                     video_path=video_path,
                     segment_info=segment_info,
                     dimension_set=self.dimension_set,
                     agent_config=self.agent_config,
                 )
-                
+
                 span.set_attribute("highlights.found", len(analysis.highlights))
-                span.set_attribute("processing.refinement_enabled", self.gemini_processor.enable_refinement)
-            
+                span.set_attribute(
+                    "processing.refinement_enabled",
+                    self.gemini_processor.enable_refinement,
+                )
+
             # Convert to highlight candidates using dimension framework
             candidates = self.gemini_processor.convert_to_highlight_candidates(
                 analysis,
                 self.dimension_set,
                 segment_info,
-                min_confidence=self.agent_config.min_confidence_threshold
+                min_confidence=self.agent_config.min_confidence_threshold,
             )
-            
+
             # Update statistics
             self.segments_processed += 1
             self.candidates_evaluated += len(candidates)
-            
+
             # Add to memory
             self.add_memory_entry(
                 AgentMemoryEntry(
-                    timestamp=(datetime.utcnow() - self.stream_start_time).total_seconds(),
+                    timestamp=(
+                        datetime.utcnow() - self.stream_start_time
+                    ).total_seconds(),
                     entry_type="gemini_video_analysis",
                     content={
                         "segment_id": segment_data.get("id"),
                         "candidates_found": len(candidates),
                         "processing_time": analysis.processing_time,
-                        "has_transcript": bool(analysis.transcript) if hasattr(analysis, 'transcript') else False,
-                        "scene_count": len(analysis.scene_descriptions) if hasattr(analysis, 'scene_descriptions') and analysis.scene_descriptions else 0,
-                        "dimension_set_used": self.dimension_set.name if self.dimension_set else None,
+                        "has_transcript": bool(analysis.transcript)
+                        if hasattr(analysis, "transcript")
+                        else False,
+                        "scene_count": len(analysis.scene_descriptions)
+                        if hasattr(analysis, "scene_descriptions")
+                        and analysis.scene_descriptions
+                        else 0,
+                        "dimension_set_used": self.dimension_set.name
+                        if self.dimension_set
+                        else None,
                     },
                     importance=0.8 if candidates else 0.4,
                     consumer_context={
                         "config_version": self.agent_config.version,
                         "used_gemini": True,
-                    }
+                    },
                 )
             )
-            
+
             # Track high-scoring candidates
             for candidate in candidates:
                 if candidate.final_score > 0.8:
@@ -517,13 +529,13 @@ class B2BStreamAgent:
                         organization_id=self.agent_config.organization_id,
                         agent_id=self.agent_id,
                     )
-            
+
             return candidates
-            
+
         except Exception as e:
             error_msg = f"Gemini video analysis failed: {str(e)}"
             self.error_history.append(error_msg)
-            
+
             logfire.error(
                 "agent.gemini_analysis.failed",
                 error=str(e),
@@ -531,7 +543,7 @@ class B2BStreamAgent:
                 agent_id=self.agent_id,
                 organization_id=self.agent_config.organization_id,
             )
-            
+
             # Re-raise error as Gemini is now the required method
             raise ProcessingError(error_msg) from e
 

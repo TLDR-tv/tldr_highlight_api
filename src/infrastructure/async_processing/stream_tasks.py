@@ -613,29 +613,40 @@ def detect_highlights_with_ai(
             gemini_processor = None
             dimension_set = None
             from src.infrastructure.config import settings
-            if hasattr(settings, 'gemini_api_key') and settings.gemini_api_key:
+
+            if hasattr(settings, "gemini_api_key") and settings.gemini_api_key:
                 with logfire.span("initialize_gemini_processor") as gemini_span:
-                    from src.infrastructure.content_processing import GeminiVideoProcessor
+                    from src.infrastructure.content_processing import (
+                        GeminiVideoProcessor,
+                    )
                     from src.domain.entities.dimension_set import DimensionSet
-                    
+
                     gemini_processor = GeminiVideoProcessor(
                         api_key=settings.gemini_api_key,
-                        model_name=getattr(settings, 'gemini_model', 'gemini-2.0-flash-exp'),
+                        model_name=getattr(
+                            settings, "gemini_model", "gemini-2.0-flash-exp"
+                        ),
                         enable_refinement=True,
                     )
                     gemini_span.set_attribute("gemini.enabled", True)
-                    gemini_span.set_attribute("gemini.model", gemini_processor.model_name)
-                    
+                    gemini_span.set_attribute(
+                        "gemini.model", gemini_processor.model_name
+                    )
+
                     # Get dimension set based on processing options
                     # For now, use gaming set as default
                     dimension_set = DimensionSet.create_gaming_set(
                         organization_id=1,  # Would get from stream/org
-                        user_id=stream.user_id
+                        user_id=stream.user_id,
                     )
                     gemini_span.set_attribute("dimension_set.name", dimension_set.name)
-                    gemini_span.set_attribute("dimension_count", len(dimension_set.dimensions))
+                    gemini_span.set_attribute(
+                        "dimension_count", len(dimension_set.dimensions)
+                    )
             else:
-                logfire.error("Gemini API key not configured - highlight detection will fail")
+                logfire.error(
+                    "Gemini API key not configured - highlight detection will fail"
+                )
                 raise ValueError("Gemini API key is required for highlight detection")
 
             # Create B2B agent with observability
@@ -701,19 +712,28 @@ def detect_highlights_with_ai(
 
                         # Process segment with Gemini (now primary method)
                         candidates = []
-                        
+
                         # Use Gemini analysis for all video segments
                         if segment.get("path"):
-                            with logfire.span("analyze_video_segment_gemini") as analyze_span:
-                                analyze_span.set_attribute("method", "gemini_dimensions")
-                                analyze_span.set_attribute("dimension_set", dimension_set.name if dimension_set else "none")
+                            with logfire.span(
+                                "analyze_video_segment_gemini"
+                            ) as analyze_span:
+                                analyze_span.set_attribute(
+                                    "method", "gemini_dimensions"
+                                )
+                                analyze_span.set_attribute(
+                                    "dimension_set",
+                                    dimension_set.name if dimension_set else "none",
+                                )
                                 analyze_start = datetime.now(timezone.utc)
 
                                 try:
                                     candidates = loop.run_until_complete(
-                                        b2b_agent.analyze_video_segment_with_gemini(segment_data)
+                                        b2b_agent.analyze_video_segment_with_gemini(
+                                            segment_data
+                                        )
                                     )
-                                    
+
                                     analyze_duration = (
                                         datetime.now(timezone.utc) - analyze_start
                                     ).total_seconds()
@@ -733,10 +753,12 @@ def detect_highlights_with_ai(
                                     )
                                 except Exception as gemini_error:
                                     analyze_span.set_attribute("success", False)
-                                    analyze_span.set_attribute("error", str(gemini_error))
+                                    analyze_span.set_attribute(
+                                        "error", str(gemini_error)
+                                    )
                                     logger.error(
                                         f"Gemini analysis failed for segment {segment_data.get('id')}: {gemini_error}",
-                                        exc_info=True
+                                        exc_info=True,
                                     )
                                     # Re-raise to fail the task - Gemini is now required
                                     raise
@@ -806,10 +828,14 @@ def detect_highlights_with_ai(
                 if gemini_processor:
                     with logfire.span("cleanup_gemini_files"):
                         try:
-                            loop.run_until_complete(gemini_processor.cleanup_all_files())
+                            loop.run_until_complete(
+                                gemini_processor.cleanup_all_files()
+                            )
                             logfire.info("Cleaned up all Gemini uploaded files")
                         except Exception as cleanup_error:
-                            logger.error(f"Failed to cleanup Gemini files: {cleanup_error}")
+                            logger.error(
+                                f"Failed to cleanup Gemini files: {cleanup_error}"
+                            )
 
                 # Clean up temporary files
                 with logfire.span("cleanup_temp_files"):

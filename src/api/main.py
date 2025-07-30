@@ -22,7 +22,6 @@ from src.api.middleware import (
 )
 from src.api.routers import (
     auth_router,
-    batches_router,
     health_router,
     highlights_router,
     streams_router,
@@ -212,9 +211,6 @@ def create_app() -> FastAPI:
         streams_router, prefix=f"{settings.api_v1_prefix}/streams", tags=["streams"]
     )
 
-    app.include_router(
-        batches_router, prefix=f"{settings.api_v1_prefix}/batches", tags=["batches"]
-    )
 
     app.include_router(
         highlights_router,

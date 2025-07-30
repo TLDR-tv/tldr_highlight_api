@@ -13,7 +13,6 @@ class UsageType(Enum):
     """Type of usage being recorded."""
 
     STREAM_PROCESSING = "stream_processing"
-    BATCH_PROCESSING = "batch_processing"
     API_CALL = "api_call"
     WEBHOOK_DELIVERY = "webhook_delivery"
     STORAGE = "storage"
@@ -43,11 +42,6 @@ class UsageRecord(Entity[int]):
     # When it was consumed
     period_start: Timestamp = None
     period_end: Optional[Timestamp] = None
-
-    # Billing information
-    billable: bool = True
-    rate: Optional[float] = None  # Cost per unit
-    total_cost: Optional[float] = None
 
     # Metadata
     api_key_id: Optional[int] = None

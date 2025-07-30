@@ -9,8 +9,8 @@ from typing import Any, Dict, List, Optional, Tuple
 from dataclasses import dataclass
 from datetime import datetime
 
-from celery import Celery
-from celery.result import AsyncResult
+from celery import Celery  # type: ignore[import-untyped]
+from celery.result import AsyncResult  # type: ignore[import-untyped]
 
 logger = logging.getLogger(__name__)
 
@@ -93,12 +93,13 @@ class TaskManager:
                 name, args=args or (), kwargs=kwargs or {}, **options
             )
             logger.info(f"Sent task {name}[{result.id}] to queue {queue or 'default'}")
-            return result.id
+            task_id: str = result.id
+            return task_id
         except Exception as e:
             logger.error(f"Failed to send task {name}: {e}")
             raise RuntimeError(f"Failed to send task {name}") from e
 
-    def _build_task_options(self, **kwargs) -> Dict[str, Any]:
+    def _build_task_options(self, **kwargs: Any) -> Dict[str, Any]:
         """Build task options dictionary from kwargs."""
         return {k: v for k, v in kwargs.items() if v is not None}
 
@@ -202,7 +203,7 @@ class TaskManager:
         try:
             if queue_name:
                 # Purge specific queue
-                from kombu import Queue as KombuQueue
+                from kombu import Queue as KombuQueue  # type: ignore[import-untyped]
 
                 with self.app.connection_for_write() as conn:
                     queue = KombuQueue(queue_name, channel=conn.default_channel)
@@ -214,7 +215,8 @@ class TaskManager:
             logger.warning(
                 f"Purged {'queue ' + queue_name if queue_name else 'all queues'}: {count} tasks deleted"
             )
-            return count
+            result: int = count
+            return result
         except Exception as e:
             logger.error(f"Failed to purge queue {queue_name}: {e}")
             return 0

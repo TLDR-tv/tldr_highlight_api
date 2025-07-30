@@ -24,7 +24,7 @@ router = APIRouter(prefix="/webhooks", tags=["webhook-receiver"])
 
 
 @router.post("/receive/stream", response_model=WebhookResponse)
-async def receive_generic_webhook(
+async def receive_stream_webhook(
     request: Request,
     background_tasks: BackgroundTasks,
     webhook_use_case: WebhookProcessingUseCase = Depends(
@@ -33,12 +33,11 @@ async def receive_generic_webhook(
     x_api_key: Optional[str] = Header(None),
     x_webhook_signature: Optional[str] = Header(None),
     x_webhook_timestamp: Optional[str] = Header(None),
-    x_webhook_platform: Optional[str] = Header(None),
 ) -> WebhookResponse:
-    """Receive generic webhook for stream events.
+    """Receive webhook for stream events (start, stop, update).
 
-    This endpoint accepts webhooks from any platform with a standardized format.
-    Authentication can be via API key header or webhook signature.
+    This simplified endpoint accepts webhooks for stream ingestion triggers.
+    Authentication is via API key header.
     """
     try:
         # Get raw body and parsed JSON

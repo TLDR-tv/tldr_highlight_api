@@ -17,8 +17,6 @@ from .base import (
     StreamOfflineError,
 )
 from .factory import StreamAdapterFactory, get_stream_adapter
-from .twitch import TwitchStreamAdapter
-from .youtube import YouTubeStreamAdapter
 from .rtmp import RTMPStreamAdapter
 
 __all__ = [
@@ -39,7 +37,5 @@ __all__ = [
     "StreamAdapterFactory",
     "get_stream_adapter",
     # Implementations
-    "TwitchStreamAdapter",
-    "YouTubeStreamAdapter",
     "RTMPStreamAdapter",
 ]

@@ -7,7 +7,6 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
-
 @pytest.mark.asyncio
 class TestStreamsRouter:
     """Test cases for stream management router endpoints."""

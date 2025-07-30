@@ -69,8 +69,7 @@ async def list_highlights(
     # Ensure user has valid ID
     if current_user.id is None:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid user session"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid user session"
         )
 
     # Build filters
@@ -92,7 +91,7 @@ async def list_highlights(
     if result.highlights is None or result.total is None:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Invalid response from highlight service"
+            detail="Invalid response from highlight service",
         )
 
     return mapper.to_highlight_list_response(
@@ -119,8 +118,7 @@ async def get_highlight(
     # Ensure user has valid ID
     if current_user.id is None:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid user session"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid user session"
         )
 
     request = mapper.to_get_highlight_request(highlight_id, current_user.id)
@@ -145,7 +143,7 @@ async def get_highlight(
     if result.highlight is None:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Invalid response from highlight service"
+            detail="Invalid response from highlight service",
         )
 
     return mapper.to_highlight_response(result.highlight)
@@ -169,8 +167,7 @@ async def download_highlight(
     # Ensure user has valid ID
     if current_user.id is None:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid user session"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid user session"
         )
 
     request = mapper.to_export_highlight_request(highlight_id, current_user.id)
@@ -195,7 +192,7 @@ async def download_highlight(
     if result.download_url is None:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Download URL not available"
+            detail="Download URL not available",
         )
 
     # Redirect to the presigned download URL
@@ -223,8 +220,7 @@ async def delete_highlight(
     # Ensure user has valid ID
     if current_user.id is None:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid user session"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid user session"
         )
 
     request = mapper.to_delete_highlight_request(highlight_id, current_user.id)

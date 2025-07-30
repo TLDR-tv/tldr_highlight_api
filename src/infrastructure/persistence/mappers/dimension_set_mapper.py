@@ -1,6 +1,5 @@
 """Mapper for DimensionSet domain entity to persistence model conversion."""
 
-
 from src.infrastructure.persistence.mappers.base import Mapper
 from src.domain.entities.dimension_set import DimensionSet as DomainDimensionSet
 from src.domain.value_objects.dimension_definition import (

@@ -11,7 +11,11 @@ from src.infrastructure.streaming.frame_synchronizer import (
     TimestampMapping,
     ClockDriftDetector,
 )
-from src.infrastructure.streaming.video_buffer import BufferFormat, VideoFrame, FrameType
+from src.infrastructure.streaming.video_buffer import (
+    BufferFormat,
+    VideoFrame,
+    FrameType,
+)
 
 
 @pytest.fixture

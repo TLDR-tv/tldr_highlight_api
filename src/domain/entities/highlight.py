@@ -22,7 +22,7 @@ class Highlight(Entity[int]):
     start_time: Duration  # Offset from stream start
     end_time: Duration  # Offset from stream start
     confidence_score: ConfidenceScore
-    
+
     # Content details
     title: str
     description: str

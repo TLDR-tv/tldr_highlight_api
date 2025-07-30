@@ -1,6 +1,5 @@
 """Mapper for stream DTOs to domain entities."""
 
-
 from src.api.schemas.streams import (
     StreamCreate,
     StreamUpdate,

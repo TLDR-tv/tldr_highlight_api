@@ -1,6 +1,5 @@
 """Usage record mapper for domain entity to persistence model conversion."""
 
-
 from src.infrastructure.persistence.mappers.base import Mapper
 from src.domain.entities.usage_record import UsageRecord as DomainUsageRecord, UsageType
 from src.domain.value_objects.timestamp import Timestamp

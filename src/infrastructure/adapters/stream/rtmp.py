@@ -13,7 +13,7 @@ from urllib.parse import urlparse
 
 from aiohttp import ClientSession
 
-from src.core.config import get_settings
+from src.infrastructure.config import settings
 from .base import (
     BaseStreamAdapter,
     StreamMetadata,
@@ -24,7 +24,6 @@ from .base import (
 )
 
 logger = logging.getLogger(__name__)
-settings = get_settings()
 
 
 class RTMPConnectionError(ConnectionError):

@@ -39,6 +39,14 @@ class MetricsCollector:
                 "stream_type": stream_type,
             },
         )
+        
+        # Send to Logfire
+        logfire.info(
+            "Stream started",
+            platform=platform,
+            organization_id=organization_id,
+            stream_type=stream_type,
+        )
 
     def increment_stream_completed(
         self,
@@ -230,6 +238,98 @@ class MetricsCollector:
                 "organization_id": organization_id,
                 "status": status,
             },
+        )
+
+    # Usage Tracking Metrics
+
+    def track_api_call_usage(
+        self,
+        user_id: str,
+        organization_id: str,
+        endpoint: str,
+        method: str,
+        status_code: int,
+        response_time_ms: int,
+    ) -> None:
+        """Track API call usage for billing and analytics."""
+        self._increment_counter(
+            "api_calls_total",
+            tags={
+                "user_id": user_id,
+                "organization_id": organization_id,
+                "endpoint": endpoint,
+                "method": method,
+                "status_code": str(status_code),
+            },
+        )
+        
+        # Record response time
+        self._record_histogram("api_response_time_ms", response_time_ms)
+        
+        # Send to Logfire
+        logfire.info(
+            "API call tracked",
+            user_id=user_id,
+            organization_id=organization_id,
+            endpoint=endpoint,
+            method=method,
+            status_code=status_code,
+            response_time_ms=response_time_ms,
+        )
+
+    def track_stream_processing_usage(
+        self,
+        user_id: str,
+        organization_id: str,
+        stream_id: str,
+        processing_minutes: float,
+    ) -> None:
+        """Track stream processing usage."""
+        self._increment_counter(
+            "stream_processing_minutes_total",
+            tags={
+                "user_id": user_id,
+                "organization_id": organization_id,
+            },
+        )
+        
+        # Record processing time
+        self._record_histogram("stream_processing_minutes", processing_minutes)
+        
+        # Send to Logfire
+        logfire.info(
+            "Stream processing tracked",
+            user_id=user_id,
+            organization_id=organization_id,
+            stream_id=stream_id,
+            processing_minutes=processing_minutes,
+        )
+
+    def track_webhook_delivery_usage(
+        self,
+        user_id: str,
+        organization_id: str,
+        webhook_id: str,
+        success: bool = True,
+    ) -> None:
+        """Track webhook delivery usage."""
+        status = "success" if success else "failed"
+        self._increment_counter(
+            "webhook_deliveries_total",
+            tags={
+                "user_id": user_id,
+                "organization_id": organization_id,
+                "status": status,
+            },
+        )
+        
+        # Send to Logfire
+        logfire.info(
+            "Webhook delivery tracked",
+            user_id=user_id,
+            organization_id=organization_id,
+            webhook_id=webhook_id,
+            success=success,
         )
 
     # AI/ML Metrics

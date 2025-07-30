@@ -5,7 +5,9 @@ from typing import Optional, List
 
 from src.application.use_cases.base import UseCase, UseCaseResult, ResultStatus
 from src.domain.entities.highlight import Highlight
-from src.domain.entities.highlight_type_registry import BuiltInHighlightType as HighlightType
+from src.domain.entities.highlight_type_registry import (
+    BuiltInHighlightType as HighlightType,
+)
 from src.domain.repositories.highlight_repository import HighlightRepository
 from src.domain.repositories.stream_repository import StreamRepository
 from src.domain.repositories.user_repository import UserRepository

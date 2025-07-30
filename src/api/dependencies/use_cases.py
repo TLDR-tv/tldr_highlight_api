@@ -20,7 +20,6 @@ from src.infrastructure.persistence.repositories.stream_repository import (
 from src.infrastructure.persistence.repositories.highlight_repository import (
     HighlightRepository,
 )
-from src.infrastructure.persistence.repositories.batch_repository import BatchRepository
 from src.infrastructure.persistence.repositories.webhook_repository import (
     WebhookRepository,
 )
@@ -40,7 +39,6 @@ from src.domain.services.usage_tracking_service import UsageTrackingService
 # Import use cases
 from src.application.use_cases.authentication import AuthenticationUseCase
 from src.application.use_cases.stream_processing import StreamProcessingUseCase
-from src.application.use_cases.batch_processing import BatchProcessingUseCase
 from src.application.use_cases.webhook_processing import WebhookProcessingUseCase
 from src.application.use_cases.user_management import UserManagementUseCase
 from src.application.use_cases.organization_management import (
@@ -55,7 +53,6 @@ from .repositories import (
     get_organization_repository,
     get_stream_repository,
     get_highlight_repository,
-    get_batch_repository,
     get_webhook_repository,
     get_webhook_event_repository,
 )
@@ -117,25 +114,6 @@ async def get_stream_processing_use_case(
     )
 
 
-async def get_batch_processing_use_case(
-    user_repo: UserRepository = Depends(get_user_repository),
-    batch_repo: BatchRepository = Depends(get_batch_repository),
-    org_repo: OrganizationRepository = Depends(get_organization_repository),
-    org_service: OrganizationManagementService = Depends(
-        get_organization_management_service
-    ),
-    webhook_service: WebhookDeliveryService = Depends(get_webhook_delivery_service),
-    usage_service: UsageTrackingService = Depends(get_usage_tracking_service),
-) -> BatchProcessingUseCase:
-    """Get batch processing use case instance."""
-    return BatchProcessingUseCase(
-        user_repo=user_repo,
-        batch_repo=batch_repo,
-        org_repo=org_repo,
-        org_service=org_service,
-        webhook_service=webhook_service,
-        usage_service=usage_service,
-    )
 
 
 async def get_webhook_processing_use_case(

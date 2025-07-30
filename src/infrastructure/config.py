@@ -162,24 +162,35 @@ class Settings(BaseSettings):
 
     # Gemini configuration (REQUIRED)
     gemini_api_key: str = Field(
-        env="GEMINI_API_KEY", description="Google Gemini API key (REQUIRED for highlight detection)"
+        env="GEMINI_API_KEY",
+        description="Google Gemini API key (REQUIRED for highlight detection)",
     )
     gemini_model: str = Field(
-        default="gemini-2.0-flash-exp", env="GEMINI_MODEL", description="Gemini model to use"
+        default="gemini-2.0-flash-exp",
+        env="GEMINI_MODEL",
+        description="Gemini model to use",
     )
     gemini_video_timeout: int = Field(
-        default=300, env="GEMINI_VIDEO_TIMEOUT", description="Gemini video processing timeout in seconds"
+        default=300,
+        env="GEMINI_VIDEO_TIMEOUT",
+        description="Gemini video processing timeout in seconds",
     )
     gemini_max_retries: int = Field(
-        default=3, env="GEMINI_MAX_RETRIES", description="Maximum retries for Gemini API calls"
+        default=3,
+        env="GEMINI_MAX_RETRIES",
+        description="Maximum retries for Gemini API calls",
     )
     gemini_enable_refinement: bool = Field(
-        default=True, env="GEMINI_ENABLE_REFINEMENT", description="Enable highlight refinement step"
+        default=True,
+        env="GEMINI_ENABLE_REFINEMENT",
+        description="Enable highlight refinement step",
     )
     gemini_cache_ttl: int = Field(
-        default=3600, env="GEMINI_CACHE_TTL", description="Cache TTL for Gemini analysis results in seconds"
+        default=3600,
+        env="GEMINI_CACHE_TTL",
+        description="Cache TTL for Gemini analysis results in seconds",
     )
-    
+
     # Feature flags
     enable_webhooks: bool = Field(
         default=True, description="Enable webhook functionality"
@@ -192,10 +203,14 @@ class Settings(BaseSettings):
     )
     # Gemini is now the primary method - no fallback
     use_gemini_for_video: bool = Field(
-        default=True, env="USE_GEMINI_FOR_VIDEO", description="Use Gemini for video analysis (always True)"
+        default=True,
+        env="USE_GEMINI_FOR_VIDEO",
+        description="Use Gemini for video analysis (always True)",
     )
     gemini_fallback_enabled: bool = Field(
-        default=False, env="GEMINI_FALLBACK_ENABLED", description="Enable fallback when Gemini fails (deprecated - Gemini required)"
+        default=False,
+        env="GEMINI_FALLBACK_ENABLED",
+        description="Enable fallback when Gemini fails (deprecated - Gemini required)",
     )
 
     @property
@@ -217,10 +232,10 @@ class Settings(BaseSettings):
     def logfire_version(self) -> str:
         """Get Logfire service version, defaulting to app version."""
         return self.logfire_service_version or self.app_version
-    
+
     def validate_gemini_config(self) -> None:
         """Validate that Gemini is properly configured.
-        
+
         Raises:
             ValueError: If Gemini API key is not set
         """

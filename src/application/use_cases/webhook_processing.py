@@ -5,7 +5,10 @@ from typing import Optional, Dict, Any, TYPE_CHECKING
 import logging
 
 if TYPE_CHECKING:
-    from src.application.use_cases.stream_processing import StreamProcessingUseCase, StreamStartResult
+    from src.application.use_cases.stream_processing import (
+        StreamProcessingUseCase,
+        StreamStartResult,
+    )
 
 from src.application.use_cases.base import UseCase, UseCaseResult, ResultStatus
 from src.domain.entities.webhook_event import (

@@ -5,10 +5,10 @@ keeping it separate from business logic per DDD principles.
 """
 
 import logging
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING, Any
 
-from celery import Celery, Task
-from celery.signals import (
+from celery import Celery, Task  # type: ignore[import-untyped]
+from celery.signals import (  # type: ignore[import-untyped]
     task_failure,
     task_postrun,
     task_prerun,
@@ -17,9 +17,9 @@ from celery.signals import (
     worker_ready,
     worker_shutdown,
 )
-from kombu import Exchange, Queue
+from kombu import Exchange, Queue  # type: ignore[import-untyped]
 
-from src.core.config import settings
+from src.infrastructure.config import settings
 
 if TYPE_CHECKING:
     from .task_manager import TaskManager
@@ -34,15 +34,15 @@ class LoggingTask(Task):
     to business logic.
     """
 
-    def on_success(self, retval, task_id, args, kwargs):
+    def on_success(self, retval: Any, task_id: str, args: tuple, kwargs: dict) -> None:
         """Success callback."""
         logger.info(f"Task {self.name}[{task_id}] succeeded")
 
-    def on_retry(self, exc, task_id, args, kwargs, einfo):
+    def on_retry(self, exc: Exception, task_id: str, args: tuple, kwargs: dict, einfo: Any) -> None:
         """Retry callback."""
         logger.warning(f"Task {self.name}[{task_id}] retrying: {exc}")
 
-    def on_failure(self, exc, task_id, args, kwargs, einfo):
+    def on_failure(self, exc: Exception, task_id: str, args: tuple, kwargs: dict, einfo: Any) -> None:
         """Failure callback."""
         logger.error(f"Task {self.name}[{task_id}] failed: {exc}", exc_info=einfo)
 
@@ -163,19 +163,19 @@ def setup_signal_handlers() -> None:
     """Setup Celery signal handlers for monitoring."""
 
     @worker_ready.connect
-    def worker_ready_handler(sender=None, **kwargs):
+    def worker_ready_handler(sender: Any = None, **kwargs: Any) -> None:
         """Handle worker ready signal."""
         logger.info("Celery worker is ready")
 
     @worker_shutdown.connect
-    def worker_shutdown_handler(sender=None, **kwargs):
+    def worker_shutdown_handler(sender: Any = None, **kwargs: Any) -> None:
         """Handle worker shutdown signal."""
         logger.info("Celery worker is shutting down")
 
     @task_prerun.connect
     def task_prerun_handler(
-        sender=None, task_id=None, task=None, args=None, kwargs=None, **kw
-    ):
+        sender: Any = None, task_id: Optional[str] = None, task: Optional[Task] = None, args: Optional[tuple] = None, kwargs: Optional[dict] = None, **kw: Any
+    ) -> None:
         """Handle task pre-run signal."""
         logger.info(
             f"Starting task {task.name}[{task_id}] with args={args}, kwargs={kwargs}"
@@ -183,32 +183,32 @@ def setup_signal_handlers() -> None:
 
     @task_postrun.connect
     def task_postrun_handler(
-        sender=None,
-        task_id=None,
-        task=None,
-        args=None,
-        kwargs=None,
-        retval=None,
-        state=None,
-        **kw,
-    ):
+        sender: Any = None,
+        task_id: Optional[str] = None,
+        task: Optional[Task] = None,
+        args: Optional[tuple] = None,
+        kwargs: Optional[dict] = None,
+        retval: Any = None,
+        state: Optional[str] = None,
+        **kw: Any,
+    ) -> None:
         """Handle task post-run signal."""
         logger.info(f"Completed task {task.name}[{task_id}] with state={state}")
 
     @task_success.connect
-    def task_success_handler(sender=None, result=None, **kwargs):
+    def task_success_handler(sender: Any = None, result: Any = None, **kwargs: Any) -> None:
         """Handle task success signal."""
         logger.debug(f"Task {sender.name} succeeded with result: {result}")
 
     @task_retry.connect
-    def task_retry_handler(sender=None, reason=None, **kwargs):
+    def task_retry_handler(sender: Any = None, reason: Any = None, **kwargs: Any) -> None:
         """Handle task retry signal."""
         logger.warning(f"Task {sender.name} retrying, reason: {reason}")
 
     @task_failure.connect
     def task_failure_handler(
-        sender=None, task_id=None, exception=None, traceback=None, **kwargs
-    ):
+        sender: Any = None, task_id: Optional[str] = None, exception: Optional[Exception] = None, traceback: Any = None, **kwargs: Any
+    ) -> None:
         """Handle task failure signal."""
         logger.error(
             f"Task {sender.name}[{task_id}] failed with exception: {exception}"

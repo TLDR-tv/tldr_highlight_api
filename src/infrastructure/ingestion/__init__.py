@@ -14,7 +14,7 @@ from .stream_ingestion_factory import StreamIngestionFactory
 
 __all__ = [
     "StreamIngestionPipeline",
-    "IngestionConfig", 
+    "IngestionConfig",
     "IngestionResult",
     "IngestionStatus",
     "StreamIngestionFactory",

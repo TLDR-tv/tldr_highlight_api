@@ -44,7 +44,7 @@ class SentimentAnalyzer:
     additional infrastructure components.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the sentiment analyzer."""
         self.positive_keywords = self._load_positive_keywords()
         self.negative_keywords = self._load_negative_keywords()

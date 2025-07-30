@@ -40,7 +40,7 @@ class OrganizationMapper:
     def to_organization_response(organization: Organization) -> OrganizationResponse:
         """Convert Organization domain entity to response DTO."""
         # Get plan limits based on plan type
-        plan_limits = organization.get_plan_limits()
+        plan_limits = organization.plan_limits
 
         return OrganizationResponse(
             id=organization.id,

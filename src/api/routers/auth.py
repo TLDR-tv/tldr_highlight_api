@@ -81,7 +81,7 @@ async def register(
         if result.user_id is None:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Registration failed - invalid user ID"
+                detail="Registration failed - invalid user ID",
             )
 
         # Create access token for immediate login
@@ -139,7 +139,7 @@ async def login(
         if result.user_id is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Login failed - invalid user ID"
+                detail="Login failed - invalid user ID",
             )
 
         # Create access token
@@ -197,7 +197,7 @@ async def create_api_key(
         if result.api_key is None or result.key is None:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to create API key - invalid response"
+                detail="Failed to create API key - invalid response",
             )
 
         # Get the created API key and convert to response
@@ -311,7 +311,7 @@ async def rotate_api_key(
         if result.api_key is None or result.key is None:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to rotate API key - invalid response"
+                detail="Failed to rotate API key - invalid response",
             )
 
         # Get the rotated API key and convert to response

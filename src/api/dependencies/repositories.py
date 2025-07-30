@@ -20,7 +20,6 @@ from src.infrastructure.persistence.repositories.stream_repository import (
 from src.infrastructure.persistence.repositories.highlight_repository import (
     HighlightRepository,
 )
-from src.infrastructure.persistence.repositories.batch_repository import BatchRepository
 from src.infrastructure.persistence.repositories.webhook_repository import (
     WebhookRepository,
 )
@@ -76,11 +75,6 @@ async def get_highlight_repository(
     return HighlightRepository(db)
 
 
-async def get_batch_repository(
-    db: AsyncSession = Depends(get_db_session),
-) -> BatchRepository:
-    """Get batch repository instance."""
-    return BatchRepository(db)
 
 
 async def get_webhook_repository(

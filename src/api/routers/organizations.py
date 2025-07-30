@@ -4,7 +4,6 @@ This module implements organization management functionality including
 organization details, user management within organizations, and usage statistics.
 """
 
-
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from src.api.dependencies.auth import get_current_user
@@ -36,12 +35,16 @@ async def get_organization(
     use_case: OrganizationManagementUseCase = Depends(
         get_organization_management_use_case
     ),
-):
+) -> OrganizationResponse:
     """Get organization details.
 
     Returns detailed information about an organization including
     subscription plan and usage limits.
     """
+    if not current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="User ID not found"
+        )
     request = mapper.to_get_organization_request(org_id, current_user.id)
     result = await use_case.get_organization(request)
 
@@ -60,6 +63,11 @@ async def get_organization(
             detail=result.errors[0] if result.errors else "Failed to get organization",
         )
 
+    if not result.organization:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Organization data not available"
+        )
     return mapper.to_organization_response(result.organization)
 
 
@@ -71,12 +79,16 @@ async def update_organization(
     use_case: OrganizationManagementUseCase = Depends(
         get_organization_management_use_case
     ),
-):
+) -> OrganizationResponse:
     """Update organization details.
 
     Updates organization name and/or subscription plan.
     Only organization owners can update organization details.
     """
+    if not current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="User ID not found"
+        )
     request = mapper.to_update_organization_request(org_id, current_user.id, org_data)
     result = await use_case.update_organization(request)
 
@@ -97,6 +109,11 @@ async def update_organization(
             else "Failed to update organization",
         )
 
+    if not result.organization:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Organization data not available"
+        )
     return mapper.to_organization_response(result.organization)
 
 
@@ -107,11 +124,15 @@ async def list_organization_users(
     use_case: OrganizationManagementUseCase = Depends(
         get_organization_management_use_case
     ),
-):
+) -> OrganizationUsersListResponse:
     """List users in an organization.
 
     Returns a list of all users who have access to the organization.
     """
+    if not current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="User ID not found"
+        )
     request = mapper.to_list_members_request(org_id, current_user.id)
     result = await use_case.list_members(request)
 
@@ -143,12 +164,16 @@ async def add_user_to_organization(
     use_case: OrganizationManagementUseCase = Depends(
         get_organization_management_use_case
     ),
-):
+) -> AddUserToOrganizationResponse:
     """Add a user to an organization.
 
     Adds a user to the organization with the specified role.
     Only organization owners can add users.
     """
+    if not current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="User ID not found"
+        )
     request = mapper.to_add_member_request(org_id, current_user.id, user_data)
     result = await use_case.add_member(request)
 
@@ -177,6 +202,11 @@ async def add_user_to_organization(
             else "Failed to add user to organization",
         )
 
+    if not result.user:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="User data not available"
+        )
     return mapper.to_add_user_response(result.user, org_id, user_data.role or "member")
 
 
@@ -188,12 +218,16 @@ async def remove_user_from_organization(
     use_case: OrganizationManagementUseCase = Depends(
         get_organization_management_use_case
     ),
-):
+) -> dict[str, str]:
     """Remove a user from an organization.
 
     Removes a user's access to the organization.
     Only organization owners can remove users.
     """
+    if not current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="User ID not found"
+        )
     request = mapper.to_remove_member_request(org_id, current_user.id, user_id)
     result = await use_case.remove_member(request)
 
@@ -232,13 +266,17 @@ async def get_organization_usage(
     use_case: OrganizationManagementUseCase = Depends(
         get_organization_management_use_case
     ),
-):
+) -> OrganizationUsageStats:
     """Get organization usage statistics.
 
     Returns current usage statistics compared to plan limits.
     Useful for billing and usage monitoring.
     """
     # Get organization to access plan limits
+    if not current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="User ID not found"
+        )
     org_request = mapper.to_get_organization_request(org_id, current_user.id)
     org_result = await use_case.get_organization(org_request)
 
@@ -279,6 +317,11 @@ async def get_organization_usage(
         "storage_used_gb": usage_result.storage_used_gb or 0,
     }
 
-    plan_limits = org_result.organization.get_plan_limits()
+    if not org_result.organization:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Organization data not available"
+        )
+    plan_limits = org_result.organization.plan_limits
 
     return mapper.to_organization_usage_stats(usage_data, plan_limits)

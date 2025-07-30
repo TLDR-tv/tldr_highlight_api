@@ -19,7 +19,6 @@ from .repositories import (
     get_organization_repository,
     get_stream_repository,
     get_highlight_repository,
-    get_batch_repository,
     get_webhook_repository,
     get_usage_record_repository,
 )
@@ -37,7 +36,6 @@ from src.infrastructure.persistence.repositories.stream_repository import (
 from src.infrastructure.persistence.repositories.highlight_repository import (
     HighlightRepository,
 )
-from src.infrastructure.persistence.repositories.batch_repository import BatchRepository
 from src.infrastructure.persistence.repositories.webhook_repository import (
     WebhookRepository,
 )
