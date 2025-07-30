@@ -69,7 +69,6 @@ class StreamProcessingService(BaseDomainService):
         self.highlight_repo = highlight_repo
         self.agent_config_repo = agent_config_repo
         self.content_analyzer = content_analyzer
-        self._active_agents: Dict[int, B2BStreamAgent] = {}
     
     async def start_stream_processing(
         self,
@@ -137,18 +136,21 @@ class StreamProcessingService(BaseDomainService):
             url=url
         )
         
-        # Create and start B2B agent
-        b2b_agent = B2BStreamAgent(
-            stream=saved_stream,
-            agent_config=agent_config,
-            content_analyzer=self.content_analyzer
+        # Trigger FFmpeg stream ingestion task (which will chain to AI detection)
+        from src.infrastructure.async_processing.stream_tasks import ingest_stream_with_ffmpeg
+        
+        task_result = ingest_stream_with_ffmpeg.delay(
+            stream_id=saved_stream.id,
+            chunk_duration=30,  # 30 second chunks
+            agent_config_id=agent_config_id
         )
         
-        # Store active agent
-        self._active_agents[saved_stream.id] = b2b_agent
-        
-        # Start the agent
-        await b2b_agent.start()
+        # Store task ID for monitoring
+        saved_stream.metadata = {
+            **saved_stream.metadata,
+            "ingestion_task_id": task_result.id
+        }
+        await self.stream_repo.save(saved_stream)
         
         # Create initial usage record
         usage_record = UsageRecord.for_stream_processing(
@@ -228,9 +230,9 @@ class StreamProcessingService(BaseDomainService):
         # Save updated stream
         saved_stream = await self.stream_repo.save(updated_stream)
         
-        # Stop B2B agent if stream is ending
-        if new_status in [StreamStatus.COMPLETED, StreamStatus.FAILED, StreamStatus.CANCELLED]:
-            await self._stop_stream_agent(stream_id)
+        # Cancel Celery tasks if stream is being cancelled
+        if new_status == StreamStatus.CANCELLED:
+            await self._cancel_stream_tasks(stream_id)
         
         # Update usage record if completed
         if new_status in [StreamStatus.COMPLETED, StreamStatus.FAILED]:
@@ -327,72 +329,44 @@ class StreamProcessingService(BaseDomainService):
         cutoff_date = Timestamp.now().subtract_days(days_old)
         return await self.stream_repo.cleanup_old_streams(cutoff_date)
     
-    async def process_content_segment(
-        self,
-        stream_id: int,
-        segment_data: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:
-        """Process a content segment using the B2B agent.
+    async def get_stream_task_status(self, stream_id: int) -> Optional[Dict[str, Any]]:
+        """Get Celery task status for a stream.
         
         Args:
             stream_id: Stream ID
-            segment_data: Content segment data
             
         Returns:
-            List of highlight candidates
+            Task status information or None if not found
         """
-        agent = self._active_agents.get(stream_id)
-        if not agent:
-            self.logger.warning(f"No active agent found for stream {stream_id}")
-            return []
-        
         try:
-            # Analyze content segment
-            candidates = await agent.analyze_content_segment(segment_data)
+            stream = await self.stream_repo.get(stream_id)
+            if not stream or not stream.metadata.get("ingestion_task_id"):
+                return None
             
-            # Process candidates to create highlights
-            created_highlights = []
-            for candidate in candidates:
-                if await agent.should_create_highlight(candidate):
-                    highlight = await agent.create_highlight(candidate)
-                    if highlight:
-                        # Save highlight to repository
-                        saved_highlight = await self.highlight_repo.save(highlight)
-                        created_highlights.append({
-                            "id": saved_highlight.id,
-                            "start_time": candidate.start_time,
-                            "end_time": candidate.end_time,
-                            "score": candidate.final_score,
-                            "description": candidate.description
-                        })
+            from src.infrastructure.queue.celery_app import celery_app
             
-            return created_highlights
+            task_id = stream.metadata["ingestion_task_id"]
+            task_result = celery_app.AsyncResult(task_id)
+            
+            return {
+                "task_id": task_id,
+                "status": task_result.status,
+                "info": task_result.info if task_result.info else {},
+                "ready": task_result.ready(),
+                "successful": task_result.successful() if task_result.ready() else None,
+                "failed": task_result.failed() if task_result.ready() else None
+            }
             
         except Exception as e:
-            self.logger.error(f"Error processing segment for stream {stream_id}: {str(e)}")
-            return []
-    
-    async def get_agent_metrics(self, stream_id: int) -> Optional[Dict[str, Any]]:
-        """Get performance metrics for a stream's B2B agent.
-        
-        Args:
-            stream_id: Stream ID
-            
-        Returns:
-            Agent metrics dictionary or None if agent not found
-        """
-        agent = self._active_agents.get(stream_id)
-        if not agent:
+            self.logger.error(f"Error getting task status for stream {stream_id}: {str(e)}")
             return None
-        
-        return agent.get_performance_metrics()
     
     async def stop_stream_processing(
         self,
         stream_id: int,
         force: bool = False
     ) -> Stream:
-        """Stop stream processing and clean up agent.
+        """Stop stream processing and cancel tasks.
         
         Args:
             stream_id: Stream ID
@@ -401,6 +375,9 @@ class StreamProcessingService(BaseDomainService):
         Returns:
             Updated stream entity
         """
+        # Cancel any running tasks first
+        await self._cancel_stream_tasks(stream_id)
+        
         # Update stream status
         updated_stream = await self.update_stream_status(
             stream_id=stream_id,
@@ -481,6 +458,23 @@ class StreamProcessingService(BaseDomainService):
                 completed_record = record.complete(quantity=duration_minutes)
                 await self.usage_repo.save(completed_record)
     
+    async def _cancel_stream_tasks(self, stream_id: int) -> None:
+        """Cancel running Celery tasks for a stream."""
+        try:
+            stream = await self.stream_repo.get(stream_id)
+            if not stream or not stream.metadata.get("ingestion_task_id"):
+                return
+            
+            from src.infrastructure.queue.celery_app import celery_app
+            
+            task_id = stream.metadata["ingestion_task_id"]
+            celery_app.control.revoke(task_id, terminate=True)
+            
+            self.logger.info(f"Cancelled Celery tasks for stream {stream_id}")
+            
+        except Exception as e:
+            self.logger.error(f"Error cancelling tasks for stream {stream_id}: {str(e)}")
+    
     async def _get_or_create_agent_config(
         self,
         user_id: int,
@@ -514,16 +508,6 @@ class StreamProcessingService(BaseDomainService):
                 organization_id=organization_id or 0,
                 user_id=user_id
             )
-    
-    async def _stop_stream_agent(self, stream_id: int) -> None:
-        """Stop and clean up a B2B stream agent."""
-        agent = self._active_agents.pop(stream_id, None)
-        if agent:
-            try:
-                await agent.stop()
-                self.logger.info(f"Stopped B2B agent for stream {stream_id}")
-            except Exception as e:
-                self.logger.error(f"Error stopping agent for stream {stream_id}: {str(e)}")
     
     def _detect_content_type(self, url: str) -> str:
         """Detect content type from stream URL."""

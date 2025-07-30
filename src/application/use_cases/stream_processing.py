@@ -403,73 +403,16 @@ class StreamProcessingUseCase(UseCase[StreamStartRequest, StreamStartResult]):
                 errors=[f"Failed to process highlights: {str(e)}"]
             )
     
-    async def process_content_segment(
-        self,
-        stream_id: int,
-        segment_data: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """Process a content segment using B2B agent.
-        
-        Args:
-            stream_id: Stream ID
-            segment_data: Content segment data
-            
-        Returns:
-            Processing results
-        """
-        try:
-            # Process segment using stream service
-            highlights = await self.stream_service.process_content_segment(
-                stream_id=stream_id,
-                segment_data=segment_data
-            )
-            
-            # Get stream for user ID
-            stream = await self.stream_repo.get(stream_id)
-            if not stream:
-                return {
-                    "success": False,
-                    "error": "Stream not found",
-                    "highlights_created": 0
-                }
-            
-            # Trigger webhooks for created highlights
-            for highlight_data in highlights:
-                await self.webhook_service.trigger_event(
-                    event=WebhookEvent.HIGHLIGHT_DETECTED,
-                    user_id=stream.user_id,
-                    resource_id=highlight_data["id"],
-                    metadata={
-                        "score": highlight_data["score"],
-                        "description": highlight_data["description"],
-                        "start_time": highlight_data["start_time"],
-                        "end_time": highlight_data["end_time"]
-                    }
-                )
-            
-            return {
-                "success": True,
-                "highlights_created": len(highlights),
-                "highlights": highlights
-            }
-            
-        except Exception as e:
-            return {
-                "success": False,
-                "error": str(e),
-                "highlights_created": 0
-            }
-    
-    async def get_agent_metrics(self, stream_id: int) -> Optional[Dict[str, Any]]:
-        """Get performance metrics for a stream's agent.
+    async def get_stream_task_status(self, stream_id: int) -> Optional[Dict[str, Any]]:
+        """Get Celery task status for a stream.
         
         Args:
             stream_id: Stream ID
             
         Returns:
-            Agent metrics or None
+            Task status information or None
         """
-        return await self.stream_service.get_agent_metrics(stream_id)
+        return await self.stream_service.get_stream_task_status(stream_id)
     
     async def execute(self, request: StreamStartRequest) -> StreamStartResult:
         """Execute stream start (default use case method).
