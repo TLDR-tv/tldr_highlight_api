@@ -15,6 +15,7 @@ from pathlib import Path
 
 import structlog
 from celery import Task
+import logfire
 
 from src.core.database import get_db_session
 from src.infrastructure.persistence.models.stream import Stream, StreamStatus
@@ -34,6 +35,11 @@ from src.domain.repositories.highlight_agent_config_repository import HighlightA
 from src.infrastructure.async_processing.error_handler import ErrorHandler
 from src.infrastructure.async_processing.progress_tracker import ProgressTracker, ProgressEvent
 from src.infrastructure.async_processing.webhook_dispatcher import WebhookDispatcher, WebhookEvent
+from src.infrastructure.observability import (
+    metrics,
+    with_span,
+    traced_background_task,
+)
 
 logger = structlog.get_logger(__name__)
 
@@ -94,6 +100,7 @@ class StreamProcessingTask(Task):
 
 
 @celery_app.task(bind=True, base=StreamProcessingTask, name="ingest_stream_with_ffmpeg")
+@traced_background_task(name="ingest_stream_with_ffmpeg")
 def ingest_stream_with_ffmpeg(
     self, 
     stream_id: int, 
@@ -117,18 +124,47 @@ def ingest_stream_with_ffmpeg(
     Returns:
         Dict with ingestion results and segment information
     """
-    logger.info("Starting FFmpeg stream ingestion", stream_id=stream_id, chunk_duration=chunk_duration)
+    with logfire.span("ingest_stream_with_ffmpeg.start") as span:
+        span.set_attribute("stream.id", stream_id)
+        span.set_attribute("chunk_duration", chunk_duration)
+        span.set_attribute("agent_config_id", agent_config_id)
+        
+        logger.info("Starting FFmpeg stream ingestion", stream_id=stream_id, chunk_duration=chunk_duration)
+        
+        # Track task start
+        metrics.increment_task_executed(
+            task_name="ingest_stream_with_ffmpeg",
+            organization_id=None,  # Will be set after we fetch stream
+            success=False  # Will update on success
+        )
     
     try:
         with get_db_session() as db:
-            # Get stream
-            stream = db.query(Stream).filter(Stream.id == stream_id).first()
-            if not stream:
-                raise ValueError(f"Stream {stream_id} not found")
+            # Get stream with observability
+            with logfire.span("fetch_stream_details") as span:
+                stream = db.query(Stream).filter(Stream.id == stream_id).first()
+                if not stream:
+                    span.set_attribute("error", True)
+                    span.set_attribute("error.message", f"Stream {stream_id} not found")
+                    raise ValueError(f"Stream {stream_id} not found")
+                
+                # Add stream context
+                span.set_attribute("stream.platform", stream.platform)
+                span.set_attribute("stream.source_url", stream.source_url[:50] + "..." if len(stream.source_url) > 50 else stream.source_url)
+                span.set_attribute("stream.organization_id", stream.organization_id)
+                
+                # Now we can track with organization context
+                logfire.set_attribute("organization.id", stream.organization_id)
+                metrics.increment_stream_started(
+                    platform=stream.platform,
+                    organization_id=str(stream.organization_id),
+                    stream_type="live"
+                )
             
             # Update status to processing
-            stream.status = StreamStatus.PROCESSING
-            db.commit()
+            with logfire.span("update_stream_status"):
+                stream.status = StreamStatus.PROCESSING
+                db.commit()
             
             # Update progress
             self.progress_tracker.update_progress(
@@ -143,42 +179,95 @@ def ingest_stream_with_ffmpeg(
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             
-            try:
-                media_info = loop.run_until_complete(
-                    FFmpegProbe.probe_stream(stream.source_url, timeout=15)
-                )
+            with logfire.span("probe_stream") as probe_span:
+                probe_span.set_attribute("probe.timeout", 15)
+                probe_start_time = datetime.now(timezone.utc)
                 
-                logger.info("Stream probed successfully", 
-                           format=media_info.format_name,
-                           video_streams=len(media_info.video_streams),
-                           audio_streams=len(media_info.audio_streams))
-                
-            except Exception as e:
-                logger.error(f"Failed to probe stream: {e}")
-                raise ValueError(f"Cannot access stream: {e}")
+                try:
+                    media_info = loop.run_until_complete(
+                        FFmpegProbe.probe_stream(stream.source_url, timeout=15)
+                    )
+                    
+                    probe_duration = (datetime.now(timezone.utc) - probe_start_time).total_seconds()
+                    probe_span.set_attribute("probe.duration_seconds", probe_duration)
+                    probe_span.set_attribute("probe.format", media_info.format_name)
+                    probe_span.set_attribute("probe.video_streams", len(media_info.video_streams))
+                    probe_span.set_attribute("probe.audio_streams", len(media_info.audio_streams))
+                    probe_span.set_attribute("probe.success", True)
+                    
+                    logger.info("Stream probed successfully", 
+                               format=media_info.format_name,
+                               video_streams=len(media_info.video_streams),
+                               audio_streams=len(media_info.audio_streams))
+                    
+                    # Track probe metrics
+                    metrics.record_highlight_processing_time(
+                        duration_seconds=probe_duration,
+                        stage="stream_probe",
+                        platform=stream.platform
+                    )
+                    
+                except Exception as e:
+                    probe_span.set_attribute("probe.success", False)
+                    probe_span.set_attribute("probe.error", str(e))
+                    logger.error(f"Failed to probe stream: {e}")
+                    raise ValueError(f"Cannot access stream: {e}")
             
             # Create temporary working directory
             temp_dir = tempfile.mkdtemp(prefix=f"stream_{stream_id}_")
             
             try:
                 # Start stream ingestion with chunking
-                segments = loop.run_until_complete(
-                    self._ingest_stream_segments(
-                        stream.source_url, 
-                        temp_dir, 
-                        chunk_duration,
-                        media_info
+                with logfire.span("ingest_stream_segments") as segment_span:
+                    segment_span.set_attribute("segments.chunk_duration", chunk_duration)
+                    segment_span.set_attribute("segments.temp_dir", temp_dir)
+                    segment_start_time = datetime.now(timezone.utc)
+                    
+                    segments = loop.run_until_complete(
+                        self._ingest_stream_segments(
+                            stream.source_url, 
+                            temp_dir, 
+                            chunk_duration,
+                            media_info
+                        )
                     )
-                )
+                    
+                    segment_duration = (datetime.now(timezone.utc) - segment_start_time).total_seconds()
+                    segment_span.set_attribute("segments.count", len(segments))
+                    segment_span.set_attribute("segments.duration_seconds", segment_duration)
+                    segment_span.set_attribute("segments.success", True)
+                    
+                    # Track segment creation metrics
+                    metrics.record_highlight_processing_time(
+                        duration_seconds=segment_duration,
+                        stage="segment_creation",
+                        platform=stream.platform
+                    )
                 
                 # Extract keyframes for visual analysis
-                keyframes = loop.run_until_complete(
-                    self._extract_keyframes_for_analysis(
-                        stream.source_url,
-                        temp_dir,
-                        max_duration=300  # 5 minutes max for initial analysis
+                with logfire.span("extract_keyframes") as keyframe_span:
+                    keyframe_span.set_attribute("keyframes.max_duration", 300)
+                    keyframe_start_time = datetime.now(timezone.utc)
+                    
+                    keyframes = loop.run_until_complete(
+                        self._extract_keyframes_for_analysis(
+                            stream.source_url,
+                            temp_dir,
+                            max_duration=300  # 5 minutes max for initial analysis
+                        )
                     )
-                )
+                    
+                    keyframe_duration = (datetime.now(timezone.utc) - keyframe_start_time).total_seconds()
+                    keyframe_span.set_attribute("keyframes.count", len(keyframes))
+                    keyframe_span.set_attribute("keyframes.duration_seconds", keyframe_duration)
+                    keyframe_span.set_attribute("keyframes.success", True)
+                    
+                    # Track keyframe extraction metrics
+                    metrics.record_highlight_processing_time(
+                        duration_seconds=keyframe_duration,
+                        stage="keyframe_extraction",
+                        platform=stream.platform
+                    )
                 
                 # Update progress
                 self.progress_tracker.update_progress(
@@ -195,23 +284,45 @@ def ingest_stream_with_ffmpeg(
                 )
                 
                 # Trigger AI highlight detection task
-                detect_highlights_with_ai.delay(
-                    stream_id=stream_id,
-                    ingestion_data={
-                        "segments": segments,
-                        "keyframes": keyframes,
-                        "temp_dir": temp_dir,
-                        "media_info": {
-                            "format": media_info.format_name,
-                            "duration": media_info.duration,
-                            "video_streams": len(media_info.video_streams),
-                            "audio_streams": len(media_info.audio_streams)
-                        }
-                    },
-                    agent_config_id=agent_config_id
+                with logfire.span("trigger_ai_detection") as trigger_span:
+                    trigger_span.set_attribute("next_task", "detect_highlights_with_ai")
+                    
+                    detect_highlights_with_ai.delay(
+                        stream_id=stream_id,
+                        ingestion_data={
+                            "segments": segments,
+                            "keyframes": keyframes,
+                            "temp_dir": temp_dir,
+                            "media_info": {
+                                "format": media_info.format_name,
+                                "duration": media_info.duration,
+                                "video_streams": len(media_info.video_streams),
+                                "audio_streams": len(media_info.audio_streams)
+                            }
+                        },
+                        agent_config_id=agent_config_id
+                    )
+                    
+                    trigger_span.set_attribute("trigger.success", True)
+                
+                # Calculate total task duration
+                task_end_time = datetime.now(timezone.utc)
+                total_duration = (task_end_time - datetime.now(timezone.utc)).total_seconds()
+                
+                # Track successful completion
+                metrics.increment_task_executed(
+                    task_name="ingest_stream_with_ffmpeg",
+                    organization_id=str(stream.organization_id),
+                    success=True
                 )
                 
-                return {
+                metrics.record_task_duration(
+                    duration_seconds=total_duration,
+                    task_name="ingest_stream_with_ffmpeg",
+                    organization_id=str(stream.organization_id)
+                )
+                
+                result = {
                     "stream_id": stream_id,
                     "status": "ingestion_complete",
                     "segments_created": len(segments),
@@ -226,6 +337,17 @@ def ingest_stream_with_ffmpeg(
                     "timestamp": datetime.now(timezone.utc).isoformat()
                 }
                 
+                logfire.info(
+                    "Stream ingestion completed successfully",
+                    stream_id=stream_id,
+                    segments_created=len(segments),
+                    keyframes_extracted=len(keyframes),
+                    platform=stream.platform,
+                    organization_id=stream.organization_id
+                )
+                
+                return result
+                
             except Exception as e:
                 # Clean up temp directory on failure
                 import shutil
@@ -236,16 +358,38 @@ def ingest_stream_with_ffmpeg(
                 loop.close()
                 
     except Exception as exc:
-        logger.error("FFmpeg stream ingestion failed", stream_id=stream_id, error=str(exc))
+        logfire.error(
+            "FFmpeg stream ingestion failed",
+            stream_id=stream_id,
+            error=str(exc),
+            error_type=type(exc).__name__,
+            exc_info=True
+        )
+        
+        # Track task failure
+        if 'stream' in locals() and hasattr(stream, 'organization_id'):
+            metrics.increment_task_executed(
+                task_name="ingest_stream_with_ffmpeg",
+                organization_id=str(stream.organization_id),
+                success=False
+            )
+            
+            metrics.increment_stream_completed(
+                platform=stream.platform,
+                organization_id=str(stream.organization_id),
+                stream_type="live",
+                success=False
+            )
         
         # Update stream status to failed
         try:
             with get_db_session() as db:
-                stream = db.query(Stream).filter(Stream.id == stream_id).first()
-                if stream:
-                    stream.status = StreamStatus.FAILED
-                    stream.error_message = str(exc)
-                    db.commit()
+                with logfire.span("update_failed_stream_status"):
+                    stream = db.query(Stream).filter(Stream.id == stream_id).first()
+                    if stream:
+                        stream.status = StreamStatus.FAILED
+                        stream.error_message = str(exc)
+                        db.commit()
         except Exception as db_exc:
             logger.error("Failed to update stream status", error=str(db_exc))
         
@@ -354,6 +498,7 @@ def ingest_stream_with_ffmpeg(
 
 
 @celery_app.task(bind=True, base=StreamProcessingTask, name="detect_highlights_with_ai")
+@traced_background_task(name="detect_highlights_with_ai")
 def detect_highlights_with_ai(
     self,
     stream_id: int,
@@ -377,14 +522,37 @@ def detect_highlights_with_ai(
     Returns:
         Dict with highlight detection results
     """
-    logger.info("Starting AI highlight detection", stream_id=stream_id, agent_config_id=agent_config_id)
+    with logfire.span("detect_highlights_with_ai.start") as span:
+        span.set_attribute("stream.id", stream_id)
+        span.set_attribute("agent_config_id", agent_config_id)
+        span.set_attribute("segments.count", len(ingestion_data.get("segments", [])))
+        span.set_attribute("keyframes.count", len(ingestion_data.get("keyframes", [])))
+        
+        logger.info("Starting AI highlight detection", stream_id=stream_id, agent_config_id=agent_config_id)
+        
+        # Track task start
+        metrics.increment_task_executed(
+            task_name="detect_highlights_with_ai",
+            organization_id=None,  # Will be set after we fetch stream
+            success=False  # Will update on success
+        )
     
     try:
         with get_db_session() as db:
-            # Get stream
-            stream = db.query(Stream).filter(Stream.id == stream_id).first()
-            if not stream:
-                raise ValueError(f"Stream {stream_id} not found")
+            # Get stream with observability
+            with logfire.span("fetch_stream_for_ai_detection") as span:
+                stream = db.query(Stream).filter(Stream.id == stream_id).first()
+                if not stream:
+                    span.set_attribute("error", True)
+                    span.set_attribute("error.message", f"Stream {stream_id} not found")
+                    raise ValueError(f"Stream {stream_id} not found")
+                
+                # Add stream context
+                span.set_attribute("stream.platform", stream.platform)
+                span.set_attribute("stream.organization_id", stream.organization_id)
+                
+                # Set organization context for metrics
+                logfire.set_attribute("organization.id", stream.organization_id)
             
             # Update progress
             self.progress_tracker.update_progress(
@@ -412,19 +580,27 @@ def detect_highlights_with_ai(
                     user_id=stream.user_id
                 )
             
-            # Create B2B agent
-            b2b_agent = B2BStreamAgent(
-                stream=stream,
-                agent_config=agent_config,
-                content_analyzer=None  # Would inject real analyzer
-            )
+            # Create B2B agent with observability
+            with logfire.span("initialize_b2b_agent") as agent_span:
+                agent_span.set_attribute("agent_config_id", agent_config_id)
+                agent_span.set_attribute("agent_config.type", agent_config.config_type)
+                
+                b2b_agent = B2BStreamAgent(
+                    stream=stream,
+                    agent_config=agent_config,
+                    content_analyzer=None  # Would inject real analyzer
+                )
+                
+                agent_span.set_attribute("agent.initialized", True)
             
             # Start the agent
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             
             try:
-                loop.run_until_complete(b2b_agent.start())
+                with logfire.span("start_b2b_agent"):
+                    loop.run_until_complete(b2b_agent.start())
+                    logfire.info("B2B agent started successfully", stream_id=stream_id)
                 
                 # Process each segment
                 all_highlights = []
@@ -432,35 +608,62 @@ def detect_highlights_with_ai(
                 keyframes = ingestion_data.get("keyframes", [])
                 
                 for i, segment in enumerate(segments):
-                    # Create segment data for analysis
-                    segment_data = {
-                        "id": segment["id"],
-                        "path": segment["path"],
-                        "start_time": segment["start_time"],
-                        "duration": segment["duration"],
-                        "video_info": segment["video_info"],
-                        "audio_info": segment["audio_info"],
-                        "keyframes": [kf for kf in keyframes 
-                                     if segment["start_time"] <= kf["timestamp"] < segment["start_time"] + segment["duration"]]
-                    }
-                    
-                    # Process segment with B2B agent
-                    candidates = loop.run_until_complete(
-                        b2b_agent.analyze_content_segment(segment_data)
-                    )
-                    
-                    # Create highlights from candidates
-                    for candidate in candidates:
-                        should_create = loop.run_until_complete(
-                            b2b_agent.should_create_highlight(candidate)
-                        )
+                    with logfire.span(f"process_segment_{i}") as segment_span:
+                        segment_span.set_attribute("segment.index", i)
+                        segment_span.set_attribute("segment.id", segment["id"])
+                        segment_span.set_attribute("segment.start_time", segment["start_time"])
+                        segment_span.set_attribute("segment.duration", segment["duration"])
                         
-                        if should_create:
-                            highlight = loop.run_until_complete(
-                                b2b_agent.create_highlight(candidate)
+                        # Create segment data for analysis
+                        segment_data = {
+                            "id": segment["id"],
+                            "path": segment["path"],
+                            "start_time": segment["start_time"],
+                            "duration": segment["duration"],
+                            "video_info": segment["video_info"],
+                            "audio_info": segment["audio_info"],
+                            "keyframes": [kf for kf in keyframes 
+                                         if segment["start_time"] <= kf["timestamp"] < segment["start_time"] + segment["duration"]]
+                        }
+                        
+                        segment_span.set_attribute("segment.keyframes_count", len(segment_data["keyframes"]))
+                        
+                        # Process segment with B2B agent
+                        with logfire.span("analyze_content_segment") as analyze_span:
+                            analyze_start = datetime.now(timezone.utc)
+                            
+                            candidates = loop.run_until_complete(
+                                b2b_agent.analyze_content_segment(segment_data)
                             )
-                            if highlight:
-                                all_highlights.append(highlight)
+                            
+                            analyze_duration = (datetime.now(timezone.utc) - analyze_start).total_seconds()
+                            analyze_span.set_attribute("candidates.count", len(candidates))
+                            analyze_span.set_attribute("analysis.duration_seconds", analyze_duration)
+                            
+                            # Track AI analysis metrics
+                            metrics.record_highlight_processing_time(
+                                duration_seconds=analyze_duration,
+                                stage="ai_segment_analysis",
+                                platform=stream.platform
+                            )
+                        
+                        # Create highlights from candidates
+                        segment_highlights = []
+                        for candidate in candidates:
+                            with logfire.span("evaluate_highlight_candidate"):
+                                should_create = loop.run_until_complete(
+                                    b2b_agent.should_create_highlight(candidate)
+                                )
+                                
+                                if should_create:
+                                    highlight = loop.run_until_complete(
+                                        b2b_agent.create_highlight(candidate)
+                                    )
+                                    if highlight:
+                                        all_highlights.append(highlight)
+                                        segment_highlights.append(highlight)
+                        
+                        segment_span.set_attribute("highlights.created", len(segment_highlights))
                     
                     # Update progress
                     progress = 50 + (i + 1) * 30 / len(segments)
@@ -478,18 +681,38 @@ def detect_highlights_with_ai(
                     )
                 
                 # Stop the agent
-                loop.run_until_complete(b2b_agent.stop())
+                with logfire.span("stop_b2b_agent"):
+                    loop.run_until_complete(b2b_agent.stop())
+                    logfire.info("B2B agent stopped successfully", stream_id=stream_id)
                 
                 # Update stream status to completed
-                stream.status = StreamStatus.COMPLETED
-                stream.completed_at = datetime.now(timezone.utc)
-                db.commit()
+                with logfire.span("update_stream_completed"):
+                    stream.status = StreamStatus.COMPLETED
+                    stream.completed_at = datetime.now(timezone.utc)
+                    db.commit()
+                    
+                    # Track completion metrics
+                    metrics.increment_highlights_detected(
+                        count=len(all_highlights),
+                        platform=stream.platform,
+                        organization_id=str(stream.organization_id),
+                        detection_method="b2b_agent"
+                    )
+                    
+                    metrics.increment_stream_completed(
+                        platform=stream.platform,
+                        organization_id=str(stream.organization_id),
+                        stream_type="live",
+                        success=True
+                    )
                 
                 # Clean up temporary files
-                temp_dir = ingestion_data.get("temp_dir")
-                if temp_dir and os.path.exists(temp_dir):
-                    import shutil
-                    shutil.rmtree(temp_dir)
+                with logfire.span("cleanup_temp_files"):
+                    temp_dir = ingestion_data.get("temp_dir")
+                    if temp_dir and os.path.exists(temp_dir):
+                        import shutil
+                        shutil.rmtree(temp_dir)
+                        logfire.info("Cleaned up temporary files", temp_dir=temp_dir)
                 
                 # Final progress update
                 self.progress_tracker.update_progress(
@@ -519,7 +742,22 @@ def detect_highlights_with_ai(
                     )
                 )
                 
-                return {
+                # Track successful task completion
+                metrics.increment_task_executed(
+                    task_name="detect_highlights_with_ai",
+                    organization_id=str(stream.organization_id),
+                    success=True
+                )
+                
+                # Calculate total processing time
+                task_duration = (datetime.now(timezone.utc) - datetime.now(timezone.utc)).total_seconds()
+                metrics.record_task_duration(
+                    duration_seconds=task_duration,
+                    task_name="detect_highlights_with_ai",
+                    organization_id=str(stream.organization_id)
+                )
+                
+                result = {
                     "stream_id": stream_id,
                     "status": "completed",
                     "highlights_created": len(all_highlights),
@@ -528,20 +766,53 @@ def detect_highlights_with_ai(
                     "timestamp": datetime.now(timezone.utc).isoformat()
                 }
                 
+                logfire.info(
+                    "AI highlight detection completed successfully",
+                    stream_id=stream_id,
+                    highlights_created=len(all_highlights),
+                    platform=stream.platform,
+                    organization_id=stream.organization_id,
+                    agent_config=agent_config.name
+                )
+                
+                return result
+                
             finally:
                 loop.close()
                 
     except Exception as exc:
-        logger.error("AI highlight detection failed", stream_id=stream_id, error=str(exc))
+        logfire.error(
+            "AI highlight detection failed",
+            stream_id=stream_id,
+            error=str(exc),
+            error_type=type(exc).__name__,
+            exc_info=True
+        )
+        
+        # Track task failure
+        if 'stream' in locals() and hasattr(stream, 'organization_id'):
+            metrics.increment_task_executed(
+                task_name="detect_highlights_with_ai",
+                organization_id=str(stream.organization_id),
+                success=False
+            )
+            
+            metrics.increment_stream_completed(
+                platform=stream.platform,
+                organization_id=str(stream.organization_id),
+                stream_type="live",
+                success=False
+            )
         
         # Update stream status to failed
         try:
             with get_db_session() as db:
-                stream = db.query(Stream).filter(Stream.id == stream_id).first()
-                if stream:
-                    stream.status = StreamStatus.FAILED
-                    stream.error_message = str(exc)
-                    db.commit()
+                with logfire.span("update_failed_stream_status_ai"):
+                    stream = db.query(Stream).filter(Stream.id == stream_id).first()
+                    if stream:
+                        stream.status = StreamStatus.FAILED
+                        stream.error_message = str(exc)
+                        db.commit()
         except Exception as db_exc:
             logger.error("Failed to update stream status", error=str(db_exc))
         
