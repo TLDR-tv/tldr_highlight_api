@@ -70,7 +70,8 @@ async def register(
     """
     try:
         # Convert DTO to domain request
-        domain_request = RegisterMapper.to_domain(request)
+        mapper = RegisterMapper()
+        domain_request = mapper.to_domain(request)
         
         # Execute use case
         result = await auth_use_case.register(domain_request)
@@ -124,7 +125,8 @@ async def login(
     """Authenticate user and return access token."""
     try:
         # Convert DTO to domain request
-        domain_request = LoginMapper.to_domain(request)
+        login_mapper = LoginMapper()
+        domain_request = login_mapper.to_domain(request)
         
         # Execute use case
         result = await auth_use_case.login(domain_request)
@@ -142,7 +144,7 @@ async def login(
             scopes=["streams:read", "streams:write", "highlights:read"]
         )
         
-        return LoginMapper.to_dto(result, access_token)
+        return login_mapper.to_dto(result, access_token)
         
     except AuthenticationError as e:
         raise HTTPException(
@@ -170,7 +172,8 @@ async def create_api_key(
     """
     try:
         # Convert scopes to domain format
-        domain_scopes = APIKeyMapper.to_domain_scopes(request.scopes)
+        api_key_mapper = APIKeyMapper()
+        domain_scopes = api_key_mapper.to_domain_scopes(request.scopes)
         
         # Create API key
         result = await auth_use_case.create_api_key(
@@ -188,7 +191,7 @@ async def create_api_key(
         
         # Get the created API key and convert to response
         api_key = result.api_key
-        return APIKeyMapper.to_create_response_dto(api_key, result.key)
+        return api_key_mapper.to_create_response_dto(api_key, result.key)
         
     except ValidationError as e:
         raise HTTPException(
@@ -219,7 +222,8 @@ async def list_api_keys(
         )
     
     # Convert to DTOs
-    key_dtos = [APIKeyMapper.to_dto(key) for key in result.api_keys]
+    api_key_mapper = APIKeyMapper()
+    key_dtos = [api_key_mapper.to_dto(key) for key in result.api_keys]
     
     return APIKeyListResponse(
         total=len(key_dtos),
@@ -297,7 +301,8 @@ async def rotate_api_key(
         
         # Get the rotated API key and convert to response
         api_key = result.api_key
-        return APIKeyMapper.to_create_response_dto(api_key, result.key)
+        api_key_mapper = APIKeyMapper()
+        return api_key_mapper.to_create_response_dto(api_key, result.key)
         
     except EntityNotFoundError:
         raise HTTPException(

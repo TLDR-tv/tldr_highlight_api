@@ -2,8 +2,7 @@
 
 from typing import List, Optional
 from datetime import datetime
-
-from src.api.mappers.base import BaseAPIMapper
+from dataclasses import dataclass
 from src.api.schemas.auth import (
     APIKeyCreate,
     APIKeyResponse,
@@ -24,11 +23,11 @@ from src.domain.value_objects.email import Email
 from src.domain.value_objects.company_name import CompanyName
 
 
+@dataclass
 class RegisterMapper:
     """Maps registration DTOs to domain objects."""
     
-    @staticmethod
-    def to_domain(dto: UserRegistrationRequest) -> RegisterRequest:
+    def to_domain(self, dto: UserRegistrationRequest) -> RegisterRequest:
         """Convert registration DTO to domain request."""
         return RegisterRequest(
             email=dto.email,
@@ -37,8 +36,7 @@ class RegisterMapper:
             organization_name=None  # UserRegistrationRequest doesn't have organization_name
         )
     
-    @staticmethod
-    def to_dto(result: RegisterResult, api_key: str) -> APIKeyCreateResponse:
+    def to_dto(self, result: RegisterResult, api_key: str) -> APIKeyCreateResponse:
         """Convert registration result to response DTO."""
         return APIKeyCreateResponse(
             id=result.user_id,
@@ -53,11 +51,11 @@ class RegisterMapper:
         )
 
 
+@dataclass
 class LoginMapper:
     """Maps login DTOs to domain objects."""
     
-    @staticmethod
-    def to_domain(dto: LoginRequestDTO) -> LoginRequest:
+    def to_domain(self, dto: LoginRequestDTO) -> LoginRequest:
         """Convert login DTO to domain request."""
         return LoginRequest(
             email=dto.email,
@@ -66,8 +64,7 @@ class LoginMapper:
             api_key_name="Login API Key"
         )
     
-    @staticmethod
-    def to_dto(result: LoginResult, token: str) -> LoginResponse:
+    def to_dto(self, result: LoginResult, token: str) -> LoginResponse:
         """Convert login result to response DTO."""
         return LoginResponse(
             access_token=token,
@@ -76,11 +73,11 @@ class LoginMapper:
         )
 
 
+@dataclass
 class APIKeyMapper:
     """Maps API key DTOs to domain objects."""
     
-    @staticmethod
-    def to_domain_scopes(scopes: List[str]) -> List[APIKeyScope]:
+    def to_domain_scopes(self, scopes: List[str]) -> List[APIKeyScope]:
         """Convert string scopes to domain scope enums."""
         domain_scopes = []
         for scope in scopes:
@@ -97,8 +94,7 @@ class APIKeyMapper:
                 pass
         return domain_scopes
     
-    @staticmethod
-    def to_dto(api_key: APIKey) -> APIKeyResponse:
+    def to_dto(self, api_key: APIKey) -> APIKeyResponse:
         """Convert domain API key to response DTO."""
         # Convert enum scopes back to strings
         scopes = []
@@ -121,8 +117,7 @@ class APIKeyMapper:
             is_expired=api_key.is_expired
         )
     
-    @staticmethod
-    def to_create_response_dto(api_key: APIKey, key: str) -> APIKeyCreateResponse:
+    def to_create_response_dto(self, api_key: APIKey, key: str) -> APIKeyCreateResponse:
         """Convert domain API key to create response DTO with actual key."""
         # Convert enum scopes back to strings
         scopes = []
