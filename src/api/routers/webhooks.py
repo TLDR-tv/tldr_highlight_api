@@ -133,3 +133,53 @@ async def test_webhook(webhook_id: str, db: AsyncSession = Depends(get_db)):
         status_code=status.HTTP_501_NOT_IMPLEMENTED,
         detail="Webhook testing will be implemented in later phases",
     )
+
+
+@router.get(
+    "/{webhook_id}/events",
+    summary="Get webhook events",
+    description="Get webhook delivery history",
+    responses=COMMON_RESPONSES,
+)
+async def get_webhook_events(
+    webhook_id: int,
+    page: int = Query(1, ge=1, description="Page number"),
+    per_page: int = Query(20, ge=1, le=100, description="Items per page"),
+    current_user: User = Depends(get_current_user),
+    use_case: WebhookConfigurationUseCase = Depends(get_webhook_configuration_use_case)
+) -> Dict:
+    """Get webhook delivery events.
+    
+    Returns the delivery history for a webhook.
+    """
+    request = mapper.to_get_webhook_events_request(
+        current_user.id,
+        webhook_id,
+        page,
+        per_page
+    )
+    result = await use_case.get_webhook_events(request)
+    
+    if result.status == ResultStatus.NOT_FOUND:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Webhook not found"
+        )
+    elif result.status == ResultStatus.UNAUTHORIZED:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied to this webhook"
+        )
+    elif not result.is_success:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=result.errors[0] if result.errors else "Failed to get webhook events"
+        )
+    
+    return {
+        "events": result.events,
+        "total": result.total,
+        "success_rate": result.success_rate,
+        "page": page,
+        "per_page": per_page
+    }

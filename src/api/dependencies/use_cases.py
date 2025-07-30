@@ -29,6 +29,10 @@ from src.application.use_cases.authentication import AuthenticationUseCase
 from src.application.use_cases.stream_processing import StreamProcessingUseCase
 from src.application.use_cases.batch_processing import BatchProcessingUseCase
 from src.application.use_cases.webhook_processing import WebhookProcessingUseCase
+from src.application.use_cases.user_management import UserManagementUseCase
+from src.application.use_cases.organization_management import OrganizationManagementUseCase
+from src.application.use_cases.highlight_management import HighlightManagementUseCase
+from src.application.use_cases.webhook_configuration import WebhookConfigurationUseCase
 
 from .repositories import (
     get_user_repository,
@@ -78,10 +82,15 @@ async def get_stream_processing_use_case(
     usage_service: UsageTrackingService = Depends(get_usage_tracking_service)
 ) -> StreamProcessingUseCase:
     """Get stream processing use case instance."""
+    # For now, use a mock agent config repository
+    # TODO: Implement proper agent config repository
+    agent_config_repo = None
+    
     return StreamProcessingUseCase(
         user_repo=user_repo,
         stream_repo=stream_repo,
         highlight_repo=highlight_repo,
+        agent_config_repo=agent_config_repo,
         stream_service=stream_service,
         highlight_service=highlight_service,
         webhook_service=webhook_service,
@@ -92,10 +101,8 @@ async def get_stream_processing_use_case(
 async def get_batch_processing_use_case(
     user_repo: UserRepository = Depends(get_user_repository),
     batch_repo: BatchRepository = Depends(get_batch_repository),
-    stream_repo: StreamRepository = Depends(get_stream_repository),
-    highlight_repo: HighlightRepository = Depends(get_highlight_repository),
-    stream_service: StreamProcessingService = Depends(get_stream_processing_service),
-    highlight_service: HighlightDetectionService = Depends(get_highlight_detection_service),
+    org_repo: OrganizationRepository = Depends(get_organization_repository),
+    org_service: OrganizationManagementService = Depends(get_organization_management_service),
     webhook_service: WebhookDeliveryService = Depends(get_webhook_delivery_service),
     usage_service: UsageTrackingService = Depends(get_usage_tracking_service)
 ) -> BatchProcessingUseCase:
@@ -103,27 +110,84 @@ async def get_batch_processing_use_case(
     return BatchProcessingUseCase(
         user_repo=user_repo,
         batch_repo=batch_repo,
-        stream_repo=stream_repo,
-        highlight_repo=highlight_repo,
-        stream_service=stream_service,
-        highlight_service=highlight_service,
+        org_repo=org_repo,
+        org_service=org_service,
         webhook_service=webhook_service,
         usage_service=usage_service
     )
 
 
 async def get_webhook_processing_use_case(
-    stream_repo: StreamRepository = Depends(get_stream_repository),
-    webhook_repo: WebhookRepository = Depends(get_webhook_repository),
     webhook_event_repo: WebhookEventRepository = Depends(get_webhook_event_repository),
-    stream_service: StreamProcessingService = Depends(get_stream_processing_service),
-    webhook_service: WebhookDeliveryService = Depends(get_webhook_delivery_service)
+    user_repo: UserRepository = Depends(get_user_repository),
+    api_key_repo: APIKeyRepository = Depends(get_api_key_repository),
+    stream_processing_use_case: StreamProcessingUseCase = Depends(get_stream_processing_use_case)
 ) -> WebhookProcessingUseCase:
     """Get webhook processing use case instance."""
+    # Create validator factory with webhook secrets from config
+    # In production, these would come from environment variables or secure config
+    from src.infrastructure.security.webhook_validator import WebhookValidatorFactory
+    webhook_secrets = {
+        "100ms": "your-100ms-webhook-secret",
+        "twitch": "your-twitch-webhook-secret",
+        "custom": "your-custom-webhook-secret"
+    }
+    validator_factory = WebhookValidatorFactory(webhook_secrets)
+    
     return WebhookProcessingUseCase(
-        stream_repo=stream_repo,
-        webhook_repo=webhook_repo,
         webhook_event_repo=webhook_event_repo,
-        stream_service=stream_service,
-        webhook_service=webhook_service
+        user_repo=user_repo,
+        api_key_repo=api_key_repo,
+        stream_processing_use_case=stream_processing_use_case,
+        validator_factory=validator_factory
+    )
+
+
+async def get_user_management_use_case(
+    user_repo: UserRepository = Depends(get_user_repository),
+    api_key_repo: APIKeyRepository = Depends(get_api_key_repository),
+    org_repo: OrganizationRepository = Depends(get_organization_repository)
+) -> UserManagementUseCase:
+    """Get user management use case instance."""
+    return UserManagementUseCase(
+        user_repo=user_repo,
+        api_key_repo=api_key_repo,
+        org_repo=org_repo
+    )
+
+
+async def get_organization_management_use_case(
+    org_repo: OrganizationRepository = Depends(get_organization_repository),
+    user_repo: UserRepository = Depends(get_user_repository),
+    org_service: OrganizationManagementService = Depends(get_organization_management_service)
+) -> OrganizationManagementUseCase:
+    """Get organization management use case instance."""
+    return OrganizationManagementUseCase(
+        org_repo=org_repo,
+        user_repo=user_repo,
+        org_service=org_service
+    )
+
+
+async def get_highlight_management_use_case(
+    highlight_repo: HighlightRepository = Depends(get_highlight_repository),
+    stream_repo: StreamRepository = Depends(get_stream_repository),
+    user_repo: UserRepository = Depends(get_user_repository)
+) -> HighlightManagementUseCase:
+    """Get highlight management use case instance."""
+    return HighlightManagementUseCase(
+        highlight_repo=highlight_repo,
+        stream_repo=stream_repo,
+        user_repo=user_repo
+    )
+
+
+async def get_webhook_configuration_use_case(
+    webhook_repo: WebhookRepository = Depends(get_webhook_repository),
+    webhook_event_repo: WebhookEventRepository = Depends(get_webhook_event_repository)
+) -> WebhookConfigurationUseCase:
+    """Get webhook configuration use case instance."""
+    return WebhookConfigurationUseCase(
+        webhook_repo=webhook_repo,
+        webhook_event_repo=webhook_event_repo
     )
