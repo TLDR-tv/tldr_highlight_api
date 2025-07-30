@@ -51,7 +51,6 @@ class StreamProcessingService(BaseDomainService):
         usage_repo: UsageRecordRepository,
         highlight_repo: HighlightRepository,
         agent_config_repo: HighlightAgentConfigRepository,
-        content_analyzer: Optional[Any] = None,
     ):
         """Initialize stream processing service.
 
@@ -62,7 +61,6 @@ class StreamProcessingService(BaseDomainService):
             usage_repo: Repository for usage tracking
             highlight_repo: Repository for highlight operations
             agent_config_repo: Repository for agent configurations
-            content_analyzer: Optional content analysis service for B2B agents
         """
         super().__init__()
         self.stream_repo = stream_repo
@@ -71,7 +69,6 @@ class StreamProcessingService(BaseDomainService):
         self.usage_repo = usage_repo
         self.highlight_repo = highlight_repo
         self.agent_config_repo = agent_config_repo
-        self.content_analyzer = content_analyzer
 
     @traced_service_method(name="start_stream_processing")
     async def start_stream_processing(

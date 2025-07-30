@@ -1,23 +1,21 @@
 """
 AI-powered highlight detection engine for the TL;DR Highlight API.
 
-This package provides sophisticated multi-modal analysis for identifying
+This package provides Gemini-based dimension analysis for identifying
 and scoring potential highlights from livestreams and video content.
 
 Key Components:
 - BaseDetector: Abstract interface for detection algorithms
-- VideoDetector: Motion detection and scene change analysis
-- AudioDetector: Keyword matching and excitement detection
-- ChatDetector: Sentiment spike and community engagement analysis
+- GeminiDetector: Gemini video understanding with dimension framework
 - FusionScorer: Multi-modal scoring combination
 - Ranker: Highlight ranking and selection
 - PostProcessor: Refinement and quality filtering
 
 Architecture:
-- Strategy pattern for pluggable detection algorithms
+- Dimension-based scoring for industry-agnostic detection
+- Gemini video understanding API integration
+- Structured outputs with JSON schema validation
 - Async/await for real-time processing
-- Configurable thresholds and weights
-- ML model integration capabilities
 - Performance optimization for enterprise scale
 """
 
@@ -29,9 +27,6 @@ from .base_detector import (
     ModalityType,
     HighlightCandidate,
 )
-from .video_detector import VideoDetector, VideoDetectionConfig
-from .audio_detector import AudioDetector, AudioDetectionConfig
-from .chat_detector import ChatDetector, ChatDetectionConfig
 from .fusion_scorer import FusionScorer, FusionConfig
 from .ranker import HighlightRanker, RankingConfig
 from .post_processor import HighlightPostProcessor, PostProcessorConfig
@@ -46,12 +41,6 @@ __all__ = [
     "ModalityType",
     "HighlightCandidate",
     # Detectors
-    "VideoDetector",
-    "VideoDetectionConfig",
-    "AudioDetector",
-    "AudioDetectionConfig",
-    "ChatDetector",
-    "ChatDetectionConfig",
     "GeminiDetector",
     "GeminiDetectionConfig",
     # Fusion and ranking

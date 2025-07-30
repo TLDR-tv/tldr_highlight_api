@@ -11,7 +11,6 @@ from .unified_ingestion_pipeline import (
     IngestionStatus,
 )
 from .stream_ingestion_factory import StreamIngestionFactory
-from .multi_modal_processor import MultiModalProcessor, MultiModalResult
 
 __all__ = [
     "StreamIngestionPipeline",
@@ -19,6 +18,4 @@ __all__ = [
     "IngestionResult",
     "IngestionStatus",
     "StreamIngestionFactory",
-    "MultiModalProcessor",
-    "MultiModalResult",
 ]
