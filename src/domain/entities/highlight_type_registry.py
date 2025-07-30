@@ -240,9 +240,9 @@ class HighlightTypeRegistry(Entity[int]):
             "is_active",
         }
 
-        for field, value in updates.items():
-            if field in allowed_fields:
-                setattr(type_def, field, value)
+        for field_name, value in updates.items():
+            if field_name in allowed_fields:
+                setattr(type_def, field_name, value)
 
         self.updated_at = datetime.utcnow()
 

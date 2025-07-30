@@ -1,11 +1,13 @@
 """Webhook processing use case."""
 
 from dataclasses import dataclass
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, TYPE_CHECKING
 import logging
 
+if TYPE_CHECKING:
+    from src.application.use_cases.stream_processing import StreamProcessingUseCase, StreamStartResult
+
 from src.application.use_cases.base import UseCase, UseCaseResult, ResultStatus
-from src.application.use_cases.stream_processing import StreamStartRequest
 from src.domain.entities.webhook_event import (
     WebhookEvent,
     WebhookEventStatus,
@@ -24,6 +26,7 @@ from src.api.schemas.webhook_models import (
     TwitchWebhookPayload,
     WebhookPlatform,
 )
+from src.application.use_cases.stream_processing import StreamStartRequest
 
 logger = logging.getLogger(__name__)
 

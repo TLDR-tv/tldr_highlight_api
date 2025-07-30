@@ -64,7 +64,7 @@ class APIKeyRepository(BaseRepository[APIKey, APIKeyModel, int], IAPIKeyReposito
         stmt = select(APIKeyModel).where(APIKeyModel.user_id == user_id)
 
         if active_only:
-            stmt = stmt.where(APIKeyModel.is_active == True)
+            stmt = stmt.where(APIKeyModel.is_active)
 
         stmt = stmt.order_by(APIKeyModel.created_at.desc())
 
@@ -81,7 +81,7 @@ class APIKeyRepository(BaseRepository[APIKey, APIKeyModel, int], IAPIKeyReposito
         """
         stmt = (
             select(APIKeyModel)
-            .where(APIKeyModel.is_active == True)
+            .where(APIKeyModel.is_active)
             .where(
                 or_(
                     APIKeyModel.expires_at.is_(None),
@@ -113,7 +113,7 @@ class APIKeyRepository(BaseRepository[APIKey, APIKeyModel, int], IAPIKeyReposito
                     APIKeyModel.expires_at.isnot(None),
                     APIKeyModel.expires_at <= expiry_date,
                     APIKeyModel.expires_at > datetime.utcnow(),
-                    APIKeyModel.is_active == True,
+                    APIKeyModel.is_active,
                 )
             )
             .order_by(APIKeyModel.expires_at)
@@ -138,7 +138,7 @@ class APIKeyRepository(BaseRepository[APIKey, APIKeyModel, int], IAPIKeyReposito
         stmt = select(APIKeyModel).where(APIKeyModel.scopes.contains(f'"{scope}"'))
 
         if active_only:
-            stmt = stmt.where(APIKeyModel.is_active == True)
+            stmt = stmt.where(APIKeyModel.is_active)
 
         result = await self.session.execute(stmt)
         models = list(result.scalars().unique())
@@ -162,7 +162,7 @@ class APIKeyRepository(BaseRepository[APIKey, APIKeyModel, int], IAPIKeyReposito
         )
 
         if active_only:
-            stmt = stmt.where(APIKeyModel.is_active == True)
+            stmt = stmt.where(APIKeyModel.is_active)
 
         result = await self.session.execute(stmt)
         return result.scalar() or 0
@@ -250,7 +250,7 @@ class APIKeyRepository(BaseRepository[APIKey, APIKeyModel, int], IAPIKeyReposito
             Number of keys revoked
         """
         stmt = select(APIKeyModel).where(
-            and_(APIKeyModel.user_id == user_id, APIKeyModel.is_active == True)
+            and_(APIKeyModel.user_id == user_id, APIKeyModel.is_active)
         )
 
         result = await self.session.execute(stmt)

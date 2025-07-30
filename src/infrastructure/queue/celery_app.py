@@ -5,7 +5,7 @@ keeping it separate from business logic per DDD principles.
 """
 
 import logging
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 from celery import Celery, Task
 from celery.signals import (
@@ -20,6 +20,9 @@ from celery.signals import (
 from kombu import Exchange, Queue
 
 from src.core.config import settings
+
+if TYPE_CHECKING:
+    from .task_manager import TaskManager
 
 logger = logging.getLogger(__name__)
 

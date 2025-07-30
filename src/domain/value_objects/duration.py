@@ -16,7 +16,7 @@ class Duration:
 
     seconds: float
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate duration after initialization."""
         if not isinstance(self.seconds, (int, float)):
             raise InvalidValueError(

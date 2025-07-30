@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 from src.infrastructure.observability.dashboards import DashboardConfig
 
 
-def main():
+def main() -> None:
     """Export all dashboard configurations."""
     print("Exporting TL;DR Highlight API dashboards...")
 

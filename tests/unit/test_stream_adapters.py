@@ -4,7 +4,7 @@ Tests for BaseStreamAdapter, TwitchAdapter, YouTubeAdapter, RTMPAdapter,
 and the StreamAdapterFactory.
 """
 
-# Apply patches before imports to ensure they take effect
+import asyncio
 import sys
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, Mock
@@ -26,17 +26,17 @@ class MockMetricsContext:
         return None
 
 
-# Mock the entire metrics module
+# Mock the entire metrics module before imports that depend on it
 mock_metrics_module = Mock()
 mock_metrics_module.MetricsContext = MockMetricsContext
 mock_metrics_module.counter = Mock(return_value=Mock(increment=Mock()))
 mock_metrics_module.gauge = Mock(return_value=Mock(set=Mock()))
 mock_metrics_module.histogram = Mock(return_value=Mock(observe=Mock()))
 
-# Replace the module in sys.modules before any imports
+# Replace the module in sys.modules before any imports that depend on it
 sys.modules["src.utils.metrics"] = mock_metrics_module
 
-from src.services.stream_adapters.base import (
+from src.services.stream_adapters.base import (  # noqa: E402
     BaseStreamAdapter,
     StreamMetadata,
     StreamConnection,
@@ -49,16 +49,16 @@ from src.services.stream_adapters.base import (
     StreamNotFoundError,
     StreamOfflineError,
 )
-from src.services.stream_adapters.twitch import TwitchAdapter
-from src.services.stream_adapters.youtube import YouTubeAdapter
-from src.services.stream_adapters.rtmp import RTMPAdapter
-from src.services.stream_adapters.factory import (
+from src.services.stream_adapters.twitch import TwitchAdapter  # noqa: E402
+from src.services.stream_adapters.youtube import YouTubeAdapter  # noqa: E402
+from src.services.stream_adapters.rtmp import RTMPAdapter  # noqa: E402
+from src.services.stream_adapters.factory import (  # noqa: E402
     StreamAdapterFactory,
     create_stream_adapter,
     create_adapter_from_stream_model,
     detect_and_validate_stream,
 )
-from src.models.stream import StreamPlatform
+from src.models.stream import StreamPlatform  # noqa: E402
 
 
 class MockStreamAdapter(BaseStreamAdapter):

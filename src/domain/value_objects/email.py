@@ -22,7 +22,7 @@ class Email:
         r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
     )
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate email format after initialization."""
         if not self._is_valid_email(self.value):
             raise InvalidValueError(f"Invalid email format: {self.value}")

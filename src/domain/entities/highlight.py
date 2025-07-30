@@ -22,11 +22,11 @@ class Highlight(Entity[int]):
     start_time: Duration  # Offset from stream start
     end_time: Duration  # Offset from stream start
     confidence_score: ConfidenceScore
-    highlight_types: List[str] = field(default_factory=list)  # Flexible type IDs
-
+    
     # Content details
     title: str
     description: str
+    highlight_types: List[str] = field(default_factory=list)  # Flexible type IDs
     thumbnail_url: Optional[Url] = None
     clip_url: Optional[Url] = None
 

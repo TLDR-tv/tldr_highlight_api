@@ -8,7 +8,7 @@ according to their specific requirements.
 import asyncio
 import uuid
 from collections import deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from typing import Dict, List, Optional, Any, Deque
@@ -44,22 +44,6 @@ class AgentMemoryEntry:
     consumer_context: Optional[Dict[str, Any]] = None
 
 
-@dataclass
-class HighlightCandidate:
-    """Enhanced highlight candidate with B2B features."""
-
-    id: str
-    start_time: float
-    end_time: float
-    peak_time: float
-    description: str
-    confidence: float
-    dimensions: ScoringDimensions
-    final_score: float
-    detected_keywords: List[str] = field(default_factory=list)
-    context_type: Optional[str] = None
-    trigger_type: str = "ai_detected"  # ai_detected, wake_word, manual
-    metadata: Dict[str, Any] = field(default_factory=dict)
 
 
 class B2BStreamAgent:

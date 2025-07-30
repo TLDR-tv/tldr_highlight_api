@@ -183,7 +183,7 @@ class TestUserAuthentication:
         token = create_access_token(123, "test@example.com", ["read"])
         credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
 
-        with patch("src.api.dependencies.auth.select") as mock_select:
+        with patch("src.api.dependencies.auth.select"):
             # Mock database query
             mock_result = AsyncMock()
             mock_result.scalar_one_or_none.return_value = mock_user
@@ -229,7 +229,7 @@ class TestUserAuthentication:
             scheme="Bearer", credentials="tldr_sk_test_key"
         )
 
-        with patch("src.api.dependencies.auth.select") as mock_select:
+        with patch("src.api.dependencies.auth.select"):
             # Mock database queries
             mock_api_result = AsyncMock()
             mock_api_result.scalar_one_or_none.return_value = mock_api_key

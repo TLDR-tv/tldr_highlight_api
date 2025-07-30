@@ -1,7 +1,7 @@
 """Confidence score value object."""
 
 from dataclasses import dataclass
-from typing import ClassVar
+from typing import ClassVar, Optional
 
 from src.domain.exceptions import InvalidValueError
 
@@ -21,7 +21,7 @@ class ConfidenceScore:
     MEDIUM_THRESHOLD: ClassVar[float] = 0.5
     LOW_THRESHOLD: ClassVar[float] = 0.3
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate confidence score range after initialization."""
         if not isinstance(self.value, (int, float)):
             raise InvalidValueError(
@@ -50,7 +50,7 @@ class ConfidenceScore:
         else:
             return "very_low"
 
-    def is_high_confidence(self, threshold: float = None) -> bool:
+    def is_high_confidence(self, threshold: Optional[float] = None) -> bool:
         """Check if this is a high confidence score."""
         threshold = threshold or self.HIGH_THRESHOLD
         return self.value >= threshold

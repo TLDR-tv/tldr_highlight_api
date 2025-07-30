@@ -266,8 +266,8 @@ class OrganizationRepository(
         if not org:
             raise EntityNotFoundError(f"Organization {organization_id} not found")
 
-        # Calculate time window
-        start_date = datetime.utcnow() - timedelta(days=days)
+        # Calculate time window (currently unused but kept for future usage tracking)
+        # start_date = datetime.utcnow() - timedelta(days=days)
 
         # Get member count (this would be from a members table or relationship)
         # For now, we'll use the stored member_ids from the domain entity

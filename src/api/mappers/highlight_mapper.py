@@ -26,7 +26,7 @@ class HighlightMapper:
         highlight_id: int, user_id: int
     ) -> GetHighlightRequest:
         """Convert parameters to GetHighlightRequest."""
-        return GetHighlightRequest(requester_id=user_id, highlight_id=highlight_id)
+        return GetHighlightRequest(user_id=user_id, highlight_id=highlight_id)
 
     @staticmethod
     def to_list_highlights_request(
@@ -36,26 +36,20 @@ class HighlightMapper:
         per_page: int = 20,
     ) -> ListHighlightsRequest:
         """Convert filter parameters to ListHighlightsRequest."""
-        filter_dict = {}
-
+        # Extract individual filter parameters
+        stream_id = None
+        min_confidence = None
+        
         if filters:
-            if filters.stream_id is not None:
-                filter_dict["stream_id"] = filters.stream_id
-            if filters.batch_id is not None:
-                filter_dict["batch_id"] = filters.batch_id
-            if filters.min_confidence is not None:
-                filter_dict["min_confidence"] = filters.min_confidence
-            if filters.max_confidence is not None:
-                filter_dict["max_confidence"] = filters.max_confidence
-            if filters.tags:
-                filter_dict["tags"] = filters.tags
-            if filters.created_after:
-                filter_dict["created_after"] = filters.created_after.isoformat()
-            if filters.created_before:
-                filter_dict["created_before"] = filters.created_before.isoformat()
+            stream_id = filters.stream_id
+            min_confidence = filters.min_confidence
 
         return ListHighlightsRequest(
-            requester_id=user_id, filters=filter_dict, page=page, per_page=per_page
+            user_id=user_id,
+            stream_id=stream_id,
+            min_confidence=min_confidence,
+            page=page,
+            per_page=per_page
         )
 
     @staticmethod
@@ -64,12 +58,11 @@ class HighlightMapper:
     ) -> UpdateHighlightRequest:
         """Convert update DTO to domain request."""
         return UpdateHighlightRequest(
-            requester_id=user_id,
+            user_id=user_id,
             highlight_id=highlight_id,
             title=update_dto.title,
             description=update_dto.description,
             tags=update_dto.tags,
-            metadata=update_dto.extra_metadata,
         )
 
     @staticmethod
@@ -77,14 +70,14 @@ class HighlightMapper:
         highlight_id: int, user_id: int
     ) -> DeleteHighlightRequest:
         """Convert parameters to DeleteHighlightRequest."""
-        return DeleteHighlightRequest(requester_id=user_id, highlight_id=highlight_id)
+        return DeleteHighlightRequest(user_id=user_id, highlight_id=highlight_id)
 
     @staticmethod
     def to_export_highlight_request(
         highlight_id: int, user_id: int
     ) -> ExportHighlightRequest:
         """Convert parameters to ExportHighlightRequest."""
-        return ExportHighlightRequest(requester_id=user_id, highlight_id=highlight_id)
+        return ExportHighlightRequest(user_id=user_id, highlight_id=highlight_id)
 
     @staticmethod
     def to_highlight_response(

@@ -18,7 +18,7 @@ mock_client_session = Mock()
 mock_aiohttp.ClientSession = Mock(return_value=mock_client_session)
 sys.modules["aiohttp"] = mock_aiohttp
 
-from src.utils.hls_parser import (
+from src.infrastructure.streaming.hls_parser import (  # noqa: E402
     StreamQuality,
     StreamSegment,
     HLSPlaylist,

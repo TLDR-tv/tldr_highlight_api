@@ -7,8 +7,27 @@ The domain layer uses dataclasses for entities and value objects,
 providing a clean, Pythonic approach to domain modeling.
 """
 
-from src.domain.entities import *  # noqa: F403, F401
-from src.domain.value_objects import *  # noqa: F403, F401
+# Explicit imports from entities
+from src.domain.entities import (
+    User,
+    Stream,
+    Highlight,
+    Batch,
+    Organization,
+    APIKey,
+    Webhook,
+)
+
+# Explicit imports from value objects
+from src.domain.value_objects import (
+    Email,
+    Url,
+    ConfidenceScore,
+    Duration,
+    Timestamp,
+    ProcessingOptions,
+    CompanyName,
+)
 
 __all__ = [
     # Re-export entities

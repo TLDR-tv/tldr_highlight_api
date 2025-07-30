@@ -70,7 +70,7 @@ class HighlightAgentConfig(Entity[int]):
     organization_id: int
     user_id: int
 
-    # Content configuration
+    # Content configuration (with defaults)
     content_type: str = "gaming"  # gaming, sports, general, etc.
     game_name: Optional[str] = None
 
@@ -99,8 +99,6 @@ class HighlightAgentConfig(Entity[int]):
     # Operational settings
     is_active: bool = True
     version: int = 1
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
 
     # Usage tracking
     highlights_generated: int = 0

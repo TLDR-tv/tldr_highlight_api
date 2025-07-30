@@ -193,7 +193,6 @@ class TestWithSpanDecorator:
         # Verify
         assert result == "result"
         # Should use function name as span name
-        expected_span_name = f"{test_func.__module__}.{test_func.__name__}"
         mock_logfire.span.assert_called()
 
 

@@ -3,7 +3,7 @@
 import pytest
 import numpy as np
 
-from src.utils.scoring_utils import (
+from src.infrastructure.ai.scoring_utils import (
     normalize_score,
     calculate_weighted_score,
     calculate_confidence,

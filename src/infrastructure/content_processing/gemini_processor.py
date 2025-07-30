@@ -1,15 +1,24 @@
 """Gemini AI processing infrastructure implementation.
 
 This module provides AI-powered content analysis using Google's Gemini API
-as an infrastructure component.
+as an infrastructure component using the new google-genai library.
 """
 
 import asyncio
 import logging
+import os
 from dataclasses import dataclass
 from typing import Optional, List, Dict, Any, Union
 
 logger = logging.getLogger(__name__)
+
+try:
+    from google import genai
+    from google.genai import types
+    GEMINI_AVAILABLE = True
+except ImportError:
+    GEMINI_AVAILABLE = False
+    logger.warning("Google GenAI library not available. Using mock responses.")
 
 
 @dataclass
@@ -17,13 +26,16 @@ class GeminiProcessorConfig:
     """Configuration for Gemini processor."""
 
     api_key: Optional[str] = None
-    model_name: str = "gemini-pro-vision"
+    model_name: str = "gemini-2.0-flash-001"  # Updated to latest model
     temperature: float = 0.7
     max_tokens: int = 1000
     enable_vision: bool = True
     enable_multimodal: bool = True
     retry_attempts: int = 3
     timeout_seconds: float = 30.0
+    use_vertex_ai: bool = False
+    project_id: Optional[str] = None
+    location: str = "us-central1"
 
 
 @dataclass
@@ -68,9 +80,45 @@ class GeminiProcessor:
         self.config = config
         self._request_count = 0
         self._total_processing_time = 0.0
-
-        # In a real implementation, initialize Gemini client here
-        logger.info(f"Initialized Gemini processor with model: {config.model_name}")
+        self._client: Optional[genai.Client] = None
+        
+        # Initialize Gemini client if available
+        if GEMINI_AVAILABLE:
+            try:
+                if config.use_vertex_ai:
+                    # Initialize with Vertex AI
+                    if config.project_id:
+                        os.environ.setdefault("GOOGLE_CLOUD_PROJECT", config.project_id)
+                        os.environ.setdefault("GOOGLE_CLOUD_LOCATION", config.location)
+                        os.environ.setdefault("GOOGLE_GENAI_USE_VERTEXAI", "true")
+                    
+                    self._client = genai.Client(
+                        vertexai=True,
+                        project=config.project_id,
+                        location=config.location
+                    )
+                    logger.info(f"Initialized Gemini processor with Vertex AI: {config.model_name}")
+                    
+                elif config.api_key:
+                    # Initialize with API key
+                    self._client = genai.Client(api_key=config.api_key)
+                    logger.info(f"Initialized Gemini processor with API key: {config.model_name}")
+                    
+                else:
+                    # Try to get API key from environment
+                    api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+                    if api_key:
+                        self._client = genai.Client(api_key=api_key)
+                        logger.info(f"Initialized Gemini processor with env API key: {config.model_name}")
+                    else:
+                        logger.warning("No API key or Vertex AI configuration provided")
+                        self._client = None
+                        
+            except Exception as e:
+                logger.error(f"Failed to initialize Gemini client: {e}")
+                self._client = None
+        else:
+            logger.info("Google GenAI library not available, using mock responses")
 
     async def analyze_image(
         self, image_data: bytes, prompt: Optional[str] = None
@@ -179,9 +227,110 @@ class GeminiProcessor:
         self._request_count += 1
         request_id = f"gemini_{self._request_count}"
 
-        # In a real implementation, this would call the Gemini API
-        # For now, return mock results
+        # Use real Gemini API if client is available
+        if self._client and GEMINI_AVAILABLE:
+            try:
+                return await self._process_with_api(request, request_id, start_time)
+            except Exception as e:
+                logger.error(f"Gemini API call failed: {e}")
+                # Fall back to mock response
+                return await self._process_mock_request(request, request_id, start_time)
+        else:
+            # Use mock response
+            return await self._process_mock_request(request, request_id, start_time)
 
+    async def _process_with_api(
+        self, request: GeminiAnalysisRequest, request_id: str, start_time: float
+    ) -> GeminiAnalysisResult:
+        """Process request using real Gemini API."""
+        
+        # Prepare content based on request type
+        contents = []
+        
+        if request.content_type == "image":
+            # Add image content
+            image_part = types.Part.from_bytes(
+                data=request.content, 
+                mime_type="image/jpeg"  # Assume JPEG, could be made configurable
+            )
+            contents = [request.prompt, image_part]
+            
+        elif request.content_type == "text":
+            contents = [f"{request.prompt}\n\nText to analyze: {request.content}"]
+            
+        elif request.content_type == "multimodal":
+            # Handle multimodal content
+            content_dict = request.content
+            prompt_parts = [request.prompt]
+            
+            # Add video frame if available
+            if "video_frame" in content_dict:
+                image_part = types.Part.from_bytes(
+                    data=content_dict["video_frame"],
+                    mime_type="image/jpeg"
+                )
+                prompt_parts.append(image_part)
+            
+            # Add audio transcript and chat
+            if "audio_transcript" in content_dict:
+                prompt_parts.append(f"Audio transcript: {content_dict['audio_transcript']}")
+            
+            if "chat_messages" in content_dict:
+                chat_text = "\n".join(content_dict["chat_messages"])
+                prompt_parts.append(f"Chat messages: {chat_text}")
+                
+            contents = prompt_parts
+        
+        # Configure generation
+        config = types.GenerateContentConfig(
+            temperature=self.config.temperature,
+            max_output_tokens=self.config.max_tokens,
+        )
+        
+        # Make API call
+        response = await asyncio.get_event_loop().run_in_executor(
+            None,
+            lambda: self._client.models.generate_content(
+                model=self.config.model_name,
+                contents=contents,
+                config=config
+            )
+        )
+        
+        # Parse response
+        analysis_text = response.text
+        
+        # Extract highlight score from response (simplified)
+        highlight_score = self._extract_highlight_score(analysis_text)
+        
+        # Extract detected elements and tags (simplified)
+        detected_elements = self._extract_detected_elements(analysis_text)
+        suggested_tags = self._extract_suggested_tags(analysis_text)
+        
+        processing_time = asyncio.get_event_loop().time() - start_time
+        self._total_processing_time += processing_time
+
+        return GeminiAnalysisResult(
+            request_id=request_id,
+            content_type=request.content_type,
+            analysis_text=analysis_text,
+            highlight_score=highlight_score,
+            detected_elements=detected_elements,
+            suggested_tags=suggested_tags,
+            confidence=0.85,  # Could be extracted from response
+            processing_time=processing_time,
+            metadata={
+                "model": self.config.model_name,
+                "temperature": self.config.temperature,
+                "real_api": True,
+            },
+        )
+
+    async def _process_mock_request(
+        self, request: GeminiAnalysisRequest, request_id: str, start_time: float
+    ) -> GeminiAnalysisResult:
+        """Process request using mock responses."""
+        
         await asyncio.sleep(0.5)  # Simulate API latency
 
         # Mock response based on content type
@@ -230,8 +379,79 @@ class GeminiProcessor:
             metadata={
                 "model": self.config.model_name,
                 "temperature": self.config.temperature,
+                "real_api": False,
             },
         )
+
+    def _extract_highlight_score(self, text: str) -> float:
+        """Extract highlight score from analysis text."""
+        # Simple pattern matching for scores
+        import re
+        
+        # Look for patterns like "score: 0.85" or "8.5/10" or "85%"
+        patterns = [
+            r"score[:\s]+([0-9]*\.?[0-9]+)",
+            r"([0-9]*\.?[0-9]+)/10",
+            r"([0-9]+)%",
+            r"highlight.*?([0-9]*\.?[0-9]+)"
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, text.lower())
+            if match:
+                try:
+                    score = float(match.group(1))
+                    # Normalize to 0-1 range
+                    if score > 1:
+                        score = score / 100 if score <= 100 else score / 10
+                    return min(max(score, 0.0), 1.0)
+                except ValueError:
+                    continue
+        
+        # Default fallback score
+        return 0.5
+
+    def _extract_detected_elements(self, text: str) -> List[str]:
+        """Extract detected elements from analysis text."""
+        elements = []
+        
+        # Look for common highlight indicators
+        indicators = {
+            "action": ["action", "movement", "play", "shot", "goal"],
+            "excitement": ["exciting", "intense", "dramatic", "thrilling"],
+            "crowd_reaction": ["crowd", "audience", "cheer", "reaction"],
+            "score_change": ["score", "point", "lead", "win"],
+            "visual_climax": ["visual", "spectacular", "amazing", "incredible"],
+            "audio_excitement": ["loud", "shouting", "commentary", "announcer"],
+        }
+        
+        text_lower = text.lower()
+        for element, keywords in indicators.items():
+            if any(keyword in text_lower for keyword in keywords):
+                elements.append(element)
+        
+        return elements[:5]  # Limit to top 5
+
+    def _extract_suggested_tags(self, text: str) -> List[str]:
+        """Extract suggested tags from analysis text."""
+        tags = []
+        
+        # Common gaming/streaming tags
+        tag_keywords = {
+            "clutch": ["clutch", "critical", "crucial"],
+            "epic": ["epic", "amazing", "incredible", "spectacular"],
+            "hype": ["hype", "exciting", "thrilling"],
+            "gameplay": ["gameplay", "play", "game"],
+            "reaction": ["reaction", "response", "crowd"],
+            "highlight": ["highlight", "moment", "peak"],
+        }
+        
+        text_lower = text.lower()
+        for tag, keywords in tag_keywords.items():
+            if any(keyword in text_lower for keyword in keywords):
+                tags.append(tag)
+        
+        return tags[:3]  # Limit to top 3
 
     async def batch_analyze(
         self, requests: List[GeminiAnalysisRequest]

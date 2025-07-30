@@ -57,7 +57,7 @@ class ConfigurablePromptTemplate:
         full_template = self.get_full_template()
         template_vars = self._extract_template_variables(full_template)
 
-        missing_vars = self.required_variables - template_vars
+        missing_vars = (self.required_variables or set()) - template_vars
         if missing_vars:
             raise ValueError(f"Template is missing required variables: {missing_vars}")
 
@@ -71,7 +71,7 @@ class ConfigurablePromptTemplate:
             Rendered prompt string
         """
         # Ensure required variables are present
-        missing_vars = self.required_variables - set(context.keys())
+        missing_vars = (self.required_variables or set()) - set(context.keys())
         if missing_vars:
             raise ValueError(f"Context is missing required variables: {missing_vars}")
 
@@ -121,7 +121,7 @@ class ConfigurablePromptTemplate:
         errors = []
 
         # Check required variables
-        missing_vars = self.required_variables - set(context.keys())
+        missing_vars = (self.required_variables or set()) - set(context.keys())
         if missing_vars:
             errors.append(f"Missing required variables: {missing_vars}")
 

@@ -9,6 +9,7 @@ import asyncio
 import logging
 import time
 from collections import deque
+from contextlib import nullcontext
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import (
@@ -737,7 +738,6 @@ class CircularVideoBuffer:
 
 
 # Context manager support
-from contextlib import nullcontext
 
 
 class VideoBufferManager:

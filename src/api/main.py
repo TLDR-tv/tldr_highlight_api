@@ -7,7 +7,7 @@ highlight extraction service.
 
 import logging
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
+from typing import Any, AsyncGenerator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -129,7 +129,7 @@ def create_app() -> FastAPI:
     if app.openapi_schema is None:
         from fastapi.openapi.utils import get_openapi
 
-        def custom_openapi():
+        def custom_openapi() -> dict[str, Any]:
             if app.openapi_schema:
                 return app.openapi_schema
 
@@ -162,7 +162,7 @@ def create_app() -> FastAPI:
             app.openapi_schema = openapi_schema
             return app.openapi_schema
 
-        app.openapi = custom_openapi
+        app.openapi = custom_openapi  # type: ignore[method-assign]
 
     # Add middleware (order matters - first added is outermost)
 
@@ -233,7 +233,7 @@ def create_app() -> FastAPI:
     )
 
     @app.get("/", include_in_schema=False)
-    async def root():
+    async def root() -> dict[str, Any]:
         """Root endpoint with basic API information."""
         return {
             "name": settings.app_name,

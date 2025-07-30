@@ -77,6 +77,13 @@ async def register(
                 detail=result.errors[0] if result.errors else "Registration failed",
             )
 
+        # Ensure registration succeeded with valid user ID
+        if result.user_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Registration failed - invalid user ID"
+            )
+
         # Create access token for immediate login
         access_token = create_access_token(
             user_id=result.user_id,
@@ -128,6 +135,13 @@ async def login(
                 detail=result.errors[0] if result.errors else "Invalid credentials",
             )
 
+        # Ensure login succeeded with valid user ID
+        if result.user_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Login failed - invalid user ID"
+            )
+
         # Create access token
         access_token = create_access_token(
             user_id=result.user_id,
@@ -177,6 +191,13 @@ async def create_api_key(
                 detail=result.errors[0]
                 if result.errors
                 else "Failed to create API key",
+            )
+
+        # Ensure API key was created successfully
+        if result.api_key is None or result.key is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to create API key - invalid response"
             )
 
         # Get the created API key and convert to response
@@ -285,6 +306,13 @@ async def rotate_api_key(
 
         # Schedule old key revocation after grace period
         # This would be handled by a background task in production
+
+        # Ensure API key was rotated successfully
+        if result.api_key is None or result.key is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to rotate API key - invalid response"
+            )
 
         # Get the rotated API key and convert to response
         api_key = result.api_key

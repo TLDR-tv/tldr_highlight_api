@@ -133,7 +133,6 @@ class SentimentAnalyzer:
             # Negative emotes
             ":(": -0.5,
             ":/": -0.3,
-            ":(": -0.5,
             # Neutral/surprise
             ":o": 0.0,
             "o_o": 0.0,

@@ -91,7 +91,7 @@ def traced(
 
                 with logfire.span(
                     span_name, _span_type=span_type, **attributes
-                ) as span:
+                ) as _:
                     try:
                         result = func(*args, **kwargs)
 

@@ -15,9 +15,9 @@ mock_metrics_module.MetricsContext = Mock()
 mock_metrics_module.counter = Mock(return_value=Mock(increment=Mock()))
 mock_metrics_module.gauge = Mock(return_value=Mock(set=Mock()))
 mock_metrics_module.histogram = Mock(return_value=Mock(observe=Mock()))
-sys.modules["src.utils.metrics"] = mock_metrics_module
+sys.modules["src.infrastructure.monitoring.metrics"] = mock_metrics_module
 
-from src.utils.rtmp_protocol import (
+from src.infrastructure.streaming.rtmp_protocol import (  # noqa: E402
     RTMPProtocol,
     RTMPHandshake,
     RTMPChunkStream,
@@ -28,11 +28,11 @@ from src.utils.rtmp_protocol import (
     AMFEncoder,
     AMFDecoder,
 )
-from src.utils.flv_parser import (
+from src.infrastructure.streaming.flv_parser import (  # noqa: E402
     FLVParser,
     FLVStreamProcessor,
 )
-from src.utils.ffmpeg_integration import (
+from src.infrastructure.media.ffmpeg_integration import (  # noqa: E402
     FFmpegProcessor,
     VideoFrameExtractor,
     TranscodeOptions,

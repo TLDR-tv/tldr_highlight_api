@@ -4,10 +4,17 @@ This module provides endpoints for webhook configuration and management.
 Full implementation will be provided in later phases.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import Dict
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.api.dependencies.auth import get_current_user
+from src.api.dependencies.use_cases import get_webhook_configuration_use_case
+from src.api.mappers.webhook_mapper import WebhookMapper
 from src.api.schemas.common import COMMON_RESPONSES, StatusResponse
+from src.application.use_cases.base import ResultStatus
+from src.application.use_cases.webhook_configuration import WebhookConfigurationUseCase
+from src.domain.entities.user import User
 from src.infrastructure.database import get_db
 
 router = APIRouter()
@@ -152,7 +159,7 @@ async def get_webhook_events(
 
     Returns the delivery history for a webhook.
     """
-    request = mapper.to_get_webhook_events_request(
+    request = WebhookMapper.to_get_webhook_events_request(
         current_user.id, webhook_id, page, per_page
     )
     result = await use_case.get_webhook_events(request)

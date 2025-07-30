@@ -375,8 +375,6 @@ class TestMultiStreamIntegration:
             )
 
             # Create overlapping highlights in both streams
-            base_time = datetime.now(timezone.utc)
-
             # Stream 1 highlight
             highlight1 = HighlightCandidate(
                 start_timestamp=100.0,

@@ -561,15 +561,6 @@ class TestUserEndpointValidation:
         self, async_client: AsyncClient, db_session: AsyncSession, mock_admin_user
     ):
         """Test admin user update with validation."""
-        target_user = User(
-            id=10,
-            email="target@example.com",
-            company_name="Target Company",
-            password_hash="old_hash",
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
-        )
-
         # Test invalid email format
         invalid_update = {"email": "not-an-email"}
 

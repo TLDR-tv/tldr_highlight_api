@@ -7,8 +7,11 @@ keeping them separate from the main storage implementation.
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Tuple, Optional
+from typing import Tuple, Optional, TYPE_CHECKING
 from urllib.parse import urlparse
+
+if TYPE_CHECKING:
+    from .s3_storage import S3Storage
 
 logger = logging.getLogger(__name__)
 

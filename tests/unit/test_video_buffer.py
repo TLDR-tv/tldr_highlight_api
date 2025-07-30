@@ -5,7 +5,7 @@ import pytest
 import time
 from datetime import datetime, timezone
 
-from src.utils.video_buffer import (
+from src.infrastructure.streaming.video_buffer import (
     BufferConfig,
     BufferFormat,
     CircularVideoBuffer,

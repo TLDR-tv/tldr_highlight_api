@@ -96,7 +96,7 @@ class ProcessingOptions:
     industry_preset: Optional[str] = None  # gaming, sports, education, etc.
     content_rating: Optional[str] = None  # G, PG, PG-13, R, etc.
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate processing options after initialization."""
         # Validate thresholds
         thresholds = [

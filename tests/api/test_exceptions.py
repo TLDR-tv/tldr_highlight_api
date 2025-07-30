@@ -331,7 +331,7 @@ class TestExceptionHandlers:
 
         exc = RuntimeError("Secret internal error")
 
-        with patch("src.api.exceptions.logger") as mock_logger:
+        with patch("src.api.exceptions.logger"):
             response = await generic_exception_handler(request, exc)
 
             assert isinstance(response, JSONResponse)

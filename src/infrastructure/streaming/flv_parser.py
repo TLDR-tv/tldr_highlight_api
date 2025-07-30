@@ -168,7 +168,7 @@ class FLVTag:
 class FLVStreamInfo:
     """Information about an FLV stream."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.width: Optional[int] = None
         self.height: Optional[int] = None
         self.framerate: Optional[float] = None
@@ -302,7 +302,7 @@ class FLVParser:
         """Parse FLV tag header."""
         try:
             # Read previous tag size (first tag will be 0)
-            previous_tag_size = self.read_ui32()
+            _ = self.read_ui32()
 
             # Read tag header
             tag_type_byte = self.read_ui8()

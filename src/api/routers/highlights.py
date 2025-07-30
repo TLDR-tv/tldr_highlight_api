@@ -61,11 +61,18 @@ async def list_highlights(
     ),
     current_user: User = Depends(get_current_user),
     use_case: HighlightManagementUseCase = Depends(get_highlight_management_use_case),
-):
+) -> HighlightListResponse:
     """List highlights for the authenticated user.
 
     Returns paginated list of highlights with optional filtering.
     """
+    # Ensure user has valid ID
+    if current_user.id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid user session"
+        )
+
     # Build filters
     filters = HighlightFilters(stream_id=stream_id, min_confidence=min_confidence)
 
@@ -79,6 +86,13 @@ async def list_highlights(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=result.errors[0] if result.errors else "Failed to list highlights",
+        )
+
+    # Ensure result has valid data
+    if result.highlights is None or result.total is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Invalid response from highlight service"
         )
 
     return mapper.to_highlight_list_response(
@@ -97,11 +111,18 @@ async def get_highlight(
     highlight_id: int,
     current_user: User = Depends(get_current_user),
     use_case: HighlightManagementUseCase = Depends(get_highlight_management_use_case),
-):
+) -> HighlightResponse:
     """Get highlight details.
 
     Returns detailed information about a specific highlight.
     """
+    # Ensure user has valid ID
+    if current_user.id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid user session"
+        )
+
     request = mapper.to_get_highlight_request(highlight_id, current_user.id)
     result = await use_case.get_highlight(request)
 
@@ -120,6 +141,13 @@ async def get_highlight(
             detail=result.errors[0] if result.errors else "Failed to get highlight",
         )
 
+    # Ensure highlight exists in result
+    if result.highlight is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Invalid response from highlight service"
+        )
+
     return mapper.to_highlight_response(result.highlight)
 
 
@@ -133,11 +161,18 @@ async def download_highlight(
     highlight_id: int,
     current_user: User = Depends(get_current_user),
     use_case: HighlightManagementUseCase = Depends(get_highlight_management_use_case),
-):
+) -> RedirectResponse:
     """Download highlight file.
 
     Returns a presigned URL for downloading the highlight video.
     """
+    # Ensure user has valid ID
+    if current_user.id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid user session"
+        )
+
     request = mapper.to_export_highlight_request(highlight_id, current_user.id)
     result = await use_case.export_highlight(request)
 
@@ -154,6 +189,13 @@ async def download_highlight(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=result.errors[0] if result.errors else "Failed to export highlight",
+        )
+
+    # Ensure download URL exists
+    if result.download_url is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Download URL not available"
         )
 
     # Redirect to the presigned download URL
@@ -178,6 +220,13 @@ async def delete_highlight(
 
     Permanently deletes the highlight and its associated files.
     """
+    # Ensure user has valid ID
+    if current_user.id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid user session"
+        )
+
     request = mapper.to_delete_highlight_request(highlight_id, current_user.id)
     result = await use_case.delete_highlight(request)
 

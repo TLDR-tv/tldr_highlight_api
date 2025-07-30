@@ -4,8 +4,8 @@ This demonstrates the minimal changes needed to add comprehensive observability
 to existing services in the TL;DR Highlight API.
 """
 
-from typing import List
 import asyncio
+from typing import List
 from celery import Task
 
 # Original imports

@@ -117,20 +117,20 @@ class TestEnhancedChatDetector:
         """Test segment validation."""
         # Valid segment with list
         segment = ContentSegment(start_time=0.0, end_time=10.0, data=[], metadata={})
-        assert detector._validate_segment(segment) == True
+        assert detector._validate_segment(segment)
 
         # Valid segment with ChatWindow
         window = ChatWindow(start_time=0.0, end_time=10.0, messages=[])
         segment = ContentSegment(
             start_time=0.0, end_time=10.0, data=window, metadata={}
         )
-        assert detector._validate_segment(segment) == True
+        assert detector._validate_segment(segment)
 
         # Invalid segment
         segment = ContentSegment(
             start_time=0.0, end_time=10.0, data="invalid", metadata={}
         )
-        assert detector._validate_segment(segment) == False
+        assert not detector._validate_segment(segment)
 
     @pytest.mark.asyncio
     async def test_prepare_messages_from_window(self, detector, sample_messages):

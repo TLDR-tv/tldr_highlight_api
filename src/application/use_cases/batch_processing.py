@@ -166,7 +166,7 @@ class BatchProcessingUseCase(UseCase[BatchCreateRequest, BatchCreateResult]):
                     batch_id=None,  # Will be set when batch is saved
                     url=item_data["url"],
                     title=item_data.get("title", f"Item {idx + 1}"),
-                    status=BatchItemStatus.PENDING,
+                    status=BatchStatus.PENDING,
                     metadata=item_data.get("metadata", {}),
                     created_at=Timestamp.now(),
                     updated_at=Timestamp.now(),
@@ -351,13 +351,13 @@ class BatchProcessingUseCase(UseCase[BatchCreateRequest, BatchCreateResult]):
 
             # Count cancelled items
             items = await self.batch_repo.get_batch_items(
-                batch.id, status=BatchItemStatus.PENDING
+                batch.id, status=BatchStatus.PENDING
             )
             cancelled_count = len(items)
 
             # Update items to cancelled
             for item in items:
-                item.status = BatchItemStatus.FAILED
+                item.status = BatchStatus.FAILED
                 item.error_message = "Batch cancelled by user"
                 item.processed_at = Timestamp.now()
 
@@ -410,13 +410,13 @@ class BatchProcessingUseCase(UseCase[BatchCreateRequest, BatchCreateResult]):
                     if (
                         item
                         and item.batch_id == batch.id
-                        and item.status == BatchItemStatus.FAILED
+                        and item.status == BatchStatus.FAILED
                     ):
                         items.append(item)
             else:
                 # Get all failed items
                 items = await self.batch_repo.get_batch_items(
-                    batch.id, status=BatchItemStatus.FAILED
+                    batch.id, status=BatchStatus.FAILED
                 )
 
             if not items:
@@ -429,7 +429,7 @@ class BatchProcessingUseCase(UseCase[BatchCreateRequest, BatchCreateResult]):
 
             # Reset items to pending
             for item in items:
-                item.status = BatchItemStatus.PENDING
+                item.status = BatchStatus.PENDING
                 item.error_message = None
                 item.retry_count = (
                     item.retry_count + 1 if hasattr(item, "retry_count") else 1

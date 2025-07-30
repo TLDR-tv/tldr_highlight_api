@@ -1,10 +1,13 @@
 """Timestamp value object."""
 
 from dataclasses import dataclass
-from datetime import datetime, timezone, timedelta
-from typing import Union
+from datetime import datetime, timezone, timedelta, date, time
+from typing import Union, TYPE_CHECKING
 
 from src.domain.exceptions import InvalidValueError
+
+if TYPE_CHECKING:
+    from .duration import Duration
 
 
 @dataclass(frozen=True)
@@ -17,7 +20,7 @@ class Timestamp:
 
     value: datetime
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate timestamp after initialization."""
         if not isinstance(self.value, datetime):
             raise InvalidValueError(
@@ -65,12 +68,12 @@ class Timestamp:
         return self.value.isoformat()
 
     @property
-    def date(self) -> datetime.date:
+    def date(self) -> date:
         """Get the date portion."""
         return self.value.date()
 
     @property
-    def time(self) -> datetime.time:
+    def time(self) -> time:
         """Get the time portion."""
         return self.value.time()
 

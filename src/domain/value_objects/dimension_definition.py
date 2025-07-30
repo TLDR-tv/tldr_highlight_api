@@ -68,7 +68,7 @@ class DimensionDefinition:
     tags: List[str] = field(default_factory=list)  # Searchable tags
     industry: Optional[str] = None  # Industry this dimension is designed for
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate dimension definition."""
         # Validate ID format
         if not self.id or not self.id.replace("_", "").isalnum():

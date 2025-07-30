@@ -415,7 +415,7 @@ class WebhookRepository(BaseRepository[Webhook, WebhookModel, int], IWebhookRepo
         avg_success_rate = row.avg_success_rate or 0.0
         total_deliveries = row.total_deliveries or 0
         successful_deliveries = row.successful_deliveries or 0
-        total_webhooks = row.total_webhooks or 0
+        # total_webhooks = row.total_webhooks or 0  # Currently unused
 
         # Get event subscription counts
         stmt = select(WebhookModel.events).where(

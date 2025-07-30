@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from typing import Optional, List
 import bcrypt
+import hashlib
 from datetime import datetime, timezone
 
 from src.application.use_cases.base import UseCase, UseCaseResult, ResultStatus
@@ -312,7 +313,6 @@ class AuthenticationUseCase(UseCase[RegisterRequest, RegisterResult]):
         try:
             # Get API key
             # Hash the API key for lookup
-            import hashlib
 
             key_hash = hashlib.sha256(request.api_key.encode("utf-8")).hexdigest()
 
@@ -409,7 +409,6 @@ class AuthenticationUseCase(UseCase[RegisterRequest, RegisterResult]):
             )
 
         # Hash the key for storage
-        import hashlib
 
         key_hash = hashlib.sha256(key.encode("utf-8")).hexdigest()
 

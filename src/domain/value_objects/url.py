@@ -16,7 +16,7 @@ class Url:
 
     value: str
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate URL format after initialization."""
         if not self._is_valid_url(self.value):
             raise InvalidValueError(f"Invalid URL format: {self.value}")

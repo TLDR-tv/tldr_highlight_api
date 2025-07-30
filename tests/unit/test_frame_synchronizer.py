@@ -4,14 +4,14 @@ import pytest
 import time
 from datetime import datetime, timezone
 
-from src.utils.frame_synchronizer import (
+from src.infrastructure.streaming.frame_synchronizer import (
     FrameSynchronizer,
     SyncConfig,
     TimestampFormat,
     TimestampMapping,
     ClockDriftDetector,
 )
-from src.utils.video_buffer import BufferFormat, VideoFrame, FrameType
+from src.infrastructure.streaming.video_buffer import BufferFormat, VideoFrame, FrameType
 
 
 @pytest.fixture
@@ -303,14 +303,14 @@ class TestFrameSynchronizer:
         # Add regular timestamps
         base_time = 1000.0
         for i in range(20):
-            ts = synchronizer.normalize_timestamp("stream1", base_time + i * 0.1)
+            _ = synchronizer.normalize_timestamp("stream1", base_time + i * 0.1)
 
         # Add outlier
-        outlier_ts = synchronizer.normalize_timestamp("stream1", base_time + 100.0)
+        _ = synchronizer.normalize_timestamp("stream1", base_time + 100.0)
 
         # Add more regular timestamps
         for i in range(20, 25):
-            ts = synchronizer.normalize_timestamp("stream1", base_time + i * 0.1)
+            _ = synchronizer.normalize_timestamp("stream1", base_time + i * 0.1)
 
         # Detect outliers
         outliers = synchronizer.detect_outliers("stream1")

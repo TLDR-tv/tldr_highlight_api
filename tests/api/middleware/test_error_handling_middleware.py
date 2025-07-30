@@ -269,7 +269,7 @@ class TestErrorHandlingMiddleware:
                 "request_id": "format-test-123",
             }
 
-            response = await middleware.dispatch(request, call_next)
+            await middleware.dispatch(request, call_next)
 
             # Verify create_error_response was called with correct parameters
             mock_create.assert_called_once_with(

@@ -356,7 +356,7 @@ class TestLogfireIntegration:
             metrics().record_stream_duration(45.5, "twitch", 5)
 
         # Execute
-        stream_id = await simulate_stream_lifecycle()
+        await simulate_stream_lifecycle()
 
         # Verify spans were created
         assert len(spans_created) == 4  # lifecycle + 3 operations

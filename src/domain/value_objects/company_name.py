@@ -24,7 +24,7 @@ class CompanyName:
     # Pattern to detect potentially invalid characters
     INVALID_PATTERN: ClassVar[re.Pattern] = re.compile(r"[<>{}[\]|\\^`]")
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate company name after initialization."""
         # Strip and normalize whitespace
         normalized = " ".join(self.value.strip().split())
