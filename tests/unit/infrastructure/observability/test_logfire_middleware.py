@@ -1,12 +1,10 @@
 """Tests for Logfire middleware."""
 
 import pytest
-from unittest.mock import Mock, patch, AsyncMock, call
-import json
+from unittest.mock import Mock, patch, AsyncMock
 from starlette.requests import Request
 from starlette.responses import Response, JSONResponse
 from starlette.datastructures import Headers
-import time
 
 from src.infrastructure.observability.logfire_middleware import LogfireMiddleware
 
@@ -29,12 +27,14 @@ class TestLogfireMiddleware:
         request.url = Mock()
         request.url.path = "/api/v1/streams"
         request.url._url = "http://localhost:8000/api/v1/streams"
-        request.headers = Headers({
-            "host": "localhost:8000",
-            "user-agent": "test-client",
-            "x-api-key": "test-key-123",
-            "x-correlation-id": "corr-123"
-        })
+        request.headers = Headers(
+            {
+                "host": "localhost:8000",
+                "user-agent": "test-client",
+                "x-api-key": "test-key-123",
+                "x-correlation-id": "corr-123",
+            }
+        )
         request.path_params = {}
         request.query_params = {}
         request.get.return_value = None  # No route
@@ -46,7 +46,7 @@ class TestLogfireMiddleware:
         response = Response(
             content=b'{"status": "ok"}',
             status_code=200,
-            headers={"content-type": "application/json"}
+            headers={"content-type": "application/json"},
         )
         return response
 
@@ -74,7 +74,7 @@ class TestLogfireMiddleware:
         # Verify
         assert response == mock_response
         mock_logfire.span.assert_called_once_with("http.request GET /api/v1/streams")
-        
+
         # Verify span attributes
         expected_attributes = [
             ("http.method", "GET"),
@@ -84,7 +84,7 @@ class TestLogfireMiddleware:
             ("http.duration_ms", 500.0),
             ("user.api_key_id", "test-key-123"),
         ]
-        
+
         for attr_name, attr_value in expected_attributes:
             mock_span.set_attribute.assert_any_call(attr_name, attr_value)
 
@@ -111,8 +111,12 @@ class TestLogfireMiddleware:
         # Verify request headers were captured
         mock_span.set_attribute.assert_any_call(
             "http.request.headers",
-            {"host": "localhost:8000", "user-agent": "test-client", 
-             "x-api-key": "[REDACTED]", "x-correlation-id": "corr-123"}
+            {
+                "host": "localhost:8000",
+                "user-agent": "test-client",
+                "x-api-key": "[REDACTED]",
+                "x-correlation-id": "corr-123",
+            },
         )
 
     @patch("src.infrastructure.observability.logfire_middleware.logfire")
@@ -125,7 +129,7 @@ class TestLogfireMiddleware:
         # Setup
         mock_settings.logfire_capture_body = True
         mock_settings.logfire_max_body_size = 1000
-        
+
         # Create request with body
         request = Mock(spec=Request)
         request.method = "POST"
@@ -148,8 +152,7 @@ class TestLogfireMiddleware:
 
         # Verify body was captured
         mock_span.set_attribute.assert_any_call(
-            "http.request.body",
-            '{"title": "Test Stream"}'
+            "http.request.body", '{"title": "Test Stream"}'
         )
 
     @patch("src.infrastructure.observability.logfire_middleware.logfire")
@@ -179,9 +182,7 @@ class TestLogfireMiddleware:
 
     @patch("src.infrastructure.observability.logfire_middleware.logfire")
     @pytest.mark.asyncio
-    async def test_dispatch_with_organization_context(
-        self, mock_logfire, middleware
-    ):
+    async def test_dispatch_with_organization_context(self, mock_logfire, middleware):
         """Test middleware extracts organization context."""
         # Setup
         request = Mock(spec=Request)
@@ -248,9 +249,9 @@ class TestLogfireMiddleware:
         # Setup
         mock_settings.logfire_capture_body = True
         mock_settings.logfire_max_body_size = 100
-        
+
         # Create request with large body
-        large_body = b'{"data": "' + b'x' * 200 + b'"}'
+        large_body = b'{"data": "' + b"x" * 200 + b'"}'
         request = Mock(spec=Request)
         request.method = "POST"
         request.url = Mock()
@@ -272,7 +273,8 @@ class TestLogfireMiddleware:
 
         # Verify body was truncated
         body_calls = [
-            call for call in mock_span.set_attribute.call_args_list
+            call
+            for call in mock_span.set_attribute.call_args_list
             if call[0][0] == "http.request.body"
         ]
         assert len(body_calls) == 1
@@ -320,6 +322,7 @@ class TestLogfireMiddleware:
             yield b"chunk2"
 
         from starlette.responses import StreamingResponse
+
         streaming_response = StreamingResponse(generate(), media_type="text/plain")
 
         async def call_next(request):

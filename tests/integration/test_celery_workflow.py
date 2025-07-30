@@ -12,7 +12,6 @@ from datetime import datetime
 from unittest.mock import Mock, patch, AsyncMock
 
 
-from src.core.database import get_db_session
 from src.models.stream import Stream, StreamStatus
 from src.models.user import User
 from src.models.organization import Organization
@@ -64,6 +63,7 @@ def celery_app_test(celery_config):
 def db_session():
     """Create mock database session for testing."""
     from unittest.mock import MagicMock
+
     session = MagicMock()
     session.add = MagicMock()
     session.commit = MagicMock()
@@ -80,6 +80,7 @@ def test_organization(db_session):
     """Create test organization."""
     # Create a mock organization
     from unittest.mock import MagicMock
+
     org = MagicMock(spec=Organization)
     org.id = 1
     org.name = "Test Organization"
@@ -100,6 +101,7 @@ def test_organization(db_session):
 def test_user(db_session, test_organization):
     """Create test user."""
     from unittest.mock import MagicMock
+
     user = MagicMock(spec=User)
     user.id = 1
     user.email = "test@example.com"
@@ -114,6 +116,7 @@ def test_user(db_session, test_organization):
 def test_stream(db_session, test_user):
     """Create test stream."""
     from unittest.mock import MagicMock
+
     stream = MagicMock(spec=Stream)
     stream.id = 1
     stream.source_url = "https://twitch.tv/teststream"
@@ -133,6 +136,7 @@ def test_stream(db_session, test_user):
 def test_webhook(db_session, test_user):
     """Create test webhook."""
     from unittest.mock import MagicMock
+
     webhook = MagicMock(spec=Webhook)
     webhook.id = 1
     webhook.url = "https://example.com/webhook"
@@ -218,17 +222,19 @@ class TestTaskExecution:
                 mock_redis_client.get = Mock(return_value=None)
                 mock_redis_client.set = Mock(return_value=True)
                 mock_redis.return_value = mock_redis_client
-                
+
                 # Mock progress tracker
                 mock_pt_instance = Mock()
                 mock_pt_instance.update_progress = Mock(return_value=True)
                 mock_pt.return_value = mock_pt_instance
-                
+
                 # Mock webhook dispatcher
                 mock_wd_instance = Mock()
-                mock_wd_instance.dispatch_webhook = AsyncMock(return_value={"dispatched": 1})
+                mock_wd_instance.dispatch_webhook = AsyncMock(
+                    return_value={"dispatched": 1}
+                )
                 mock_wd.return_value = mock_wd_instance
-                
+
                 # Mock async task creation
                 mock_create_task.return_value = Mock()
 
@@ -316,16 +322,18 @@ class TestTaskExecution:
             # Mock Redis client
             mock_redis_client = Mock()
             mock_redis.return_value = mock_redis_client
-            
+
             # Mock progress tracker and webhook dispatcher
             mock_pt_instance = Mock()
             mock_pt_instance.update_progress = Mock(return_value=True)
             mock_pt.return_value = mock_pt_instance
-            
+
             mock_wd_instance = Mock()
-            mock_wd_instance.dispatch_webhook = AsyncMock(return_value={"dispatched": 1})
+            mock_wd_instance.dispatch_webhook = AsyncMock(
+                return_value={"dispatched": 1}
+            )
             mock_wd.return_value = mock_wd_instance
-            
+
             # Mock async task creation
             mock_create_task.return_value = Mock()
 
@@ -368,7 +376,7 @@ class TestTaskExecution:
             # Mock Redis client
             mock_redis_client = Mock()
             mock_redis.return_value = mock_redis_client
-            
+
             # Mock progress tracker
             mock_pt_instance = Mock()
             mock_pt_instance.update_progress = Mock(return_value=True)
@@ -625,7 +633,7 @@ class TestEndToEndProcessing:
                     "max_job_duration_hours": 24,
                     "max_file_size_gb": 50,
                     "cpu_priority": 10,
-                    "memory_limit_gb": 16
+                    "memory_limit_gb": 16,
                 },
             }
         )
@@ -636,7 +644,9 @@ class TestEndToEndProcessing:
         # Mock workflow chain execution
         with patch("src.services.async_processing.job_manager.chain") as mock_chain:
             mock_workflow = Mock()
-            mock_workflow.tasks = [Mock() for _ in range(6)]  # Mock 6 tasks in the workflow
+            mock_workflow.tasks = [
+                Mock() for _ in range(6)
+            ]  # Mock 6 tasks in the workflow
             mock_result = Mock()
             mock_result.id = "workflow-task-123"
             mock_workflow.apply_async = Mock(return_value=mock_result)
@@ -1010,7 +1020,7 @@ class TestWebhookIntegration:
             # TODO: Enable this test when WebhookAttempt model is implemented
             # _result2 = await webhook_dispatcher.retry_failed_webhook(mock_attempt_1.id)
             # assert webhook_dispatcher.http_client.post.call_count == 2
-            
+
             # For now, just verify the first attempt was made
             assert webhook_dispatcher.http_client.post.call_count == 1
 

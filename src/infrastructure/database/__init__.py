@@ -15,7 +15,7 @@ from .connection import (
 
 __all__ = [
     "get_async_session",
-    "get_sync_session", 
+    "get_sync_session",
     "get_db",
     "get_db_context",
     "init_db",

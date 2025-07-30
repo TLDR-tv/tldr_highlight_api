@@ -50,11 +50,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Startup
     try:
         logger.info("Starting TL;DR Highlight API...")
-        
+
         # Initialize Logfire observability
         configure_logfire(app)
         logger.info("Logfire observability configured successfully")
-        
+
         # Start metrics background collection
         await metrics.start_background_collection()
         logger.info("Metrics collection started")
@@ -78,7 +78,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Shutdown
     try:
         logger.info("Shutting down TL;DR Highlight API...")
-        
+
         # Stop metrics background collection
         await metrics.stop_background_collection()
         logger.info("Metrics collection stopped")
@@ -168,7 +168,7 @@ def create_app() -> FastAPI:
 
     # Security headers middleware
     app.add_middleware(SecurityHeadersMiddleware)
-    
+
     # Logfire observability middleware
     app.add_middleware(
         LogfireMiddleware,
@@ -225,9 +225,11 @@ def create_app() -> FastAPI:
     app.include_router(
         webhooks_router, prefix=f"{settings.api_v1_prefix}/webhooks", tags=["webhooks"]
     )
-    
+
     app.include_router(
-        webhook_receiver_router, prefix=f"{settings.api_v1_prefix}/webhooks", tags=["webhooks"]
+        webhook_receiver_router,
+        prefix=f"{settings.api_v1_prefix}/webhooks",
+        tags=["webhooks"],
     )
 
     @app.get("/", include_in_schema=False)

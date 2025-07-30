@@ -135,16 +135,20 @@ This is a standalone enterprise B2B API service that provides AI-powered highlig
    - Independent implementation optimized for enterprise needs
    - Multi-modal analysis: video frames, audio transcription, chat sentiment
 
-2. **AI-Powered Analysis**
-   - Advanced AI models for highlight detection
-   - Optimized for performance and quality
-   - Proprietary algorithms for enterprise content
+2. **Flexible AI-Powered Analysis**
+   - **Customizable Dimensions**: Clients define their own scoring dimensions (e.g., action_intensity, educational_value, humor)
+   - **Dynamic Highlight Types**: Create custom highlight types with specific criteria
+   - **Multiple Detection Strategies**: AI-only, rule-based, or hybrid approaches
+   - **Fusion Strategies**: Weighted, consensus, cascade, or max-confidence fusion of multi-modal signals
+   - **Industry Presets**: Pre-configured templates for gaming, education, sports, and corporate use cases
 
 3. **Enterprise Features**
    - API key-based authentication with scoped permissions
    - Multi-tenant architecture with isolated processing
    - SLA-backed performance guarantees
    - Detailed usage analytics and billing integration
+   - Per-organization dimension sets and type registries
+   - Flexible processing options with modality configuration
 
 4. **Asynchronous Processing**
    - Celery for background task processing
@@ -178,6 +182,40 @@ The API is designed for easy integration into existing enterprise systems:
 6. Highlights stored in tenant-isolated S3 buckets
 7. Client notified via webhook or polling
 8. Usage metrics recorded for billing
+
+### Flexible Highlight Detection System
+
+The highlight detection system has been completely redesigned to be industry-agnostic and highly customizable:
+
+1. **Dimension Definitions**
+   - Clients define custom scoring dimensions relevant to their content
+   - Each dimension includes: type (numeric/binary/categorical), weight, scoring prompt, examples
+   - Dimensions can be specific to certain modalities (video, audio, text)
+   - Aggregation methods control how scores are combined across time
+
+2. **Dimension Sets**
+   - Groups of related dimensions for specific use cases
+   - Organizations can have multiple dimension sets
+   - Built-in presets for gaming, education, sports, and corporate content
+   - Weights can be normalized and minimum dimensions required can be configured
+
+3. **Highlight Type Registry**
+   - Dynamic highlight types replace hardcoded enums
+   - Each type has criteria based on dimension scores
+   - Supports multiple types per highlight with priority ordering
+   - Auto-assignment based on dimension score patterns
+
+4. **Analysis Strategies**
+   - **AI-Only**: Uses LLM to score content against dimensions
+   - **Rule-Based**: Applies deterministic rules for scoring
+   - **Hybrid**: Combines AI and rule-based approaches
+   - Strategies implement the same interface for easy swapping
+
+5. **Processing Options**
+   - Reference dimension sets and type registries
+   - Configure detection and fusion strategies
+   - Enable/disable modalities with custom weights
+   - Multiple confidence thresholds for different quality levels
 
 ### Testing Strategy
 

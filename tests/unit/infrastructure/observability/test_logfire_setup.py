@@ -2,7 +2,6 @@
 
 import pytest
 from unittest.mock import Mock, patch, call
-from typing import Any
 
 from src.infrastructure.observability.logfire_setup import (
     configure_logfire,
@@ -89,7 +88,7 @@ class TestLogfireSetup:
         mock_settings.logfire_env = "prod"
         mock_settings.logfire_console_enabled = False
         mock_settings.logfire_log_level = "INFO"
-        
+
         mock_api_key = Mock()
         mock_api_key.get_secret_value.return_value = "secret-api-key"
         mock_settings.logfire_api_key = mock_api_key
@@ -125,9 +124,7 @@ class TestLogfireSetup:
 
         # Verify
         mock_logfire.span.assert_called_once_with(
-            "test_span",
-            _span_type="custom",
-            user_id=123
+            "test_span", _span_type="custom", user_id=123
         )
         assert result == mock_span
 
@@ -135,7 +132,9 @@ class TestLogfireSetup:
     def test_log_metric(self, mock_logfire):
         """Test logging a metric."""
         # Execute
-        log_metric("request_count", 42, unit="requests", tags={"endpoint": "/api/v1/streams"})
+        log_metric(
+            "request_count", 42, unit="requests", tags={"endpoint": "/api/v1/streams"}
+        )
 
         # Verify
         mock_logfire.info.assert_called_once_with(
@@ -143,7 +142,7 @@ class TestLogfireSetup:
             metric_name="request_count",
             value=42,
             unit="requests",
-            endpoint="/api/v1/streams"
+            endpoint="/api/v1/streams",
         )
 
     @patch("src.infrastructure.observability.logfire_setup.logfire")
@@ -158,7 +157,7 @@ class TestLogfireSetup:
             event_type="processing",
             event_name="stream_started",
             stream_id=123,
-            platform="twitch"
+            platform="twitch",
         )
 
     @patch("src.infrastructure.observability.logfire_setup.logfire")
@@ -170,7 +169,9 @@ class TestLogfireSetup:
         result = set_correlation_id("test-correlation-123")
 
         # Verify
-        mock_logfire.with_tags.assert_called_once_with(correlation_id="test-correlation-123")
+        mock_logfire.with_tags.assert_called_once_with(
+            correlation_id="test-correlation-123"
+        )
         assert result == "tagged_context"
 
     def test_add_user_context(self):
@@ -182,15 +183,17 @@ class TestLogfireSetup:
             mock_span,
             organization_id="org-123",
             user_id="user-456",
-            api_key_id="key-789"
+            api_key_id="key-789",
         )
 
         # Verify
-        mock_span.set_attribute.assert_has_calls([
-            call("user.organization_id", "org-123"),
-            call("user.id", "user-456"),
-            call("user.api_key_id", "key-789"),
-        ])
+        mock_span.set_attribute.assert_has_calls(
+            [
+                call("user.organization_id", "org-123"),
+                call("user.id", "user-456"),
+                call("user.api_key_id", "key-789"),
+            ]
+        )
 
     def test_add_processing_context(self):
         """Test adding processing context to span."""
@@ -202,16 +205,18 @@ class TestLogfireSetup:
             stream_id="stream-123",
             batch_id="batch-456",
             platform="youtube",
-            processing_stage="ingestion"
+            processing_stage="ingestion",
         )
 
         # Verify
-        mock_span.set_attribute.assert_has_calls([
-            call("processing.stream_id", "stream-123"),
-            call("processing.batch_id", "batch-456"),
-            call("processing.platform", "youtube"),
-            call("processing.stage", "ingestion"),
-        ])
+        mock_span.set_attribute.assert_has_calls(
+            [
+                call("processing.stream_id", "stream-123"),
+                call("processing.batch_id", "batch-456"),
+                call("processing.platform", "youtube"),
+                call("processing.stage", "ingestion"),
+            ]
+        )
 
     @patch("src.infrastructure.observability.logfire_setup.logfire")
     @patch("src.infrastructure.observability.logfire_setup.settings")
@@ -246,7 +251,9 @@ class TestLogfireSetup:
 
     @patch("src.infrastructure.observability.logfire_setup.logfire")
     @patch("src.infrastructure.observability.logfire_setup.settings")
-    def test_configure_logfire_complete_failure_production(self, mock_settings, mock_logfire):
+    def test_configure_logfire_complete_failure_production(
+        self, mock_settings, mock_logfire
+    ):
         """Test complete configuration failure in production."""
         # Setup
         mock_settings.logfire_enabled = True

@@ -12,7 +12,6 @@ from typing import Callable, Any, Optional, Dict, TypeVar, Union
 import logfire
 from logfire import LogfireSpan
 
-from src.infrastructure.config import settings
 
 T = TypeVar("T")
 

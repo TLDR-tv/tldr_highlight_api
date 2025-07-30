@@ -6,14 +6,11 @@ business metrics, performance indicators, and system health.
 
 import asyncio
 import time
-from datetime import datetime
 from typing import Dict, Any, Optional, List, Callable
 from collections import defaultdict
-from functools import lru_cache
 from threading import Lock
 
 import logfire
-from src.infrastructure.config import settings
 
 
 class MetricsCollector:
@@ -432,7 +429,7 @@ class MetricsCollector:
                 await asyncio.sleep(10)  # Check every 10 seconds
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except Exception:
                 logfire.error("Error in metric collection loop", exc_info=True)
                 await asyncio.sleep(60)  # Wait longer on error
 

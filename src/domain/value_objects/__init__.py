@@ -15,7 +15,7 @@ from src.domain.value_objects.company_name import CompanyName
 
 __all__ = [
     "Email",
-    "Url", 
+    "Url",
     "ConfidenceScore",
     "Duration",
     "Timestamp",

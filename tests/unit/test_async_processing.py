@@ -100,7 +100,9 @@ class TestJobManager:
         job_manager.redis_client.smembers = Mock(return_value=current_jobs)
 
         # Attempt to create job should raise RuntimeError (wrapping ValueError)
-        with pytest.raises(RuntimeError, match="Job creation failed.*Resource limit exceeded"):
+        with pytest.raises(
+            RuntimeError, match="Job creation failed.*Resource limit exceeded"
+        ):
             job_manager.create_job(
                 stream_id=123, user_id=456, priority=JobPriority.HIGH
             )
@@ -308,13 +310,17 @@ class TestProgressTracker:
     def test_get_processing_statistics(self, progress_tracker):
         """Test processing statistics calculation."""
         from datetime import datetime, timedelta, timezone
-        
+
         mock_progress = {
             "stream_id": "123",
             "progress_percentage": 75,
             "status": "processing",
-            "created_at": (datetime.now(timezone.utc) - timedelta(minutes=30)).isoformat(),
-            "started_at": (datetime.now(timezone.utc) - timedelta(minutes=25)).isoformat(),
+            "created_at": (
+                datetime.now(timezone.utc) - timedelta(minutes=30)
+            ).isoformat(),
+            "started_at": (
+                datetime.now(timezone.utc) - timedelta(minutes=25)
+            ).isoformat(),
             "last_updated": datetime.now(timezone.utc).isoformat(),
             "processing_duration_seconds": 1500,  # 25 minutes
         }
@@ -408,14 +414,14 @@ class TestWebhookDispatcher:
             # Create separate query mocks for each entity
             stream_query = Mock()
             stream_query.filter.return_value.first.return_value = mock_stream
-            
+
             user_query = Mock()
             user_query.filter.return_value.first.return_value = mock_user
-            
+
             webhook_query = Mock()
             mock_webhook.active = True  # Ensure webhook is active
             webhook_query.filter.return_value.all.return_value = [mock_webhook]
-            
+
             # Return different query objects based on what's being queried
             def query_side_effect(model):
                 if model == Stream:
@@ -425,7 +431,7 @@ class TestWebhookDispatcher:
                 elif model == Webhook:
                     return webhook_query
                 return Mock()
-            
+
             mock_session.query.side_effect = query_side_effect
 
             result = await webhook_dispatcher.dispatch_webhook(

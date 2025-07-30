@@ -108,7 +108,9 @@ class FusionConfig(BaseModel):
         default=0.5, ge=0.0, description="Weight for audio modality in fusion"
     )
     chat_weight: float = Field(
-        default=0.0, ge=0.0, description="Weight for chat modality in fusion (bonus only)"
+        default=0.0,
+        ge=0.0,
+        description="Weight for chat modality in fusion (bonus only)",
     )
 
     # Temporal alignment parameters
@@ -160,7 +162,8 @@ class FusionConfig(BaseModel):
         default=0.3, ge=0.0, le=1.0, description="Minimum fusion confidence threshold"
     )
     require_multiple_modalities: bool = Field(
-        default=False, description="Require agreement from multiple modalities (chat optional)"
+        default=False,
+        description="Require agreement from multiple modalities (chat optional)",
     )
 
     @field_validator("video_weight", "audio_weight", "chat_weight")
@@ -183,10 +186,10 @@ class FusionConfig(BaseModel):
     def normalized_weights(self) -> Dict[ModalityType, float]:
         """Get normalized modality weights."""
         weights = self.modality_weights.copy()
-        
+
         # Separate chat weight for bonus scoring
         chat_weight = weights.pop(ModalityType.CHAT, 0.0)
-        
+
         # Normalize video and audio weights
         total_weight = sum(weights.values())
         if total_weight > 0:
@@ -194,10 +197,10 @@ class FusionConfig(BaseModel):
         else:
             # Equal weights if all are zero
             normalized = {k: 1.0 / len(weights) for k in weights.keys()}
-        
+
         # Add chat back as bonus weight (not normalized)
         normalized[ModalityType.CHAT] = chat_weight
-        
+
         return normalized
 
 
@@ -605,13 +608,13 @@ class FusionScorer:
             # Separate core modalities (video/audio) from chat
             core_scores = {}
             chat_score = None
-            
+
             for modality, modality_score in aligned_scores.items():
                 if modality == ModalityType.CHAT:
                     chat_score = modality_score
                 else:
                     core_scores[modality] = modality_score
-            
+
             # Calculate core score from video/audio only
             total_weighted_score = 0.0
             total_weight = 0.0
@@ -628,21 +631,25 @@ class FusionScorer:
 
             if total_weight > 0:
                 fused_score = total_weighted_score / total_weight
-                
+
                 # Apply chat bonus if available
-                if (chat_score is not None and 
-                    chat_score.confidence >= self.config.min_modality_confidence):
+                if (
+                    chat_score is not None
+                    and chat_score.confidence >= self.config.min_modality_confidence
+                ):
                     chat_bonus = chat_score.score * self.config.chat_weight
                     fused_score = min(1.0, fused_score + chat_bonus)
                     confidences.append(chat_score.confidence)
                     modality_results.append(chat_score.detection_result)
-                
+
                 fused_confidence = calculate_confidence(
                     confidences, method="consistency"
                 )
 
                 # Apply penalties (modified to not penalize missing chat)
-                fused_score = self._apply_penalties_modified(fused_score, aligned_scores)
+                fused_score = self._apply_penalties_modified(
+                    fused_score, aligned_scores
+                )
 
                 candidate = HighlightCandidate(
                     start_time=timestamp - 15.0,  # Default 30-second highlight
@@ -672,13 +679,13 @@ class FusionScorer:
             # Separate core modalities from chat
             core_scores = {}
             chat_score = None
-            
+
             for modality, modality_score in aligned_scores.items():
                 if modality == ModalityType.CHAT:
                     chat_score = modality_score
                 else:
                     core_scores[modality] = modality_score
-            
+
             # Calculate confidence-weighted score for core modalities
             total_score = 0.0
             total_confidence_weight = 0.0
@@ -698,21 +705,29 @@ class FusionScorer:
 
             if total_confidence_weight > 0:
                 fused_score = total_score / total_confidence_weight
-                
+
                 # Apply chat bonus if available
-                if (chat_score is not None and 
-                    chat_score.confidence >= self.config.min_modality_confidence):
-                    chat_bonus = chat_score.score * chat_score.confidence * self.config.chat_weight
+                if (
+                    chat_score is not None
+                    and chat_score.confidence >= self.config.min_modality_confidence
+                ):
+                    chat_bonus = (
+                        chat_score.score
+                        * chat_score.confidence
+                        * self.config.chat_weight
+                    )
                     fused_score = min(1.0, fused_score + chat_bonus)
                     confidences.append(chat_score.confidence)
                     modality_results.append(chat_score.detection_result)
-                
+
                 fused_confidence = calculate_confidence(
                     confidences, method="consistency"
                 )
 
                 # Apply penalties
-                fused_score = self._apply_penalties_modified(fused_score, aligned_scores)
+                fused_score = self._apply_penalties_modified(
+                    fused_score, aligned_scores
+                )
 
                 candidate = HighlightCandidate(
                     start_time=timestamp - 15.0,
@@ -745,13 +760,13 @@ class FusionScorer:
             # Separate core modalities from chat
             core_scores = {}
             chat_score = None
-            
+
             for modality, modality_score in aligned_scores.items():
                 if modality == ModalityType.CHAT:
                     chat_score = modality_score
                 else:
                     core_scores[modality] = modality_score
-            
+
             # Use adaptive weights for core modalities
             total_weighted_score = 0.0
             total_weight = 0.0
@@ -768,23 +783,29 @@ class FusionScorer:
 
             if total_weight > 0:
                 fused_score = total_weighted_score / total_weight
-                
+
                 # Apply chat bonus if available
-                if (chat_score is not None and 
-                    chat_score.confidence >= self.config.min_modality_confidence):
+                if (
+                    chat_score is not None
+                    and chat_score.confidence >= self.config.min_modality_confidence
+                ):
                     # Use adaptive weight for chat if available, otherwise use config
-                    chat_weight = self.adaptive_weights.get(ModalityType.CHAT, self.config.chat_weight)
+                    chat_weight = self.adaptive_weights.get(
+                        ModalityType.CHAT, self.config.chat_weight
+                    )
                     chat_bonus = chat_score.score * chat_weight
                     fused_score = min(1.0, fused_score + chat_bonus)
                     confidences.append(chat_score.confidence)
                     modality_results.append(chat_score.detection_result)
-                
+
                 fused_confidence = calculate_confidence(
                     confidences, method="consistency"
                 )
 
                 # Apply penalties
-                fused_score = self._apply_penalties_modified(fused_score, aligned_scores)
+                fused_score = self._apply_penalties_modified(
+                    fused_score, aligned_scores
+                )
 
                 candidate = HighlightCandidate(
                     start_time=timestamp - 15.0,
@@ -912,7 +933,7 @@ class FusionScorer:
                 penalized_score *= max(0.0, confidence_penalty)
 
         return min(1.0, penalized_score)
-    
+
     def _apply_penalties_modified(
         self, score: float, aligned_scores: Dict[ModalityType, ModalityScore]
     ) -> float:
@@ -1044,7 +1065,8 @@ class FusionScorer:
             if self.config.require_multiple_modalities:
                 # Count only video and audio modalities
                 core_modalities = sum(
-                    1 for result in candidate.modality_results
+                    1
+                    for result in candidate.modality_results
                     if result.modality in {ModalityType.VIDEO, ModalityType.AUDIO}
                 )
                 if core_modalities < 2:

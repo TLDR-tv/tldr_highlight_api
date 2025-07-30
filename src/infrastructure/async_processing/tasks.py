@@ -185,7 +185,7 @@ def start_stream_processing(
                 "valid": True,
                 "platform": stream.platform,
                 "source_url": stream.source_url,
-                "options": options or {}
+                "options": options or {},
             }
 
             return {
@@ -278,7 +278,7 @@ def ingest_stream_data(self, stream_id: int, chunk_size: int = 30) -> Dict[str, 
                 "status": "success",
                 "chunks_created": 10,
                 "total_duration": 300,
-                "platform": stream.platform
+                "platform": stream.platform,
             }
 
             # Update progress
@@ -391,23 +391,23 @@ def process_multimodal_content(
             "resolution": "1920x1080",
             "duration": ingestion_data.get("total_duration", 300),
             "keyframes": 150,
-            "scenes": 20
+            "scenes": 20,
         }
-        
+
         audio_features = {
             "sample_rate": 44100,
             "channels": 2,
             "duration": ingestion_data.get("total_duration", 300),
             "volume_peaks": 15,
-            "silence_segments": 5
+            "silence_segments": 5,
         }
-        
+
         # Try to analyze chat, but don't fail if not available
         chat_analysis = {
             "available": False,
             "reason": "Chat analysis not implemented yet",
             "sentiment_score": 0.0,
-            "message_count": 0
+            "message_count": 0,
         }
 
         # Build processed content with available modalities
@@ -436,7 +436,9 @@ def process_multimodal_content(
             event_type=ProgressEvent.PROGRESS_UPDATE,
             details={
                 "task": "multimodal_content_processed",
-                "modalities": processed_content["processing_metadata"]["modalities_available"],
+                "modalities": processed_content["processing_metadata"][
+                    "modalities_available"
+                ],
                 "quality_score": processed_content["processing_metadata"][
                     "quality_score"
                 ],
@@ -528,22 +530,22 @@ def detect_highlights(
                 "duration": 15,
                 "confidence": 0.95,
                 "type": "action",
-                "description": "Epic gaming moment"
+                "description": "Epic gaming moment",
             },
             {
                 "timestamp": 120,
                 "duration": 10,
                 "confidence": 0.88,
                 "type": "funny",
-                "description": "Funny fail"
+                "description": "Funny fail",
             },
             {
                 "timestamp": 200,
                 "duration": 20,
                 "confidence": 0.92,
                 "type": "skill",
-                "description": "Impressive skill display"
-            }
+                "description": "Impressive skill display",
+            },
         ]
 
         # Store highlights in database
@@ -578,7 +580,10 @@ def detect_highlights(
             details={
                 "task": "highlights_detected",
                 "highlights_count": len(highlights),
-                "average_confidence": sum(h.get("confidence", 0) for h in highlights) / len(highlights) if highlights else 0,
+                "average_confidence": sum(h.get("confidence", 0) for h in highlights)
+                / len(highlights)
+                if highlights
+                else 0,
             },
         )
 
@@ -598,9 +603,12 @@ def detect_highlights(
         return {
             "highlights": highlights,
             "total_detected": len(highlights),
-            "average_confidence": sum(h.get("confidence", 0) for h in highlights) / len(highlights) if highlights else 0,
+            "average_confidence": sum(h.get("confidence", 0) for h in highlights)
+            / len(highlights)
+            if highlights
+            else 0,
             "stream_id": stream_id,
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     except Exception as exc:
@@ -695,16 +703,12 @@ def finalize_highlights(
         finalized_highlights = []
         for highlight in detection_results["highlights"]:
             # TODO: Implement video clip generation and thumbnail creation
-            timestamp = highlight.get('timestamp', highlight.get('start_time', 0))
+            timestamp = highlight.get("timestamp", highlight.get("start_time", 0))
             finalized_highlight = {
                 **highlight,
                 "clip_url": f"https://example.com/clips/{stream_id}_{timestamp}.mp4",
                 "thumbnail_url": f"https://example.com/thumbnails/{stream_id}_{timestamp}.jpg",
-                "metadata": {
-                    "fps": 30,
-                    "resolution": "1920x1080",
-                    "codec": "h264"
-                }
+                "metadata": {"fps": 30, "resolution": "1920x1080", "codec": "h264"},
             }
             finalized_highlights.append(finalized_highlight)
 

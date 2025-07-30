@@ -8,6 +8,6 @@ from .circuit_breaker import CircuitBreaker, CircuitBreakerState, CircuitBreaker
 
 __all__ = [
     "CircuitBreaker",
-    "CircuitBreakerState", 
+    "CircuitBreakerState",
     "CircuitBreakerConfig",
 ]

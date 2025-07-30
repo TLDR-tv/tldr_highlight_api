@@ -3,32 +3,27 @@
 This module provides endpoints for API key management and authentication.
 """
 
-from typing import List
 from datetime import datetime
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 
 from src.api.schemas.common import COMMON_RESPONSES, StatusResponse
 from src.api.schemas.auth import (
     APIKeyCreate,
-    APIKeyResponse,
     APIKeyCreateResponse,
     APIKeyListResponse,
     LoginRequest as LoginRequestDTO,
-    LoginResponse
+    LoginResponse,
 )
 from src.api.schemas.users import UserRegistrationRequest, UserRegistrationResponse
 from src.api.mappers.auth_mapper import RegisterMapper, LoginMapper, APIKeyMapper
-from src.api.dependencies import (
-    get_authentication_use_case,
-    CurrentUser
-)
+from src.api.dependencies import get_authentication_use_case, CurrentUser
 from src.infrastructure.security import create_access_token
 from src.application.use_cases.authentication import AuthenticationUseCase
 from src.domain.exceptions import (
     DuplicateEntityError,
     EntityNotFoundError,
     ValidationError,
-    AuthenticationError
+    AuthenticationError,
 )
 
 router = APIRouter()
@@ -58,37 +53,37 @@ async def auth_status() -> StatusResponse:
     summary="Register new user",
     description="Register a new user and organization with initial API key",
     responses=COMMON_RESPONSES,
-    status_code=status.HTTP_201_CREATED
+    status_code=status.HTTP_201_CREATED,
 )
 async def register(
     request: UserRegistrationRequest,
-    auth_use_case: AuthenticationUseCase = Depends(get_authentication_use_case)
+    auth_use_case: AuthenticationUseCase = Depends(get_authentication_use_case),
 ) -> UserRegistrationResponse:
     """Register a new user.
-    
+
     Creates a new user account, organization, and initial API key.
     """
     try:
         # Convert DTO to domain request
         mapper = RegisterMapper()
         domain_request = mapper.to_domain(request)
-        
+
         # Execute use case
         result = await auth_use_case.register(domain_request)
-        
+
         if not result.is_success:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=result.errors[0] if result.errors else "Registration failed"
+                detail=result.errors[0] if result.errors else "Registration failed",
             )
-        
+
         # Create access token for immediate login
         access_token = create_access_token(
             user_id=result.user_id,
             email=request.email,
-            scopes=["streams:read", "streams:write", "highlights:read"]
+            scopes=["streams:read", "streams:write", "highlights:read"],
         )
-        
+
         return UserRegistrationResponse(
             id=result.user_id,
             email=request.email,
@@ -96,18 +91,14 @@ async def register(
             created_at=datetime.utcnow(),
             access_token=access_token,
             token_type="bearer",
-            expires_in=3600
+            expires_in=3600,
         )
-        
+
     except DuplicateEntityError as e:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
     except ValidationError as e:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(e)
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
         )
 
 
@@ -116,41 +107,38 @@ async def register(
     response_model=LoginResponse,
     summary="User login",
     description="Authenticate user with email and password",
-    responses=COMMON_RESPONSES
+    responses=COMMON_RESPONSES,
 )
 async def login(
     request: LoginRequestDTO,
-    auth_use_case: AuthenticationUseCase = Depends(get_authentication_use_case)
+    auth_use_case: AuthenticationUseCase = Depends(get_authentication_use_case),
 ) -> LoginResponse:
     """Authenticate user and return access token."""
     try:
         # Convert DTO to domain request
         login_mapper = LoginMapper()
         domain_request = login_mapper.to_domain(request)
-        
+
         # Execute use case
         result = await auth_use_case.login(domain_request)
-        
+
         if not result.is_success:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail=result.errors[0] if result.errors else "Invalid credentials"
+                detail=result.errors[0] if result.errors else "Invalid credentials",
             )
-        
+
         # Create access token
         access_token = create_access_token(
             user_id=result.user_id,
             email=request.email,
-            scopes=["streams:read", "streams:write", "highlights:read"]
+            scopes=["streams:read", "streams:write", "highlights:read"],
         )
-        
+
         return login_mapper.to_dto(result, access_token)
-        
+
     except AuthenticationError as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
 
 
 @router.post(
@@ -159,44 +147,45 @@ async def login(
     summary="Create API key",
     description="Create a new API key for the authenticated user",
     responses=COMMON_RESPONSES,
-    status_code=status.HTTP_201_CREATED
+    status_code=status.HTTP_201_CREATED,
 )
 async def create_api_key(
     request: APIKeyCreate,
     current_user: CurrentUser,
-    auth_use_case: AuthenticationUseCase = Depends(get_authentication_use_case)
+    auth_use_case: AuthenticationUseCase = Depends(get_authentication_use_case),
 ) -> APIKeyCreateResponse:
     """Create a new API key.
-    
+
     The key is shown only once in the response and must be saved by the user.
     """
     try:
         # Convert scopes to domain format
         api_key_mapper = APIKeyMapper()
         domain_scopes = api_key_mapper.to_domain_scopes(request.scopes)
-        
+
         # Create API key
         result = await auth_use_case.create_api_key(
             user_id=current_user.id,
             name=request.name,
             scopes=domain_scopes,
-            expires_at=request.expires_at
+            expires_at=request.expires_at,
         )
-        
+
         if not result.is_success:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=result.errors[0] if result.errors else "Failed to create API key"
+                detail=result.errors[0]
+                if result.errors
+                else "Failed to create API key",
             )
-        
+
         # Get the created API key and convert to response
         api_key = result.api_key
         return api_key_mapper.to_create_response_dto(api_key, result.key)
-        
+
     except ValidationError as e:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(e)
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
         )
 
 
@@ -205,30 +194,27 @@ async def create_api_key(
     response_model=APIKeyListResponse,
     summary="List API keys",
     description="List all API keys for the authenticated user",
-    responses=COMMON_RESPONSES
+    responses=COMMON_RESPONSES,
 )
 async def list_api_keys(
     current_user: CurrentUser,
-    auth_use_case: AuthenticationUseCase = Depends(get_authentication_use_case)
+    auth_use_case: AuthenticationUseCase = Depends(get_authentication_use_case),
 ) -> APIKeyListResponse:
     """List API keys for the authenticated user."""
     # Get API keys from use case
     result = await auth_use_case.list_api_keys(current_user.id)
-    
+
     if not result.is_success:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=result.errors[0] if result.errors else "Failed to list API keys"
+            detail=result.errors[0] if result.errors else "Failed to list API keys",
         )
-    
+
     # Convert to DTOs
     api_key_mapper = APIKeyMapper()
     key_dtos = [api_key_mapper.to_dto(key) for key in result.api_keys]
-    
-    return APIKeyListResponse(
-        total=len(key_dtos),
-        keys=key_dtos
-    )
+
+    return APIKeyListResponse(total=len(key_dtos), keys=key_dtos)
 
 
 @router.delete(
@@ -236,33 +222,33 @@ async def list_api_keys(
     summary="Revoke API key",
     description="Revoke an API key by ID",
     responses=COMMON_RESPONSES,
-    status_code=status.HTTP_204_NO_CONTENT
+    status_code=status.HTTP_204_NO_CONTENT,
 )
 async def revoke_api_key(
     key_id: int,
     current_user: CurrentUser,
-    auth_use_case: AuthenticationUseCase = Depends(get_authentication_use_case)
+    auth_use_case: AuthenticationUseCase = Depends(get_authentication_use_case),
 ) -> None:
     """Revoke an API key.
-    
+
     The key will be deactivated and can no longer be used.
     """
     try:
         result = await auth_use_case.revoke_api_key(
-            user_id=current_user.id,
-            api_key_id=key_id
+            user_id=current_user.id, api_key_id=key_id
         )
-        
+
         if not result.is_success:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=result.errors[0] if result.errors else "Failed to revoke API key"
+                detail=result.errors[0]
+                if result.errors
+                else "Failed to revoke API key",
             )
-            
+
     except EntityNotFoundError:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="API key not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="API key not found"
         )
 
 
@@ -271,41 +257,41 @@ async def revoke_api_key(
     response_model=APIKeyCreateResponse,
     summary="Rotate API key",
     description="Rotate an API key to generate a new key value",
-    responses=COMMON_RESPONSES
+    responses=COMMON_RESPONSES,
 )
 async def rotate_api_key(
     key_id: int,
     current_user: CurrentUser,
     background_tasks: BackgroundTasks,
-    auth_use_case: AuthenticationUseCase = Depends(get_authentication_use_case)
+    auth_use_case: AuthenticationUseCase = Depends(get_authentication_use_case),
 ) -> APIKeyCreateResponse:
     """Rotate an API key.
-    
+
     Generates a new key value while keeping the same permissions.
     The old key remains valid for a grace period.
     """
     try:
         result = await auth_use_case.rotate_api_key(
-            user_id=current_user.id,
-            api_key_id=key_id
+            user_id=current_user.id, api_key_id=key_id
         )
-        
+
         if not result.is_success:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=result.errors[0] if result.errors else "Failed to rotate API key"
+                detail=result.errors[0]
+                if result.errors
+                else "Failed to rotate API key",
             )
-        
+
         # Schedule old key revocation after grace period
         # This would be handled by a background task in production
-        
+
         # Get the rotated API key and convert to response
         api_key = result.api_key
         api_key_mapper = APIKeyMapper()
         return api_key_mapper.to_create_response_dto(api_key, result.key)
-        
+
     except EntityNotFoundError:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="API key not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="API key not found"
         )

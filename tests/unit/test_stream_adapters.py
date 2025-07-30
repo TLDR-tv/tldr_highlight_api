@@ -4,27 +4,27 @@ Tests for BaseStreamAdapter, TwitchAdapter, YouTubeAdapter, RTMPAdapter,
 and the StreamAdapterFactory.
 """
 
+# Apply patches before imports to ensure they take effect
+import sys
 from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock
 
 import pytest
 import aiohttp
 from aiohttp import ClientSession
 
-# Apply patches before imports to ensure they take effect
-import sys
-from unittest.mock import Mock
 
 # Create a complete mock MetricsContext class
 class MockMetricsContext:
     def __init__(self, *args, **kwargs):
         pass
-    
+
     async def __aenter__(self):
         return self
-    
+
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         return None
+
 
 # Mock the entire metrics module
 mock_metrics_module = Mock()
@@ -34,7 +34,7 @@ mock_metrics_module.gauge = Mock(return_value=Mock(set=Mock()))
 mock_metrics_module.histogram = Mock(return_value=Mock(observe=Mock()))
 
 # Replace the module in sys.modules before any imports
-sys.modules['src.utils.metrics'] = mock_metrics_module
+sys.modules["src.utils.metrics"] = mock_metrics_module
 
 from src.services.stream_adapters.base import (
     BaseStreamAdapter,
@@ -383,7 +383,7 @@ class TestTwitchAdapter:
         """Test Twitch HLS streaming functionality."""
         twitch_adapter.app_access_token = "test_token"
         twitch_adapter.user_id = "123"
-        
+
         # Mock stream live response
         mock_live_response = AsyncMock()
         mock_live_response.status = 200
@@ -391,7 +391,7 @@ class TestTwitchAdapter:
         mock_live_response.json.return_value = {
             "data": [{"id": "live_stream_123"}]  # Stream is live
         }
-        
+
         # Mock GraphQL access token response
         mock_gql_response = AsyncMock()
         mock_gql_response.status = 200
@@ -400,11 +400,11 @@ class TestTwitchAdapter:
                 "streamPlaybackAccessToken": {
                     "value": "test_access_token_value",
                     "signature": "test_signature",
-                    "__typename": "PlaybackAccessToken"
+                    "__typename": "PlaybackAccessToken",
                 }
             }
         }
-        
+
         # Mock HLS manifest content
         mock_manifest_content = """#EXTM3U
 #EXT-X-VERSION:3
@@ -415,7 +415,7 @@ chunked.m3u8
 #EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1920x1080,CODECS="avc1.42001f,mp4a.40.2"
 1080p.m3u8
 """
-        
+
         # Mock playlist content
         mock_playlist_content = """#EXTM3U
 #EXT-X-VERSION:3
@@ -426,60 +426,62 @@ segment000.ts
 #EXTINF:10.0,
 segment001.ts
 """
-        
+
         # Mock segment data
         mock_segment_data = b"mock_twitch_video_segment_data"
-        
+
         # Mock HLS manifest response
         mock_manifest_response = AsyncMock()
         mock_manifest_response.status = 200
         mock_manifest_response.text = AsyncMock(return_value=mock_manifest_content)
         mock_manifest_response.raise_for_status = AsyncMock()
-        
+
         # Mock playlist response
         mock_playlist_response = AsyncMock()
         mock_playlist_response.status = 200
         mock_playlist_response.text = AsyncMock(return_value=mock_playlist_content)
         mock_playlist_response.raise_for_status = AsyncMock()
-        
+
         # Mock segment response
         mock_segment_response = AsyncMock()
         mock_segment_response.status = 200
         mock_segment_response.content.iter_chunked.return_value = AsyncMock()
-        mock_segment_response.content.iter_chunked.return_value.__aiter__ = AsyncMock(return_value=iter([mock_segment_data]))
+        mock_segment_response.content.iter_chunked.return_value.__aiter__ = AsyncMock(
+            return_value=iter([mock_segment_data])
+        )
         mock_segment_response.raise_for_status = AsyncMock()
-        
+
         # Configure mock session responses
         mock_session.post.return_value.__aenter__.return_value = mock_gql_response
         mock_session.get.return_value.__aenter__.side_effect = [
-            mock_live_response,       # Check if stream is live
-            mock_manifest_response,   # HLS manifest
-            mock_playlist_response,   # Video playlist
-            mock_segment_response,    # Video segment
+            mock_live_response,  # Check if stream is live
+            mock_manifest_response,  # HLS manifest
+            mock_playlist_response,  # Video playlist
+            mock_segment_response,  # Video segment
         ]
-        
+
         twitch_adapter._session = mock_session
-        
+
         # Test individual components first
         # Test getting access token
         await twitch_adapter._get_stream_access_token()
         assert twitch_adapter.access_token == "test_access_token_value"
         assert twitch_adapter.access_signature == "test_signature"
-        
+
         # Test getting HLS manifest
         await twitch_adapter._get_hls_manifest()
         assert twitch_adapter.current_manifest is not None
         assert len(twitch_adapter.current_manifest.video_playlists) > 0
-        
+
         # Test quality selection
         await twitch_adapter._select_quality()
         assert twitch_adapter.current_playlist is not None
-        
+
         # Test getting available qualities
         qualities = await twitch_adapter.get_available_qualities()
         assert len(qualities) > 0
         assert any(q["name"] in ["720p", "1080p", "480p"] for q in qualities)
-        
+
         # Test quality switching
         success = await twitch_adapter.switch_quality("720p")
         assert success
@@ -489,15 +491,15 @@ segment001.ts
     async def test_twitch_access_token_error(self, twitch_adapter, mock_session):
         """Test Twitch access token error handling."""
         twitch_adapter.app_access_token = "test_token"
-        
+
         # Mock failed GraphQL response
         mock_gql_response = AsyncMock()
         mock_gql_response.status = 400
         mock_gql_response.text.return_value = "Bad Request"
-        
+
         mock_session.post.return_value.__aenter__.return_value = mock_gql_response
         twitch_adapter._session = mock_session
-        
+
         with pytest.raises(AuthenticationError):
             await twitch_adapter._get_stream_access_token()
 
@@ -507,18 +509,20 @@ segment001.ts
         twitch_adapter.app_access_token = "test_token"
         twitch_adapter.access_token = "test_access_token"
         twitch_adapter.access_signature = "test_signature"
-        
+
         # Mock failed manifest response
         mock_manifest_response = AsyncMock()
         mock_manifest_response.status = 404
         mock_manifest_response.text = AsyncMock(return_value="Not Found")
-        mock_manifest_response.raise_for_status = AsyncMock(side_effect=aiohttp.ClientResponseError(
-            request_info=None, history=None, status=404
-        ))
-        
+        mock_manifest_response.raise_for_status = AsyncMock(
+            side_effect=aiohttp.ClientResponseError(
+                request_info=None, history=None, status=404
+            )
+        )
+
         mock_session.get.return_value.__aenter__.return_value = mock_manifest_response
         twitch_adapter._session = mock_session
-        
+
         with pytest.raises(ConnectionError):
             await twitch_adapter._get_hls_manifest()
 
@@ -527,40 +531,42 @@ segment001.ts
         """Test Twitch stream offline handling during streaming."""
         twitch_adapter.app_access_token = "test_token"
         twitch_adapter.user_id = "123"
-        
+
         # Mock stream offline response
         mock_response = AsyncMock()
         mock_response.status = 200
         mock_response.headers = {}
         mock_response.json.return_value = {"data": []}  # No active streams
-        
+
         mock_session.get.return_value.__aenter__.return_value = mock_response
         twitch_adapter._session = mock_session
-        
+
         with pytest.raises(StreamOfflineError):
             async for _ in twitch_adapter.get_stream_data():
                 pass
 
-    @pytest.mark.asyncio 
+    @pytest.mark.asyncio
     async def test_twitch_analytics_with_hls(self, twitch_adapter):
         """Test Twitch analytics with HLS streaming data."""
         from src.utils.hls_parser import StreamManifest, HLSPlaylist, StreamQuality
-        
+
         # Mock HLS streaming state
-        quality = StreamQuality(resolution="1280x720", bandwidth=2500000, codecs="avc1.42001f")
+        quality = StreamQuality(
+            resolution="1280x720", bandwidth=2500000, codecs="avc1.42001f"
+        )
         playlist = HLSPlaylist(uri="720p.m3u8", quality=quality)
         manifest = StreamManifest(master_playlist_uri="master.m3u8")
         manifest.playlists = [playlist]
-        
+
         twitch_adapter.current_manifest = manifest
         twitch_adapter.current_playlist = playlist
         twitch_adapter.access_token = "test_token"
         twitch_adapter.preferred_quality = "720p"
-        
+
         analytics = await twitch_adapter.get_stream_analytics()
-        
+
         assert analytics["hls_enabled"] is True
-        assert analytics["current_quality"] == "720p" 
+        assert analytics["current_quality"] == "720p"
         assert analytics["available_qualities"] == 1
         assert analytics["preferred_quality"] == "720p"
         assert analytics["access_token_valid"] is True
@@ -575,7 +581,7 @@ class TestYouTubeAdapter:
         return YouTubeAdapter(
             "https://www.youtube.com/watch?v=dQw4w9WgXcQ", api_key="test_api_key"
         )
-    
+
     @pytest.fixture
     def mock_session(self):
         """Create a mock HTTP session."""
@@ -631,7 +637,7 @@ class TestYouTubeAdapter:
 
         with pytest.raises(RateLimitError):
             await youtube_adapter._make_api_request("videos")
-    
+
     @pytest.mark.asyncio
     async def test_youtube_hls_streaming(self, youtube_adapter, mock_session):
         """Test YouTube HLS streaming functionality."""
@@ -651,9 +657,9 @@ class TestYouTubeAdapter:
             },
             "statistics": {
                 "viewCount": "1000",
-            }
+            },
         }
-        
+
         # Mock HLS manifest content
         mock_manifest_content = """#EXTM3U
 #EXT-X-VERSION:3
@@ -662,7 +668,7 @@ class TestYouTubeAdapter:
 #EXT-X-STREAM-INF:BANDWIDTH=2560000,RESOLUTION=1280x720,CODECS="avc1.42001f,mp4a.40.2"
 1080p.m3u8
 """
-        
+
         # Mock playlist content
         mock_playlist_content = """#EXTM3U
 #EXT-X-VERSION:3
@@ -673,28 +679,30 @@ segment000.ts
 #EXTINF:10.0,
 segment001.ts
 """
-        
+
         # Mock segment data
         mock_segment_data = b"mock_video_segment_data"
-        
+
         # Set up mock responses
         mock_api_response = AsyncMock()
         mock_api_response.status = 200
         mock_api_response.json.return_value = {"items": [mock_live_stream]}
-        
+
         mock_manifest_response = AsyncMock()
         mock_manifest_response.status = 200
         mock_manifest_response.text.return_value = mock_manifest_content
-        
+
         mock_playlist_response = AsyncMock()
         mock_playlist_response.status = 200
         mock_playlist_response.text.return_value = mock_playlist_content
-        
+
         mock_segment_response = AsyncMock()
         mock_segment_response.status = 200
         mock_segment_response.content.iter_chunked.return_value = AsyncMock()
-        mock_segment_response.content.iter_chunked.return_value.__aiter__ = AsyncMock(return_value=iter([mock_segment_data]))
-        
+        mock_segment_response.content.iter_chunked.return_value.__aiter__ = AsyncMock(
+            return_value=iter([mock_segment_data])
+        )
+
         # Configure mock session to return appropriate responses
         mock_session.get.return_value.__aenter__.side_effect = [
             mock_api_response,  # API call
@@ -702,21 +710,21 @@ segment001.ts
             mock_playlist_response,  # Video playlist
             mock_segment_response,  # Video segment
         ]
-        
+
         youtube_adapter._session = mock_session
         youtube_adapter.api_key = "test_key"
-        
+
         # Test connection with HLS streaming
         success = await youtube_adapter.connect()
         assert success
         assert youtube_adapter.hls_manifest_url is not None
         assert youtube_adapter.current_manifest is not None
-        
+
         # Test getting available qualities
         qualities = await youtube_adapter.get_available_qualities()
         assert len(qualities) > 0
         assert "720p" in [q["name"] for q in qualities]
-        
+
         # Test streaming data (should get at least one chunk)
         data_received = False
         async for chunk in youtube_adapter.get_stream_data():
@@ -724,12 +732,12 @@ segment001.ts
             assert len(chunk) > 0
             data_received = True
             break  # Just test first chunk
-        
+
         assert data_received
-        
+
         # Clean up
         await youtube_adapter.disconnect()
-    
+
     @pytest.mark.asyncio
     async def test_youtube_stream_without_hls(self, youtube_adapter, mock_session):
         """Test YouTube adapter fallback when HLS is not available."""
@@ -749,63 +757,67 @@ segment001.ts
             },
             "statistics": {
                 "viewCount": "1000",
-            }
+            },
         }
-        
+
         mock_api_response = AsyncMock()
         mock_api_response.status = 200
         mock_api_response.json.return_value = {"items": [mock_live_stream]}
-        
+
         mock_session.get.return_value.__aenter__.return_value = mock_api_response
         youtube_adapter._session = mock_session
         youtube_adapter.api_key = "test_key"
-        
+
         # Test connection
         success = await youtube_adapter.connect()
         assert success
         assert youtube_adapter.hls_manifest_url is None
         assert youtube_adapter.current_manifest is None
-        
+
         # Test streaming data (should fall back to metadata)
         data_received = False
         async for chunk in youtube_adapter.get_stream_data():
             assert isinstance(chunk, bytes)
             # Should contain JSON metadata
-            data_str = chunk.decode('utf-8')
-            assert 'title' in data_str
-            assert 'Test Live Stream' in data_str
+            data_str = chunk.decode("utf-8")
+            assert "title" in data_str
+            assert "Test Live Stream" in data_str
             data_received = True
             break
-        
+
         assert data_received
-        
+
         # Clean up
         await youtube_adapter.disconnect()
-    
+
     @pytest.mark.asyncio
     async def test_youtube_quality_switching(self, youtube_adapter, mock_session):
         """Test YouTube quality switching functionality."""
         # Mock the adapter to have a manifest
         from src.utils.hls_parser import StreamManifest, HLSPlaylist, StreamQuality
-        
+
         # Create mock manifest with multiple qualities
-        quality_720p = StreamQuality(resolution="1280x720", bandwidth=2500000, codecs="avc1.42001f")
-        quality_480p = StreamQuality(resolution="854x480", bandwidth=1500000, codecs="avc1.42001e")
-        
+        quality_720p = StreamQuality(
+            resolution="1280x720", bandwidth=2500000, codecs="avc1.42001f"
+        )
+        quality_480p = StreamQuality(
+            resolution="854x480", bandwidth=1500000, codecs="avc1.42001e"
+        )
+
         playlist_720p = HLSPlaylist(uri="720p.m3u8", quality=quality_720p)
         playlist_480p = HLSPlaylist(uri="480p.m3u8", quality=quality_480p)
-        
+
         mock_manifest = StreamManifest(master_playlist_uri="master.m3u8")
         mock_manifest.playlists = [playlist_720p, playlist_480p]
-        
+
         youtube_adapter.current_manifest = mock_manifest
         youtube_adapter.preferred_quality = "best"
-        
+
         # Test quality switching
         success = await youtube_adapter.switch_quality("480p")
         assert success
         assert youtube_adapter.preferred_quality == "480p"
-        
+
         # Test invalid quality
         success = await youtube_adapter.switch_quality("invalid")
         # Should still succeed but not find exact match
@@ -828,7 +840,7 @@ class TestRTMPAdapter:
             app_name="live",
             stream_key="test_stream_key",
             hardware_acceleration=True,
-            enable_recording=True
+            enable_recording=True,
         )
 
     def test_rtmp_adapter_initialization(self, rtmp_adapter):
@@ -838,9 +850,9 @@ class TestRTMPAdapter:
         assert rtmp_adapter.path == "/live/stream_key"
         assert rtmp_adapter.scheme == "rtmp"
         assert rtmp_adapter.platform_name == "enhancedrtmp"
-        assert hasattr(rtmp_adapter, '_rtmp_protocol')
-        assert hasattr(rtmp_adapter, '_flv_processor')
-        assert hasattr(rtmp_adapter, '_ffmpeg_processor')
+        assert hasattr(rtmp_adapter, "_rtmp_protocol")
+        assert hasattr(rtmp_adapter, "_flv_processor")
+        assert hasattr(rtmp_adapter, "_ffmpeg_processor")
 
     def test_rtmp_adapter_with_options_initialization(self, rtmp_adapter_with_options):
         """Test RTMP adapter initialization with additional options."""
@@ -874,7 +886,7 @@ class TestRTMPAdapter:
         from src.utils.rtmp_protocol import RTMPProtocol
         from src.utils.flv_parser import FLVStreamProcessor
         from src.utils.ffmpeg_integration import FFmpegProcessor
-        
+
         assert isinstance(rtmp_adapter._rtmp_protocol, RTMPProtocol)
         assert isinstance(rtmp_adapter._flv_processor, FLVStreamProcessor)
         assert isinstance(rtmp_adapter._ffmpeg_processor, FFmpegProcessor)
@@ -884,7 +896,7 @@ class TestRTMPAdapter:
         """Test RTMP stream info initialization."""
         # Simulate reading stream info
         await rtmp_adapter._read_stream_info()
-        
+
         assert "connected_at" in rtmp_adapter._stream_info
         assert "url" in rtmp_adapter._stream_info
         assert "hostname" in rtmp_adapter._stream_info
@@ -895,7 +907,7 @@ class TestRTMPAdapter:
     async def test_rtmp_analytics(self, rtmp_adapter):
         """Test RTMP analytics retrieval."""
         analytics = await rtmp_adapter.get_stream_analytics()
-        
+
         assert analytics["platform"] == "enhanced_rtmp"
         assert analytics["hostname"] == rtmp_adapter.hostname
         assert analytics["port"] == rtmp_adapter.port
@@ -910,20 +922,20 @@ class TestRTMPAdapter:
         # Initially no frames
         frames = await rtmp_adapter.get_recent_frames()
         assert len(frames) == 0
-        
+
         # Simulate adding some frames
         rtmp_adapter._video_frames = [
             (b"frame1", 1.0, True),
             (b"frame2", 2.0, False),
-            (b"frame3", 3.0, True)
+            (b"frame3", 3.0, True),
         ]
-        
+
         # Test getting recent frames
         frames = await rtmp_adapter.get_recent_frames(2)
         assert len(frames) == 2
         assert frames[0][1] == 2.0  # timestamp of second frame
         assert frames[1][1] == 3.0  # timestamp of third frame
-        
+
         # Test getting frame at timestamp
         frame = await rtmp_adapter.get_frame_at_timestamp(2.1)
         assert frame is not None
@@ -935,7 +947,7 @@ class TestRTMPAdapter:
         rtmp_adapter.connection.status = ConnectionStatus.DISCONNECTED
         health = asyncio.run(rtmp_adapter.check_health())
         assert health == StreamHealth.UNHEALTHY
-        
+
         # Test when connected but no protocol handshake
         rtmp_adapter.connection.status = ConnectionStatus.CONNECTED
         rtmp_adapter._rtmp_protocol.handshake_complete = False
@@ -947,13 +959,13 @@ class TestRTMPAdapter:
         """Test RTMP background task management."""
         # Start background processing
         await rtmp_adapter._start_background_processing()
-        
+
         # Check tasks are created (though they will fail without real connection)
         assert rtmp_adapter._message_processing_task is not None
-        
+
         # Stop background processing
         await rtmp_adapter._stop_background_processing()
-        
+
         # Check tasks are cleaned up
         assert rtmp_adapter._message_processing_task is None
 
@@ -997,6 +1009,7 @@ class TestStreamAdapterFactory:
         """Test factory with unsupported platform."""
         # Test invalid URL that doesn't match any platform
         from src.utils.stream_validation import ValidationError
+
         with pytest.raises(ValidationError, match="Unsupported or invalid stream URL"):
             StreamAdapterFactory.create_adapter("https://unknown-platform.com/stream")
 

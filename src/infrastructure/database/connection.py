@@ -24,11 +24,11 @@ logger = logging.getLogger(__name__)
 
 class DatabaseManager:
     """Manages database connections and sessions using singleton pattern.
-    
+
     This class encapsulates database connectivity as an infrastructure concern,
     providing both async and sync interfaces for different use cases.
     """
-    
+
     def __init__(self):
         self._async_engine: Optional[AsyncEngine] = None
         self._async_sessionmaker: Optional[async_sessionmaker] = None
@@ -71,7 +71,7 @@ class DatabaseManager:
             sync_url = str(settings.database_url).replace(
                 "postgresql+asyncpg://", "postgresql://"
             )
-            
+
             self._sync_engine = create_engine(
                 sync_url,
                 echo=settings.database_echo,
@@ -96,12 +96,12 @@ class DatabaseManager:
 
     async def init_db(self) -> None:
         """Initialize database tables.
-        
+
         Creates all tables defined in the models if they don't exist.
         Should be called on application startup.
         """
         from src.infrastructure.persistence.models.base import Base
-        
+
         # Import all models to ensure they're registered with Base
         from src.infrastructure.persistence.models import (  # noqa: F401
             APIKey,
@@ -117,7 +117,7 @@ class DatabaseManager:
 
         async with self.async_engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
-            
+
         logger.info("Database tables initialized")
 
     async def close_async(self) -> None:
@@ -143,7 +143,7 @@ _db_manager = DatabaseManager()
 
 async def get_async_session() -> AsyncSession:
     """Get an async database session.
-    
+
     Returns:
         AsyncSession: Database session for async operations
     """
@@ -152,7 +152,7 @@ async def get_async_session() -> AsyncSession:
 
 def get_sync_session() -> Session:
     """Get a sync database session.
-    
+
     Returns:
         Session: Database session for sync operations
     """
@@ -161,7 +161,7 @@ def get_sync_session() -> Session:
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """Dependency for FastAPI to get database session.
-    
+
     This follows FastAPI's dependency injection pattern while
     maintaining clean separation of infrastructure concerns.
 
@@ -188,7 +188,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 @asynccontextmanager
 async def get_db_context() -> AsyncGenerator[AsyncSession, None]:
     """Context manager for database session outside of FastAPI requests.
-    
+
     This provides a Pythonic way to manage database sessions
     in background tasks, scripts, or tests.
 
@@ -214,13 +214,13 @@ async def get_db_context() -> AsyncGenerator[AsyncSession, None]:
 @contextmanager
 def get_db_session() -> Generator[Session, None, None]:
     """Context manager for synchronous database session.
-    
+
     This is used for Celery tasks and other synchronous contexts,
     providing the same transaction management as the async version.
-    
+
     Yields:
         Session: Database session
-        
+
     Example:
         with get_db_session() as db:
             user = db.query(User).first()

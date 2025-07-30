@@ -1,26 +1,25 @@
 """Mapper for webhook event entities."""
 
-from typing import Optional
 
 from src.domain.entities.webhook_event import (
     WebhookEvent as DomainWebhookEvent,
-    WebhookEventStatus,
-    WebhookEventType
 )
 from src.domain.value_objects.timestamp import Timestamp
-from src.infrastructure.persistence.models.webhook_event import WebhookEvent as PersistenceWebhookEvent
+from src.infrastructure.persistence.models.webhook_event import (
+    WebhookEvent as PersistenceWebhookEvent,
+)
 from src.infrastructure.persistence.mappers.base import Mapper
 
 
 class WebhookEventMapper(Mapper[DomainWebhookEvent, PersistenceWebhookEvent]):
     """Maps between domain and persistence webhook event models."""
-    
+
     def to_domain(self, model: PersistenceWebhookEvent) -> DomainWebhookEvent:
         """Convert persistence model to domain entity.
-        
+
         Args:
             model: Persistence webhook event model
-            
+
         Returns:
             Domain webhook event entity
         """
@@ -38,15 +37,15 @@ class WebhookEventMapper(Mapper[DomainWebhookEvent, PersistenceWebhookEvent]):
             retry_count=model.retry_count,
             received_at=Timestamp(model.received_at),
             created_at=Timestamp(model.created_at),
-            updated_at=Timestamp(model.updated_at)
+            updated_at=Timestamp(model.updated_at),
         )
-    
+
     def to_persistence(self, entity: DomainWebhookEvent) -> PersistenceWebhookEvent:
         """Convert domain entity to persistence model.
-        
+
         Args:
             entity: Domain webhook event entity
-            
+
         Returns:
             Persistence webhook event model
         """
@@ -64,5 +63,5 @@ class WebhookEventMapper(Mapper[DomainWebhookEvent, PersistenceWebhookEvent]):
             retry_count=entity.retry_count,
             received_at=entity.received_at.value,
             created_at=entity.created_at.value,
-            updated_at=entity.updated_at.value
+            updated_at=entity.updated_at.value,
         )

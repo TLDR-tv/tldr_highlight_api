@@ -16,10 +16,11 @@ from .base import Entity
 @dataclass
 class KeywordConfig:
     """Configuration for keyword-based highlight detection."""
+
     high_priority: List[str] = field(default_factory=list)
     medium_priority: List[str] = field(default_factory=list)
     low_priority: List[str] = field(default_factory=list)
-    
+
     def get_priority_score(self, keyword: str) -> float:
         """Get priority score for a keyword."""
         if keyword.lower() in [k.lower() for k in self.high_priority]:
@@ -34,8 +35,9 @@ class KeywordConfig:
 @dataclass
 class ContextModifiers:
     """Configuration for context-based score modifications."""
+
     modifiers: Dict[str, float] = field(default_factory=dict)
-    
+
     def apply_modifier(self, context_type: str, base_score: float) -> float:
         """Apply context modifier to base score."""
         modifier = self.modifiers.get(context_type, 0.0)
@@ -45,6 +47,7 @@ class ContextModifiers:
 @dataclass
 class TimingConfig:
     """Configuration for highlight timing and spacing."""
+
     min_highlight_duration: int = 30  # seconds
     max_highlight_duration: int = 90  # seconds
     typical_highlight_duration: int = 60  # seconds
@@ -56,26 +59,26 @@ class TimingConfig:
 @dataclass
 class HighlightAgentConfig(Entity[int]):
     """Configuration for highlight detection agents.
-    
+
     This entity allows B2B consumers to customize how highlights are detected
     and scored for their specific content and audience.
     """
-    
+
     # Basic identification
     name: str
     description: str
     organization_id: int
     user_id: int
-    
+
     # Content configuration
     content_type: str = "gaming"  # gaming, sports, general, etc.
     game_name: Optional[str] = None
-    
+
     # AI Analysis configuration
     prompt_template: ConfigurablePromptTemplate = field(
         default_factory=lambda: ConfigurablePromptTemplate.default()
     )
-    
+
     # Scoring configuration
     dimension_weights: DimensionWeights = field(
         default_factory=lambda: DimensionWeights.default()
@@ -83,26 +86,26 @@ class HighlightAgentConfig(Entity[int]):
     score_thresholds: ScoreThresholds = field(
         default_factory=lambda: ScoreThresholds.default()
     )
-    
+
     # Keyword and context configuration
     keyword_config: KeywordConfig = field(default_factory=KeywordConfig)
     context_modifiers: ContextModifiers = field(default_factory=ContextModifiers)
-    
+
     # Timing and quality configuration
     timing_config: TimingConfig = field(default_factory=TimingConfig)
     min_confidence_threshold: float = 0.7
     similarity_threshold: float = 0.6  # for avoiding duplicate highlights
-    
+
     # Operational settings
     is_active: bool = True
     version: int = 1
     created_at: datetime = field(default_factory=datetime.utcnow)
     updated_at: datetime = field(default_factory=datetime.utcnow)
-    
+
     # Usage tracking
     highlights_generated: int = 0
     last_used_at: Optional[datetime] = None
-    
+
     def update_configuration(
         self,
         name: Optional[str] = None,
@@ -114,7 +117,7 @@ class HighlightAgentConfig(Entity[int]):
         context_modifiers: Optional[ContextModifiers] = None,
         timing_config: Optional[TimingConfig] = None,
         min_confidence_threshold: Optional[float] = None,
-        similarity_threshold: Optional[float] = None
+        similarity_threshold: Optional[float] = None,
     ) -> None:
         """Update configuration settings."""
         if name is not None:
@@ -137,16 +140,18 @@ class HighlightAgentConfig(Entity[int]):
             self.min_confidence_threshold = min_confidence_threshold
         if similarity_threshold is not None:
             self.similarity_threshold = similarity_threshold
-            
+
         self.version += 1
         self.updated_at = datetime.utcnow()
-    
+
     def record_usage(self) -> None:
         """Record that this configuration was used to generate a highlight."""
         self.highlights_generated += 1
         self.last_used_at = datetime.utcnow()
-    
-    def clone_for_organization(self, new_organization_id: int, new_user_id: int) -> 'HighlightAgentConfig':
+
+    def clone_for_organization(
+        self, new_organization_id: int, new_user_id: int
+    ) -> "HighlightAgentConfig":
         """Create a copy of this configuration for another organization."""
         return HighlightAgentConfig(
             id=None,  # New entity
@@ -166,92 +171,113 @@ class HighlightAgentConfig(Entity[int]):
             similarity_threshold=self.similarity_threshold,
             version=1,
             highlights_generated=0,
-            last_used_at=None
+            last_used_at=None,
         )
-    
+
     def validate_configuration(self) -> List[str]:
         """Validate the configuration and return any errors."""
         errors = []
-        
+
         # Validate thresholds
         if not (0.0 <= self.min_confidence_threshold <= 1.0):
             errors.append("min_confidence_threshold must be between 0.0 and 1.0")
-        
+
         if not (0.0 <= self.similarity_threshold <= 1.0):
             errors.append("similarity_threshold must be between 0.0 and 1.0")
-        
+
         # Validate timing
-        if self.timing_config.min_highlight_duration >= self.timing_config.max_highlight_duration:
-            errors.append("min_highlight_duration must be less than max_highlight_duration")
-        
+        if (
+            self.timing_config.min_highlight_duration
+            >= self.timing_config.max_highlight_duration
+        ):
+            errors.append(
+                "min_highlight_duration must be less than max_highlight_duration"
+            )
+
         if self.timing_config.min_spacing_seconds < 0:
             errors.append("min_spacing_seconds must be non-negative")
-        
+
         if self.timing_config.max_per_5min_window <= 0:
             errors.append("max_per_5min_window must be positive")
-        
+
         # Validate dimension weights sum to 1.0
-        total_weight = sum([
-            self.dimension_weights.skill_execution,
-            self.dimension_weights.game_impact,
-            self.dimension_weights.rarity,
-            self.dimension_weights.visual_spectacle,
-            self.dimension_weights.emotional_intensity,
-            self.dimension_weights.narrative_value,
-            self.dimension_weights.timing_importance,
-            self.dimension_weights.momentum_shift
-        ])
-        
+        total_weight = sum(
+            [
+                self.dimension_weights.skill_execution,
+                self.dimension_weights.game_impact,
+                self.dimension_weights.rarity,
+                self.dimension_weights.visual_spectacle,
+                self.dimension_weights.emotional_intensity,
+                self.dimension_weights.narrative_value,
+                self.dimension_weights.timing_importance,
+                self.dimension_weights.momentum_shift,
+            ]
+        )
+
         if abs(total_weight - 1.0) > 0.01:  # Allow small floating point errors
-            errors.append(f"Dimension weights must sum to 1.0 (current sum: {total_weight:.3f})")
-        
+            errors.append(
+                f"Dimension weights must sum to 1.0 (current sum: {total_weight:.3f})"
+            )
+
         return errors
-    
+
     def get_effective_prompt(self, context: Dict[str, Any]) -> str:
         """Get the effective prompt with context substitutions."""
         return self.prompt_template.render(context)
-    
+
     def calculate_highlight_score(
         self,
         dimensions: Dict[str, float],
         keywords: List[str] = None,
-        context_type: Optional[str] = None
+        context_type: Optional[str] = None,
     ) -> float:
         """Calculate a highlight score using this configuration.
-        
+
         Args:
             dimensions: Dictionary of dimension scores (0.0-1.0)
             keywords: Optional list of detected keywords
             context_type: Optional context for applying modifiers
-            
+
         Returns:
             Final highlight score (0.0-1.0)
         """
         # Calculate weighted dimension score
         weighted_score = (
-            dimensions.get('skill_execution', 0) * self.dimension_weights.skill_execution +
-            dimensions.get('game_impact', 0) * self.dimension_weights.game_impact +
-            dimensions.get('rarity', 0) * self.dimension_weights.rarity +
-            dimensions.get('visual_spectacle', 0) * self.dimension_weights.visual_spectacle +
-            dimensions.get('emotional_intensity', 0) * self.dimension_weights.emotional_intensity +
-            dimensions.get('narrative_value', 0) * self.dimension_weights.narrative_value +
-            dimensions.get('timing_importance', 0) * self.dimension_weights.timing_importance +
-            dimensions.get('momentum_shift', 0) * self.dimension_weights.momentum_shift
+            dimensions.get("skill_execution", 0)
+            * self.dimension_weights.skill_execution
+            + dimensions.get("game_impact", 0) * self.dimension_weights.game_impact
+            + dimensions.get("rarity", 0) * self.dimension_weights.rarity
+            + dimensions.get("visual_spectacle", 0)
+            * self.dimension_weights.visual_spectacle
+            + dimensions.get("emotional_intensity", 0)
+            * self.dimension_weights.emotional_intensity
+            + dimensions.get("narrative_value", 0)
+            * self.dimension_weights.narrative_value
+            + dimensions.get("timing_importance", 0)
+            * self.dimension_weights.timing_importance
+            + dimensions.get("momentum_shift", 0)
+            * self.dimension_weights.momentum_shift
         )
-        
+
         # Apply keyword boosts
         if keywords:
-            keyword_boost = max([self.keyword_config.get_priority_score(kw) for kw in keywords])
+            keyword_boost = max(
+                [self.keyword_config.get_priority_score(kw) for kw in keywords]
+            )
             weighted_score = min(1.0, weighted_score + (keyword_boost * 0.1))
-        
+
         # Apply context modifiers
         if context_type:
-            weighted_score = self.context_modifiers.apply_modifier(context_type, weighted_score)
-        
+            weighted_score = self.context_modifiers.apply_modifier(
+                context_type, weighted_score
+            )
+
         return min(1.0, max(0.0, weighted_score))
-    
+
     @staticmethod
-    def create_default_gaming_config(organization_id: int, user_id: int) -> 'HighlightAgentConfig':
+    def create_default_gaming_config(
+        organization_id: int, user_id: int
+    ) -> "HighlightAgentConfig":
         """Create a default configuration optimized for gaming content."""
         return HighlightAgentConfig(
             id=None,
@@ -263,20 +289,22 @@ class HighlightAgentConfig(Entity[int]):
             keyword_config=KeywordConfig(
                 high_priority=["ace", "clutch", "epic", "insane", "amazing", "perfect"],
                 medium_priority=["nice", "good", "win", "kill", "combo", "streak"],
-                low_priority=["play", "move", "shot", "hit", "score"]
+                low_priority=["play", "move", "shot", "hit", "score"],
             ),
             context_modifiers=ContextModifiers(
                 modifiers={
                     "overtime": 0.15,
                     "final_round": 0.2,
                     "comeback": 0.1,
-                    "tournament": 0.05
+                    "tournament": 0.05,
                 }
-            )
+            ),
         )
-    
+
     @staticmethod
-    def create_valorant_config(organization_id: int, user_id: int) -> 'HighlightAgentConfig':
+    def create_valorant_config(
+        organization_id: int, user_id: int
+    ) -> "HighlightAgentConfig":
         """Create a configuration optimized for Valorant content."""
         return HighlightAgentConfig(
             id=None,
@@ -294,16 +322,22 @@ class HighlightAgentConfig(Entity[int]):
                 emotional_intensity=0.10,
                 narrative_value=0.05,
                 timing_importance=0.05,
-                momentum_shift=0.05
+                momentum_shift=0.05,
             ),
             keyword_config=KeywordConfig(
                 high_priority=["ace", "1v4", "1v5", "flawless", "ninja defuse"],
-                medium_priority=["clutch", "triple kill", "headshot", "wallbang", "one tap"],
-                low_priority=["double kill", "first blood", "save round"]
+                medium_priority=[
+                    "clutch",
+                    "triple kill",
+                    "headshot",
+                    "wallbang",
+                    "one tap",
+                ],
+                low_priority=["double kill", "first blood", "save round"],
             ),
             timing_config=TimingConfig(
                 min_highlight_duration=30,
                 max_highlight_duration=60,
-                typical_highlight_duration=45
-            )
+                typical_highlight_duration=45,
+            ),
         )

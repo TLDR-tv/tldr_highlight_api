@@ -91,13 +91,13 @@ class Stream(Base, TimestampMixin):
         index=True,
         comment="Foreign key to the user who created this stream",
     )
-    
+
     dimension_set_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("dimension_sets.id"),
         nullable=True,
         comment="Optional custom dimension set for flexible highlight detection",
     )
-    
+
     type_registry_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("highlight_type_registries.id"),
         nullable=True,
@@ -120,7 +120,7 @@ class Stream(Base, TimestampMixin):
         cascade="all, delete-orphan",
         lazy="selectin",
     )
-    
+
     webhook_events: Mapped[List["WebhookEvent"]] = relationship(
         "WebhookEvent",
         back_populates="stream",

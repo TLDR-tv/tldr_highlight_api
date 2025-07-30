@@ -175,7 +175,9 @@ class TestStreamCapture:
         """Test StreamCapture initialization."""
         assert stream_capture.stream_url == "rtmp://test.stream/url"
         assert stream_capture.buffer_size == 5
-        assert stream_capture.frame_buffer.maxsize == 5  # Queue uses maxsize, not maxlen
+        assert (
+            stream_capture.frame_buffer.maxsize == 5
+        )  # Queue uses maxsize, not maxlen
         assert stream_capture.is_running is False
         assert stream_capture.capture_task is None
 

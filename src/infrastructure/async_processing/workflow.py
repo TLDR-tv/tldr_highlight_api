@@ -153,9 +153,7 @@ class StreamProcessingWorkflow:
                 raise ValueError(f"Unknown workflow: {workflow_name}")
 
             # Create execution context
-            execution_id = (
-                f"{workflow_name}_{stream_id}_{int(datetime.now(timezone.utc).timestamp())}"
-            )
+            execution_id = f"{workflow_name}_{stream_id}_{int(datetime.now(timezone.utc).timestamp())}"
 
             execution_context = {
                 "execution_id": execution_id,

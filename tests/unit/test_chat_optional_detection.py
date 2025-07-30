@@ -6,23 +6,15 @@ when chat data is unavailable, ensuring chat analysis is only supplementary.
 """
 
 import pytest
-from typing import Dict, List
-from unittest.mock import Mock, patch
 
 from src.services.highlight_detection.base_detector import (
-    ContentSegment,
     DetectionResult,
-    HighlightCandidate,
     ModalityType,
 )
 from src.services.highlight_detection.fusion_scorer import (
     FusionScorer,
     FusionConfig,
     FusionMethod,
-)
-from src.services.highlight_detection.gemini_detector import (
-    GeminiDetector,
-    GeminiDetectionConfig,
 )
 
 
@@ -75,7 +67,10 @@ class TestChatOptionalDetection:
             modality=ModalityType.CHAT,
             score=0.9,
             confidence=0.95,
-            features={"message_spike": 1.0, "sentiment_score": 0.8},  # Features must be floats
+            features={
+                "message_spike": 1.0,
+                "sentiment_score": 0.8,
+            },  # Features must be floats
             metadata={"start_time": 10.0, "end_time": 20.0, "sentiment": "positive"},
         )
 
@@ -109,7 +104,11 @@ class TestChatOptionalDetection:
 
     @pytest.mark.asyncio
     async def test_fusion_with_chat_bonus(
-        self, fusion_config, sample_video_result, sample_audio_result, sample_chat_result
+        self,
+        fusion_config,
+        sample_video_result,
+        sample_audio_result,
+        sample_chat_result,
     ):
         """Test that chat provides bonus scoring when available."""
         # Update config to include chat weight
@@ -158,9 +157,11 @@ class TestChatOptionalDetection:
 
         # Calculate expected score without chat penalty
         base_score = (0.8 * 0.5 + 0.75 * 0.5) / (0.5 + 0.5)
-        
+
         # Score should not be significantly penalized for missing chat
-        assert candidate.score >= base_score * 0.9  # Allow max 10% reduction for other factors
+        assert (
+            candidate.score >= base_score * 0.9
+        )  # Allow max 10% reduction for other factors
 
     @pytest.mark.asyncio
     async def test_single_modality_detection(self, fusion_config, sample_video_result):
@@ -177,7 +178,7 @@ class TestChatOptionalDetection:
         # Should still produce candidates (with penalties)
         assert len(candidates) > 0
         candidate = candidates[0]
-        
+
         # Score will be penalized for missing audio
         assert candidate.score < sample_video_result.score
         assert len(candidate.modality_results) == 1
@@ -202,11 +203,11 @@ class TestChatOptionalDetection:
         assert "reason" in result["chat_analysis"]
         assert result["chat_analysis"]["sentiment_score"] == 0.0
         assert result["chat_analysis"]["message_count"] == 0
-        
+
         # Verify other modalities were processed
         assert "video_features" in result
         assert "audio_features" in result
-        
+
         # Verify modalities list doesn't include chat
         assert "video" in result["processing_metadata"]["modalities_available"]
         assert "audio" in result["processing_metadata"]["modalities_available"]
@@ -215,14 +216,14 @@ class TestChatOptionalDetection:
     def test_fusion_config_defaults(self):
         """Test that default fusion config has correct weights."""
         config = FusionConfig()
-        
+
         # Video and audio should have equal weight by default
         assert config.video_weight == 0.5
         assert config.audio_weight == 0.5
-        
+
         # Chat should have no weight by default (bonus only)
         assert config.chat_weight == 0.0
-        
+
         # Should not require multiple modalities
         assert config.require_multiple_modalities is False
 
@@ -233,15 +234,15 @@ class TestChatOptionalDetection:
             audio_weight=0.6,
             chat_weight=0.3,  # Bonus weight
         )
-        
+
         normalized = config.normalized_weights
-        
+
         # Video and audio should be normalized to sum to 1.0
         # 0.4 / (0.4 + 0.6) = 0.4
         # 0.6 / (0.4 + 0.6) = 0.6
         assert abs(normalized[ModalityType.VIDEO] - 0.4) < 0.01
         assert abs(normalized[ModalityType.AUDIO] - 0.6) < 0.01
-        
+
         # Chat weight should remain as bonus (not normalized)
         assert normalized[ModalityType.CHAT] == 0.3
 

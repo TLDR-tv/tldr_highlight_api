@@ -2,8 +2,7 @@
 
 import asyncio
 import pytest
-from unittest.mock import Mock, patch, call
-import time
+from unittest.mock import Mock, patch
 
 from src.infrastructure.observability.logfire_decorators import (
     traced,
@@ -12,8 +11,6 @@ from src.infrastructure.observability.logfire_decorators import (
     log_event,
     traced_api_endpoint,
     traced_service_method,
-    traced_repository_method,
-    traced_background_task,
     traced_use_case,
 )
 
@@ -127,10 +124,11 @@ class TestTimedDecorator:
 
         # Verify
         assert result == "done"
-        
+
         # Check metric was logged
         metric_calls = [
-            call for call in mock_logfire.info.call_args_list
+            call
+            for call in mock_logfire.info.call_args_list
             if "metric.test.duration" in call[0]
         ]
         assert len(metric_calls) == 1
@@ -141,6 +139,7 @@ class TestTimedDecorator:
     @pytest.mark.asyncio
     async def test_timed_async_function_with_error(self, mock_logfire):
         """Test timing an async function that errors."""
+
         @timed(metric_name="test.duration", include_errors=True)
         async def test_func():
             await asyncio.sleep(0.01)
@@ -152,7 +151,8 @@ class TestTimedDecorator:
 
         # Verify error counter was incremented
         error_calls = [
-            call for call in mock_logfire.info.call_args_list
+            call
+            for call in mock_logfire.info.call_args_list
             if "metric.test.duration.errors" in call[0]
         ]
         assert len(error_calls) == 1
@@ -203,6 +203,7 @@ class TestLogEventDecorator:
     @patch("src.infrastructure.observability.logfire_decorators.logfire")
     def test_log_event_sync(self, mock_logfire):
         """Test logging events from sync functions."""
+
         @log_event("user_action", action="create_stream")
         def test_func(stream_id):
             return stream_id
@@ -222,6 +223,7 @@ class TestLogEventDecorator:
     @pytest.mark.asyncio
     async def test_log_event_async(self, mock_logfire):
         """Test logging events from async functions."""
+
         @log_event("api_call", endpoint="/streams")
         async def test_func():
             await asyncio.sleep(0.01)
@@ -331,7 +333,8 @@ class TestDecoratorEdgeCases:
 
         # Verify result was truncated
         result_calls = [
-            call for call in mock_span.set_attribute.call_args_list
+            call
+            for call in mock_span.set_attribute.call_args_list
             if call[0][0] == "result"
         ]
         assert len(result_calls) == 1

@@ -9,7 +9,6 @@ import hashlib
 import logging
 import mimetypes
 from contextlib import asynccontextmanager
-from pathlib import Path
 from typing import Any, AsyncGenerator, BinaryIO, Optional, Union, Dict, List
 from dataclasses import dataclass
 from datetime import datetime
@@ -26,6 +25,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class StorageObject:
     """Information about a stored object."""
+
     key: str
     size: int
     last_modified: datetime
@@ -37,6 +37,7 @@ class StorageObject:
 @dataclass
 class PresignedUrl:
     """Presigned URL information."""
+
     url: str
     expires_at: datetime
     method: str
@@ -44,7 +45,7 @@ class PresignedUrl:
 
 class S3Storage:
     """S3/MinIO storage service with async operations and retry logic.
-    
+
     This class provides infrastructure-level storage operations,
     keeping storage concerns separate from business logic.
     """
@@ -73,7 +74,7 @@ class S3Storage:
     @asynccontextmanager
     async def _get_client(self) -> AsyncGenerator[Any, None]:
         """Get S3 client with connection management.
-        
+
         This context manager ensures proper resource cleanup
         following Pythonic patterns.
         """
@@ -81,7 +82,9 @@ class S3Storage:
 
         async with session.client(
             "s3",
-            endpoint_url=str(settings.s3_endpoint_url) if settings.s3_endpoint_url else None,
+            endpoint_url=str(settings.s3_endpoint_url)
+            if settings.s3_endpoint_url
+            else None,
             aws_access_key_id=settings.s3_access_key_id,
             aws_secret_access_key=settings.s3_secret_access_key,
             config=self._config,
@@ -90,10 +93,10 @@ class S3Storage:
 
     async def ensure_bucket_exists(self, bucket_name: str) -> bool:
         """Ensure S3 bucket exists, creating if necessary.
-        
+
         Args:
             bucket_name: Name of the bucket
-            
+
         Returns:
             True if bucket exists or was created successfully
         """
@@ -124,15 +127,12 @@ class S3Storage:
         else:
             await client.create_bucket(
                 Bucket=bucket_name,
-                CreateBucketConfiguration={
-                    "LocationConstraint": settings.s3_region
-                },
+                CreateBucketConfiguration={"LocationConstraint": settings.s3_region},
             )
 
         # Enable versioning
         await client.put_bucket_versioning(
-            Bucket=bucket_name,
-            VersioningConfiguration={"Status": "Enabled"}
+            Bucket=bucket_name, VersioningConfiguration={"Status": "Enabled"}
         )
 
         # Set lifecycle for temp buckets
@@ -144,12 +144,14 @@ class S3Storage:
         await client.put_bucket_lifecycle_configuration(
             Bucket=bucket_name,
             LifecycleConfiguration={
-                "Rules": [{
-                    "ID": "delete-temp-files",
-                    "Status": "Enabled",
-                    "Expiration": {"Days": 7},
-                    "Filter": {"Prefix": ""},
-                }]
+                "Rules": [
+                    {
+                        "ID": "delete-temp-files",
+                        "Status": "Enabled",
+                        "Expiration": {"Days": 7},
+                        "Filter": {"Prefix": ""},
+                    }
+                ]
             },
         )
 
@@ -163,7 +165,7 @@ class S3Storage:
         tags: Optional[Dict[str, str]] = None,
     ) -> Optional[str]:
         """Upload data to S3.
-        
+
         Args:
             data: File data as bytes or file-like object
             bucket: Bucket name
@@ -171,7 +173,7 @@ class S3Storage:
             content_type: MIME type
             metadata: Object metadata
             tags: Object tags
-            
+
         Returns:
             Object URL if successful, None otherwise
         """
@@ -182,10 +184,13 @@ class S3Storage:
 
             # Auto-detect content type
             if not content_type:
-                content_type = mimetypes.guess_type(key)[0] or "application/octet-stream"
+                content_type = (
+                    mimetypes.guess_type(key)[0] or "application/octet-stream"
+                )
 
             # Calculate MD5 for integrity
             import base64
+
             md5_hash = base64.b64encode(hashlib.md5(data).digest()).decode()
 
             async with self._get_client() as client:
@@ -210,7 +215,7 @@ class S3Storage:
 
                 # Generate URL
                 url = self._generate_object_url(bucket, key)
-                
+
                 logger.info(
                     f"Uploaded {len(data)} bytes to {bucket}/{key} "
                     f"(ETag: {response.get('ETag')})"
@@ -223,11 +228,11 @@ class S3Storage:
 
     async def download(self, bucket: str, key: str) -> Optional[bytes]:
         """Download data from S3.
-        
+
         Args:
             bucket: Bucket name
             key: Object key
-            
+
         Returns:
             File data as bytes if successful, None otherwise
         """
@@ -250,11 +255,11 @@ class S3Storage:
 
     async def delete(self, bucket: str, key: str) -> bool:
         """Delete object from S3.
-        
+
         Args:
             bucket: Bucket name
             key: Object key
-            
+
         Returns:
             True if successful
         """
@@ -270,11 +275,11 @@ class S3Storage:
 
     async def exists(self, bucket: str, key: str) -> bool:
         """Check if object exists in S3.
-        
+
         Args:
             bucket: Bucket name
             key: Object key
-            
+
         Returns:
             True if object exists
         """
@@ -294,18 +299,18 @@ class S3Storage:
 
     async def get_object_info(self, bucket: str, key: str) -> Optional[StorageObject]:
         """Get object metadata from S3.
-        
+
         Args:
             bucket: Bucket name
             key: Object key
-            
+
         Returns:
             StorageObject with metadata if successful
         """
         try:
             async with self._get_client() as client:
                 response = await client.head_object(Bucket=bucket, Key=key)
-                
+
                 return StorageObject(
                     key=key,
                     size=response.get("ContentLength", 0),
@@ -330,12 +335,12 @@ class S3Storage:
         limit: int = 1000,
     ) -> List[StorageObject]:
         """List objects in S3 bucket.
-        
+
         Args:
             bucket: Bucket name
             prefix: Optional prefix to filter objects
             limit: Maximum number of objects to return
-            
+
         Returns:
             List of StorageObject instances
         """
@@ -350,12 +355,14 @@ class S3Storage:
 
                 async for page in paginator.paginate(**config):
                     for obj in page.get("Contents", []):
-                        objects.append(StorageObject(
-                            key=obj["Key"],
-                            size=obj["Size"],
-                            last_modified=obj["LastModified"],
-                            etag=obj["ETag"].strip('"'),
-                        ))
+                        objects.append(
+                            StorageObject(
+                                key=obj["Key"],
+                                size=obj["Size"],
+                                last_modified=obj["LastModified"],
+                                etag=obj["ETag"].strip('"'),
+                            )
+                        )
 
                         if len(objects) >= limit:
                             break
@@ -363,7 +370,9 @@ class S3Storage:
                     if len(objects) >= limit:
                         break
 
-                logger.info(f"Listed {len(objects)} objects from {bucket}/{prefix or ''}")
+                logger.info(
+                    f"Listed {len(objects)} objects from {bucket}/{prefix or ''}"
+                )
 
         except Exception as e:
             logger.error(f"Failed to list objects in {bucket}/{prefix or ''}: {e}")
@@ -378,37 +387,37 @@ class S3Storage:
         method: str = "GET",
     ) -> Optional[PresignedUrl]:
         """Generate presigned URL for direct access.
-        
+
         Args:
             bucket: Bucket name
             key: Object key
             expiration: URL expiration in seconds
             method: HTTP method (GET or PUT)
-            
+
         Returns:
             PresignedUrl if successful
         """
         try:
             async with self._get_client() as client:
                 client_method = "get_object" if method == "GET" else "put_object"
-                
+
                 url = await client.generate_presigned_url(
                     ClientMethod=client_method,
                     Params={"Bucket": bucket, "Key": key},
                     ExpiresIn=expiration,
                 )
-                
+
                 expires_at = datetime.utcnow().timestamp() + expiration
-                
+
                 logger.info(
                     f"Generated presigned {method} URL for {bucket}/{key} "
                     f"(expires in {expiration}s)"
                 )
-                
+
                 return PresignedUrl(
                     url=url,
                     expires_at=datetime.fromtimestamp(expires_at),
-                    method=method
+                    method=method,
                 )
 
         except Exception as e:
@@ -423,13 +432,13 @@ class S3Storage:
         dest_key: str,
     ) -> bool:
         """Copy object within or between buckets.
-        
+
         Args:
             source_bucket: Source bucket name
             source_key: Source object key
             dest_bucket: Destination bucket name
             dest_key: Destination object key
-            
+
         Returns:
             True if successful
         """
@@ -458,13 +467,13 @@ class S3Storage:
         dest_key: str,
     ) -> bool:
         """Move object within or between buckets.
-        
+
         Args:
             source_bucket: Source bucket name
             source_key: Source object key
             dest_bucket: Destination bucket name
             dest_key: Destination object key
-            
+
         Returns:
             True if successful
         """
@@ -486,7 +495,7 @@ _storage_instance: Optional[S3Storage] = None
 
 def get_storage_service() -> S3Storage:
     """Get or create the global storage service instance.
-    
+
     This follows the singleton pattern for connection reuse.
     """
     global _storage_instance

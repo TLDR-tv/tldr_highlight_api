@@ -6,15 +6,15 @@ component using Pythonic patterns.
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime
 from enum import Enum
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Any
 
 logger = logging.getLogger(__name__)
 
 
 class SentimentScore(str, Enum):
     """Sentiment score categories."""
+
     VERY_POSITIVE = "very_positive"
     POSITIVE = "positive"
     NEUTRAL = "neutral"
@@ -27,6 +27,7 @@ class SentimentScore(str, Enum):
 @dataclass
 class SentimentResult:
     """Result of sentiment analysis."""
+
     score: float  # -1.0 to 1.0
     magnitude: float  # 0.0 to 1.0 (intensity)
     category: SentimentScore
@@ -37,21 +38,21 @@ class SentimentResult:
 
 class SentimentAnalyzer:
     """Sentiment analyzer for chat messages.
-    
+
     Provides basic sentiment analysis using pattern matching
     and keyword detection. Full NLP implementation would require
     additional infrastructure components.
     """
-    
+
     def __init__(self):
         """Initialize the sentiment analyzer."""
         self.positive_keywords = self._load_positive_keywords()
         self.negative_keywords = self._load_negative_keywords()
         self.hype_keywords = self._load_hype_keywords()
         self.emote_sentiments = self._load_emote_sentiments()
-        
+
         logger.info("Initialized sentiment analyzer")
-    
+
     def _load_positive_keywords(self) -> Dict[str, float]:
         """Load positive keywords with scores."""
         return {
@@ -75,7 +76,7 @@ class SentimentAnalyzer:
             "gg": 0.5,
             "ggwp": 0.6,
         }
-    
+
     def _load_negative_keywords(self) -> Dict[str, float]:
         """Load negative keywords with scores."""
         return {
@@ -98,7 +99,7 @@ class SentimentAnalyzer:
             "disappointed": -0.6,
             "frustrating": -0.6,
         }
-    
+
     def _load_hype_keywords(self) -> Dict[str, float]:
         """Load hype keywords with intensity scores."""
         return {
@@ -120,7 +121,7 @@ class SentimentAnalyzer:
             "clutch": 0.8,
             "epic": 0.7,
         }
-    
+
     def _load_emote_sentiments(self) -> Dict[str, float]:
         """Load common emote sentiments."""
         return {
@@ -143,60 +144,60 @@ class SentimentAnalyzer:
             "PepeHands": -0.5,
             "monkaS": 0.0,
         }
-    
+
     def analyze(self, text: str) -> SentimentResult:
         """Analyze sentiment of text.
-        
+
         Args:
             text: Text to analyze
-            
+
         Returns:
             SentimentResult: Analysis result
         """
         text_lower = text.lower()
-        
+
         # Calculate keyword scores
         positive_score = 0.0
         negative_score = 0.0
         hype_score = 0.0
         found_keywords = []
-        
+
         # Check positive keywords
         for keyword, score in self.positive_keywords.items():
             if keyword in text_lower:
                 positive_score += score
                 found_keywords.append(keyword)
-        
+
         # Check negative keywords
         for keyword, score in self.negative_keywords.items():
             if keyword in text_lower:
                 negative_score += score
                 found_keywords.append(keyword)
-        
+
         # Check hype keywords
         for keyword, score in self.hype_keywords.items():
             if keyword in text_lower:
                 hype_score += score
                 found_keywords.append(keyword)
-        
+
         # Check emotes
         emote_score = 0.0
         for emote, score in self.emote_sentiments.items():
             if emote in text:
                 emote_score += score
                 found_keywords.append(f"emote:{emote}")
-        
+
         # Calculate combined score
         total_score = positive_score + negative_score + emote_score
-        
+
         # Normalize to -1 to 1 range
         if abs(total_score) > 1:
             total_score = max(-1, min(1, total_score))
-        
+
         # Calculate magnitude (intensity)
         magnitude = abs(total_score) + (hype_score * 0.5)
         magnitude = min(1.0, magnitude)
-        
+
         # Determine category
         if hype_score > 0.5 and total_score > 0:
             category = SentimentScore.HYPE
@@ -210,10 +211,10 @@ class SentimentAnalyzer:
             category = SentimentScore.NEGATIVE
         else:
             category = SentimentScore.VERY_NEGATIVE
-        
+
         # Calculate confidence based on keyword matches
         confidence = min(1.0, len(found_keywords) * 0.2) if found_keywords else 0.3
-        
+
         return SentimentResult(
             score=total_score,
             magnitude=magnitude,
@@ -226,26 +227,28 @@ class SentimentAnalyzer:
                 "negative_score": negative_score,
                 "hype_score": hype_score,
                 "emote_score": emote_score,
-            }
+            },
         )
-    
+
     def analyze_batch(self, texts: List[str]) -> List[SentimentResult]:
         """Analyze sentiment of multiple texts.
-        
+
         Args:
             texts: List of texts to analyze
-            
+
         Returns:
             List of SentimentResult
         """
         return [self.analyze(text) for text in texts]
-    
-    def get_aggregate_sentiment(self, results: List[SentimentResult]) -> SentimentResult:
+
+    def get_aggregate_sentiment(
+        self, results: List[SentimentResult]
+    ) -> SentimentResult:
         """Get aggregate sentiment from multiple results.
-        
+
         Args:
             results: List of sentiment results
-            
+
         Returns:
             Aggregate SentimentResult
         """
@@ -256,19 +259,19 @@ class SentimentAnalyzer:
                 category=SentimentScore.NEUTRAL,
                 confidence=0.0,
                 keywords=[],
-                metadata={"count": 0}
+                metadata={"count": 0},
             )
-        
+
         # Calculate averages
         avg_score = sum(r.score for r in results) / len(results)
         avg_magnitude = sum(r.magnitude for r in results) / len(results)
         avg_confidence = sum(r.confidence for r in results) / len(results)
-        
+
         # Collect all keywords
         all_keywords = []
         for r in results:
             all_keywords.extend(r.keywords)
-        
+
         # Determine aggregate category
         if avg_score >= 0.6:
             category = SentimentScore.VERY_POSITIVE
@@ -280,7 +283,7 @@ class SentimentAnalyzer:
             category = SentimentScore.NEGATIVE
         else:
             category = SentimentScore.VERY_NEGATIVE
-        
+
         return SentimentResult(
             score=avg_score,
             magnitude=avg_magnitude,
@@ -290,14 +293,14 @@ class SentimentAnalyzer:
             metadata={
                 "count": len(results),
                 "score_variance": self._calculate_variance([r.score for r in results]),
-            }
+            },
         )
-    
+
     def _calculate_variance(self, values: List[float]) -> float:
         """Calculate variance of values."""
         if not values:
             return 0.0
-        
+
         mean = sum(values) / len(values)
         variance = sum((x - mean) ** 2 for x in values) / len(values)
         return variance

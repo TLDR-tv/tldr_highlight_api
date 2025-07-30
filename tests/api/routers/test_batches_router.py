@@ -6,7 +6,6 @@ from fastapi import status
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.main import app
 
 
 @pytest.mark.asyncio
@@ -16,7 +15,7 @@ class TestBatchesRouter:
     async def test_batch_status(self, async_client: AsyncClient):
         """Test batch service status endpoint."""
         response = await async_client.get("/api/v1/batches/status")
-        
+
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["status"] == "Batch processing service operational"
@@ -29,7 +28,7 @@ class TestBatchesRouter:
     ):
         """Test create batch endpoint returns not implemented."""
         response = await async_client.post("/api/v1/batches/")
-        
+
         assert response.status_code == status.HTTP_501_NOT_IMPLEMENTED
         data = response.json()
         assert data["detail"] == "Batch processing will be implemented in later phases"
@@ -39,7 +38,7 @@ class TestBatchesRouter:
     ):
         """Test list batches endpoint returns not implemented."""
         response = await async_client.get("/api/v1/batches/")
-        
+
         assert response.status_code == status.HTTP_501_NOT_IMPLEMENTED
         data = response.json()
         assert data["detail"] == "Batch listing will be implemented in later phases"
@@ -49,7 +48,7 @@ class TestBatchesRouter:
     ):
         """Test get batch details endpoint returns not implemented."""
         response = await async_client.get("/api/v1/batches/test-batch-id")
-        
+
         assert response.status_code == status.HTTP_501_NOT_IMPLEMENTED
         data = response.json()
         assert data["detail"] == "Batch details will be implemented in later phases"
@@ -59,30 +58,35 @@ class TestBatchesRouter:
     ):
         """Test cancel batch endpoint returns not implemented."""
         response = await async_client.delete("/api/v1/batches/test-batch-id")
-        
+
         assert response.status_code == status.HTTP_501_NOT_IMPLEMENTED
         data = response.json()
-        assert data["detail"] == "Batch cancellation will be implemented in later phases"
+        assert (
+            data["detail"] == "Batch cancellation will be implemented in later phases"
+        )
 
     async def test_batch_status_response_format(self, async_client: AsyncClient):
         """Test batch status response matches expected schema."""
         response = await async_client.get("/api/v1/batches/status")
-        
+
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
-        
+
         # Verify all required fields are present
         assert "status" in data
         assert "timestamp" in data
         assert isinstance(data["status"], str)
         assert isinstance(data["timestamp"], str)
 
-    @pytest.mark.parametrize("endpoint,method", [
-        ("/api/v1/batches/", "post"),
-        ("/api/v1/batches/", "get"),
-        ("/api/v1/batches/test-id", "get"),
-        ("/api/v1/batches/test-id", "delete"),
-    ])
+    @pytest.mark.parametrize(
+        "endpoint,method",
+        [
+            ("/api/v1/batches/", "post"),
+            ("/api/v1/batches/", "get"),
+            ("/api/v1/batches/test-id", "get"),
+            ("/api/v1/batches/test-id", "delete"),
+        ],
+    )
     async def test_placeholder_endpoints(
         self, async_client: AsyncClient, endpoint: str, method: str
     ):
@@ -91,14 +95,12 @@ class TestBatchesRouter:
         assert response.status_code == status.HTTP_501_NOT_IMPLEMENTED
         assert "later phases" in response.json()["detail"]
 
-    async def test_batch_endpoints_require_db(
-        self, async_client: AsyncClient
-    ):
+    async def test_batch_endpoints_require_db(self, async_client: AsyncClient):
         """Test batch endpoints that require database dependency."""
         # Status endpoint should work without DB
         response = await async_client.get("/api/v1/batches/status")
         assert response.status_code == status.HTTP_200_OK
-        
+
         # CRUD endpoints should return 501
         endpoints = [
             ("post", "/api/v1/batches/"),
@@ -106,7 +108,7 @@ class TestBatchesRouter:
             ("get", "/api/v1/batches/123"),
             ("delete", "/api/v1/batches/123"),
         ]
-        
+
         for method, endpoint in endpoints:
             response = await async_client.request(method, endpoint)
             assert response.status_code == status.HTTP_501_NOT_IMPLEMENTED
@@ -120,12 +122,12 @@ class TestBatchesRouter:
             "special-chars-test_batch-id",
             "long-id-" + "x" * 100,
         ]
-        
+
         for batch_id in batch_ids:
             # Test get batch
             response = await async_client.get(f"/api/v1/batches/{batch_id}")
             assert response.status_code == status.HTTP_501_NOT_IMPLEMENTED
-            
+
             # Test cancel batch
             response = await async_client.delete(f"/api/v1/batches/{batch_id}")
             assert response.status_code == status.HTTP_501_NOT_IMPLEMENTED
@@ -135,11 +137,11 @@ class TestBatchesRouter:
         # Test with empty batch ID (should be caught by route)
         response = await async_client.get("/api/v1/batches/")
         assert response.status_code == status.HTTP_501_NOT_IMPLEMENTED
-        
+
         # Test with special characters in URL
         response = await async_client.get("/api/v1/batches/test%20batch")
         assert response.status_code == status.HTTP_501_NOT_IMPLEMENTED
-        
+
         # Test method not allowed
         response = await async_client.put("/api/v1/batches/test-id")
         assert response.status_code == status.HTTP_405_METHOD_NOT_ALLOWED

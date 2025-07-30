@@ -139,7 +139,9 @@ class JobManager:
                 "options": options or {},
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "updated_at": datetime.now(timezone.utc).isoformat(),
-                "estimated_duration_minutes": options.get("estimated_duration", 60) if options else 60,
+                "estimated_duration_minutes": options.get("estimated_duration", 60)
+                if options
+                else 60,
                 "resource_limits": ResourceLimits.get_limits(priority),
                 "retry_count": 0,
                 "max_retries": 3,
@@ -202,8 +204,10 @@ class JobManager:
             # Get task options based on priority
             # Get max job duration with fallback
             resource_limits = job_data.get("resource_limits", {})
-            max_duration = resource_limits.get("max_job_duration_hours", 12)  # Default 12 hours
-            
+            max_duration = resource_limits.get(
+                "max_job_duration_hours", 12
+            )  # Default 12 hours
+
             task_options = get_task_options(
                 priority=job_data["priority"],
                 countdown=0,

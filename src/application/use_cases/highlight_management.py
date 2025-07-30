@@ -1,19 +1,19 @@
 """Highlight management use cases."""
 
 from dataclasses import dataclass
-from typing import Optional, List, Dict, Any
+from typing import Optional, List
 
 from src.application.use_cases.base import UseCase, UseCaseResult, ResultStatus
 from src.domain.entities.highlight import Highlight
 from src.domain.repositories.highlight_repository import HighlightRepository
 from src.domain.repositories.stream_repository import StreamRepository
 from src.domain.repositories.user_repository import UserRepository
-from src.domain.exceptions import EntityNotFoundError, UnauthorizedAccessError
 
 
 @dataclass
 class GetHighlightRequest:
     """Request to get a highlight."""
+
     user_id: int
     highlight_id: int
 
@@ -21,6 +21,7 @@ class GetHighlightRequest:
 @dataclass
 class GetHighlightResult(UseCaseResult):
     """Result of getting a highlight."""
+
     highlight: Optional[Highlight] = None
     stream_info: Optional[dict] = None
 
@@ -28,6 +29,7 @@ class GetHighlightResult(UseCaseResult):
 @dataclass
 class ListHighlightsRequest:
     """Request to list highlights."""
+
     user_id: int
     stream_id: Optional[int] = None
     highlight_type: Optional[str] = None
@@ -39,6 +41,7 @@ class ListHighlightsRequest:
 @dataclass
 class ListHighlightsResult(UseCaseResult):
     """Result of listing highlights."""
+
     highlights: List[Highlight] = None
     total: Optional[int] = None
     page: Optional[int] = None
@@ -48,6 +51,7 @@ class ListHighlightsResult(UseCaseResult):
 @dataclass
 class UpdateHighlightRequest:
     """Request to update highlight metadata."""
+
     user_id: int
     highlight_id: int
     title: Optional[str] = None
@@ -58,12 +62,14 @@ class UpdateHighlightRequest:
 @dataclass
 class UpdateHighlightResult(UseCaseResult):
     """Result of updating highlight."""
+
     highlight: Optional[Highlight] = None
 
 
 @dataclass
 class DeleteHighlightRequest:
     """Request to delete a highlight."""
+
     user_id: int
     highlight_id: int
 
@@ -71,12 +77,14 @@ class DeleteHighlightRequest:
 @dataclass
 class DeleteHighlightResult(UseCaseResult):
     """Result of deleting highlight."""
+
     pass
 
 
 @dataclass
 class ExportHighlightRequest:
     """Request to export/download a highlight."""
+
     user_id: int
     highlight_id: int
     format: str = "mp4"
@@ -86,21 +94,22 @@ class ExportHighlightRequest:
 @dataclass
 class ExportHighlightResult(UseCaseResult):
     """Result of exporting highlight."""
+
     download_url: Optional[str] = None
     expires_at: Optional[str] = None
 
 
 class HighlightManagementUseCase(UseCase[GetHighlightRequest, GetHighlightResult]):
     """Use case for highlight management operations."""
-    
+
     def __init__(
         self,
         highlight_repo: HighlightRepository,
         stream_repo: StreamRepository,
-        user_repo: UserRepository
+        user_repo: UserRepository,
     ):
         """Initialize highlight management use case.
-        
+
         Args:
             highlight_repo: Repository for highlight operations
             stream_repo: Repository for stream operations
@@ -109,13 +118,13 @@ class HighlightManagementUseCase(UseCase[GetHighlightRequest, GetHighlightResult
         self.highlight_repo = highlight_repo
         self.stream_repo = stream_repo
         self.user_repo = user_repo
-    
+
     async def get_highlight(self, request: GetHighlightRequest) -> GetHighlightResult:
         """Get a specific highlight.
-        
+
         Args:
             request: Get highlight request
-            
+
         Returns:
             Highlight details
         """
@@ -124,45 +133,45 @@ class HighlightManagementUseCase(UseCase[GetHighlightRequest, GetHighlightResult
             highlight = await self.highlight_repo.get(request.highlight_id)
             if not highlight:
                 return GetHighlightResult(
-                    status=ResultStatus.NOT_FOUND,
-                    errors=["Highlight not found"]
+                    status=ResultStatus.NOT_FOUND, errors=["Highlight not found"]
                 )
-            
+
             # Check access permission via stream ownership
             stream = await self.stream_repo.get(highlight.stream_id)
             if not stream or stream.user_id != request.user_id:
                 return GetHighlightResult(
-                    status=ResultStatus.UNAUTHORIZED,
-                    errors=["Access denied"]
+                    status=ResultStatus.UNAUTHORIZED, errors=["Access denied"]
                 )
-            
+
             # Get stream info for context
             stream_info = {
                 "stream_id": stream.id,
                 "stream_url": str(stream.url),
                 "stream_title": stream.title or "Untitled Stream",
-                "platform": stream.platform.value
+                "platform": stream.platform.value,
             }
-            
+
             return GetHighlightResult(
                 status=ResultStatus.SUCCESS,
                 highlight=highlight,
                 stream_info=stream_info,
-                message="Highlight retrieved successfully"
+                message="Highlight retrieved successfully",
             )
-            
+
         except Exception as e:
             return GetHighlightResult(
                 status=ResultStatus.FAILURE,
-                errors=[f"Failed to get highlight: {str(e)}"]
+                errors=[f"Failed to get highlight: {str(e)}"],
             )
-    
-    async def list_highlights(self, request: ListHighlightsRequest) -> ListHighlightsResult:
+
+    async def list_highlights(
+        self, request: ListHighlightsRequest
+    ) -> ListHighlightsResult:
         """List highlights for a user.
-        
+
         Args:
             request: List highlights request
-            
+
         Returns:
             Paginated list of highlights
         """
@@ -172,10 +181,9 @@ class HighlightManagementUseCase(UseCase[GetHighlightRequest, GetHighlightResult
                 stream = await self.stream_repo.get(request.stream_id)
                 if not stream or stream.user_id != request.user_id:
                     return ListHighlightsResult(
-                        status=ResultStatus.UNAUTHORIZED,
-                        errors=["Access denied"]
+                        status=ResultStatus.UNAUTHORIZED, errors=["Access denied"]
                     )
-                
+
                 # Get highlights for specific stream
                 highlights = await self.highlight_repo.get_by_stream(request.stream_id)
             else:
@@ -189,50 +197,58 @@ class HighlightManagementUseCase(UseCase[GetHighlightRequest, GetHighlightResult
                     total=0,
                     page=request.page,
                     per_page=request.per_page,
-                    message="Highlight listing across all streams not yet implemented"
+                    message="Highlight listing across all streams not yet implemented",
                 )
-            
+
             # Apply filters
             if request.highlight_type:
                 try:
                     filter_type = HighlightType(request.highlight_type)
-                    highlights = [h for h in highlights if h.highlight_type == filter_type]
+                    highlights = [
+                        h for h in highlights if h.highlight_type == filter_type
+                    ]
                 except ValueError:
                     pass  # Invalid type, skip filter
-            
+
             if request.min_confidence:
-                highlights = [h for h in highlights if h.confidence_score.value >= request.min_confidence]
-            
+                highlights = [
+                    h
+                    for h in highlights
+                    if h.confidence_score.value >= request.min_confidence
+                ]
+
             # Sort by confidence score (highest first)
             highlights.sort(key=lambda h: h.confidence_score.value, reverse=True)
-            
+
             # Apply pagination
             total = len(highlights)
             start = (request.page - 1) * request.per_page
             end = start + request.per_page
             paginated_highlights = highlights[start:end]
-            
+
             return ListHighlightsResult(
                 status=ResultStatus.SUCCESS,
                 highlights=paginated_highlights,
                 total=total,
                 page=request.page,
                 per_page=request.per_page,
-                message=f"Found {total} highlights"
+                message=f"Found {total} highlights",
             )
-            
+
         except Exception as e:
             return ListHighlightsResult(
                 status=ResultStatus.FAILURE,
-                errors=[f"Failed to list highlights: {str(e)}"]
+                errors=[f"Failed to list highlights: {str(e)}"],
             )
-    
-    async def update_highlight(self, request: UpdateHighlightRequest) -> UpdateHighlightResult:
+
+    async def update_highlight(
+        self, request: UpdateHighlightRequest
+    ) -> UpdateHighlightResult:
         """Update highlight metadata.
-        
+
         Args:
             request: Update highlight request
-            
+
         Returns:
             Updated highlight
         """
@@ -241,37 +257,37 @@ class HighlightManagementUseCase(UseCase[GetHighlightRequest, GetHighlightResult
             highlight = await self.highlight_repo.get(request.highlight_id)
             if not highlight:
                 return UpdateHighlightResult(
-                    status=ResultStatus.NOT_FOUND,
-                    errors=["Highlight not found"]
+                    status=ResultStatus.NOT_FOUND, errors=["Highlight not found"]
                 )
-            
+
             # Check access permission
             stream = await self.stream_repo.get(highlight.stream_id)
             if not stream or stream.user_id != request.user_id:
                 return UpdateHighlightResult(
-                    status=ResultStatus.UNAUTHORIZED,
-                    errors=["Access denied"]
+                    status=ResultStatus.UNAUTHORIZED, errors=["Access denied"]
                 )
-            
+
             # For now, return an error as highlight entities are immutable
             # In a full implementation, we might create new highlight versions
             return UpdateHighlightResult(
                 status=ResultStatus.VALIDATION_ERROR,
-                errors=["Highlight updates are not currently supported"]
+                errors=["Highlight updates are not currently supported"],
             )
-            
+
         except Exception as e:
             return UpdateHighlightResult(
                 status=ResultStatus.FAILURE,
-                errors=[f"Failed to update highlight: {str(e)}"]
+                errors=[f"Failed to update highlight: {str(e)}"],
             )
-    
-    async def delete_highlight(self, request: DeleteHighlightRequest) -> DeleteHighlightResult:
+
+    async def delete_highlight(
+        self, request: DeleteHighlightRequest
+    ) -> DeleteHighlightResult:
         """Delete a highlight.
-        
+
         Args:
             request: Delete highlight request
-            
+
         Returns:
             Deletion result
         """
@@ -280,38 +296,37 @@ class HighlightManagementUseCase(UseCase[GetHighlightRequest, GetHighlightResult
             highlight = await self.highlight_repo.get(request.highlight_id)
             if not highlight:
                 return DeleteHighlightResult(
-                    status=ResultStatus.NOT_FOUND,
-                    errors=["Highlight not found"]
+                    status=ResultStatus.NOT_FOUND, errors=["Highlight not found"]
                 )
-            
+
             # Check access permission
             stream = await self.stream_repo.get(highlight.stream_id)
             if not stream or stream.user_id != request.user_id:
                 return DeleteHighlightResult(
-                    status=ResultStatus.UNAUTHORIZED,
-                    errors=["Access denied"]
+                    status=ResultStatus.UNAUTHORIZED, errors=["Access denied"]
                 )
-            
+
             # Delete highlight
             await self.highlight_repo.delete(request.highlight_id)
-            
+
             return DeleteHighlightResult(
-                status=ResultStatus.SUCCESS,
-                message="Highlight deleted successfully"
+                status=ResultStatus.SUCCESS, message="Highlight deleted successfully"
             )
-            
+
         except Exception as e:
             return DeleteHighlightResult(
                 status=ResultStatus.FAILURE,
-                errors=[f"Failed to delete highlight: {str(e)}"]
+                errors=[f"Failed to delete highlight: {str(e)}"],
             )
-    
-    async def export_highlight(self, request: ExportHighlightRequest) -> ExportHighlightResult:
+
+    async def export_highlight(
+        self, request: ExportHighlightRequest
+    ) -> ExportHighlightResult:
         """Export/download a highlight.
-        
+
         Args:
             request: Export highlight request
-            
+
         Returns:
             Download URL and expiration
         """
@@ -320,45 +335,44 @@ class HighlightManagementUseCase(UseCase[GetHighlightRequest, GetHighlightResult
             highlight = await self.highlight_repo.get(request.highlight_id)
             if not highlight:
                 return ExportHighlightResult(
-                    status=ResultStatus.NOT_FOUND,
-                    errors=["Highlight not found"]
+                    status=ResultStatus.NOT_FOUND, errors=["Highlight not found"]
                 )
-            
+
             # Check access permission
             stream = await self.stream_repo.get(highlight.stream_id)
             if not stream or stream.user_id != request.user_id:
                 return ExportHighlightResult(
-                    status=ResultStatus.UNAUTHORIZED,
-                    errors=["Access denied"]
+                    status=ResultStatus.UNAUTHORIZED, errors=["Access denied"]
                 )
-            
+
             # Generate download URL
             # In production, this would generate a pre-signed S3 URL or similar
             download_url = str(highlight.video_url)
-            
+
             # Set expiration (e.g., 1 hour from now)
             from datetime import datetime, timedelta
+
             expires_at = (datetime.utcnow() + timedelta(hours=1)).isoformat()
-            
+
             return ExportHighlightResult(
                 status=ResultStatus.SUCCESS,
                 download_url=download_url,
                 expires_at=expires_at,
-                message="Export URL generated successfully"
+                message="Export URL generated successfully",
             )
-            
+
         except Exception as e:
             return ExportHighlightResult(
                 status=ResultStatus.FAILURE,
-                errors=[f"Failed to export highlight: {str(e)}"]
+                errors=[f"Failed to export highlight: {str(e)}"],
             )
-    
+
     async def execute(self, request: GetHighlightRequest) -> GetHighlightResult:
         """Execute get highlight (default use case method).
-        
+
         Args:
             request: Get highlight request
-            
+
         Returns:
             Highlight result
         """

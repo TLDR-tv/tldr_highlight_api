@@ -117,7 +117,8 @@ class DetectionResult(BaseModel):
         default=0.0, description="Processing time in milliseconds"
     )
     timestamp: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc), description="Detection timestamp"
+        default_factory=lambda: datetime.now(timezone.utc),
+        description="Detection timestamp",
     )
 
     @field_validator("score", "confidence")

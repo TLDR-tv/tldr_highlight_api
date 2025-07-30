@@ -2,7 +2,6 @@
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock
-import asyncio
 
 from src.services.rate_limit import RateLimitService
 from src.models.api_key import APIKey
@@ -60,15 +59,15 @@ def create_redis_mock(eval_return_value=None):
     redis_client.eval = AsyncMock(return_value=eval_return_value)
     redis_client.zremrangebyscore = AsyncMock(return_value=None)
     redis_client.zcard = AsyncMock(return_value=0)
-    
+
     # Create async context manager
     async def async_context_manager():
         return redis_client
-    
+
     context_manager = MagicMock()
     context_manager.__aenter__ = AsyncMock(return_value=redis_client)
     context_manager.__aexit__ = AsyncMock(return_value=None)
-    
+
     return context_manager
 
 
@@ -193,11 +192,11 @@ class TestRateLimitService:
         redis_client = MagicMock()
         redis_client.zremrangebyscore = AsyncMock(return_value=None)
         redis_client.zcard = AsyncMock(return_value=25)
-        
+
         context_manager = MagicMock()
         context_manager.__aenter__ = AsyncMock(return_value=redis_client)
         context_manager.__aexit__ = AsyncMock(return_value=None)
-        
+
         cache_mock.get_client = MagicMock(return_value=context_manager)
 
         usage = await rate_limit_service.get_current_usage(sample_api_key)
@@ -249,11 +248,11 @@ class TestRateLimitService:
         # Create a mock that returns different values on each call
         redis_client = MagicMock()
         redis_client.eval = AsyncMock(side_effect=responses)
-        
+
         context_manager = MagicMock()
         context_manager.__aenter__ = AsyncMock(return_value=redis_client)
         context_manager.__aexit__ = AsyncMock(return_value=None)
-        
+
         cache_mock.get_client = MagicMock(return_value=context_manager)
 
         results = []
@@ -275,11 +274,11 @@ class TestRateLimitService:
         # Mock Redis client
         redis_client = MagicMock()
         redis_client.eval = AsyncMock(return_value=[1, 299])
-        
+
         context_manager = MagicMock()
         context_manager.__aenter__ = AsyncMock(return_value=redis_client)
         context_manager.__aexit__ = AsyncMock(return_value=None)
-        
+
         cache_mock.get_client = MagicMock(return_value=context_manager)
 
         is_allowed, remaining = await rate_limit_service.check_rate_limit(

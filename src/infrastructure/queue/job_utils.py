@@ -18,6 +18,7 @@ from src.core.cache import get_redis_client
 from src.core.config import get_settings
 from src.core.database import get_db_session
 from src.infrastructure.persistence.models.stream import Stream, StreamStatus
+
 # from src.infrastructure.persistence.models.webhook import WebhookAttempt  # TODO: WebhookAttempt model not yet implemented
 from src.services.async_processing.celery_app import celery_app
 
@@ -206,14 +207,16 @@ class JobMonitor:
                 #     )
                 #     .first()
                 # )
-                webhook_stats = (0, 0, 0)  # Placeholder: (total, successful, avg_response_time)
+                webhook_stats = (
+                    0,
+                    0,
+                    0,
+                )  # Placeholder: (total, successful, avg_response_time)
 
                 metrics["webhook_stats_24h"] = {
                     "total_attempts": webhook_stats[0] or 0,
                     "successful_attempts": webhook_stats[1] or 0,
-                    "average_response_time_ms": float(
-                        webhook_stats[2] or 0
-                    ),
+                    "average_response_time_ms": float(webhook_stats[2] or 0),
                     "success_rate": (
                         (webhook_stats[1] / webhook_stats[0] * 100)
                         if webhook_stats[0] and webhook_stats[1]

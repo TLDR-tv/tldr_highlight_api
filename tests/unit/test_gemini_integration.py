@@ -165,15 +165,17 @@ class TestGeminiProcessor:
         processor.model.generate_content = MagicMock(return_value=mock_response)
 
         # Mock get_media_info
-        with patch("src.services.content_processing.gemini_processor.media_processor.get_media_info") as mock_media_info:
+        with patch(
+            "src.services.content_processing.gemini_processor.media_processor.get_media_info"
+        ) as mock_media_info:
             mock_media_info.return_value = {
                 "duration": 60.0,
                 "width": 1920,
                 "height": 1080,
                 "fps": 30.0,
-                "codec": "h264"
+                "codec": "h264",
             }
-            
+
             # Process video
             result = await processor.process_video_file(
                 source="test_video.mp4", mode=ProcessingMode.FILE_API
@@ -290,13 +292,15 @@ class TestGeminiProcessor:
         # Mock API error
         processor.model.generate_content = MagicMock(side_effect=Exception("API Error"))
 
-        with patch("src.services.content_processing.gemini_processor.media_processor.get_media_info") as mock_media_info:
+        with patch(
+            "src.services.content_processing.gemini_processor.media_processor.get_media_info"
+        ) as mock_media_info:
             mock_media_info.return_value = {
                 "duration": 60.0,
                 "width": 1920,
                 "height": 1080,
                 "fps": 30.0,
-                "codec": "h264"
+                "codec": "h264",
             }
             result = await processor.process_video_file("test_video.mp4")
 
@@ -345,13 +349,15 @@ class TestGeminiProcessor:
         mock_genai.upload_file.return_value = mock_file
         mock_genai.get_file.return_value = mock_file
 
-        with patch("src.services.content_processing.gemini_processor.media_processor.get_media_info") as mock_media_info:
+        with patch(
+            "src.services.content_processing.gemini_processor.media_processor.get_media_info"
+        ) as mock_media_info:
             mock_media_info.return_value = {
                 "duration": 60.0,
                 "width": 1920,
                 "height": 1080,
                 "fps": 30.0,
-                "codec": "h264"
+                "codec": "h264",
             }
             await processor.process_video_file("test.mp4")
 
@@ -371,22 +377,30 @@ class TestGeminiDetector:
     ):
         """Test Gemini detector initialization."""
         mock_processor = MagicMock()
-        
+
         # Mock the module-level gemini_processor as None initially
-        with patch("src.services.highlight_detection.gemini_detector.gemini_processor", None):
+        with patch(
+            "src.services.highlight_detection.gemini_detector.gemini_processor", None
+        ):
             # Mock initialize_gemini_processor to set the global processor
             def mock_init_func(config):
                 import src.services.highlight_detection.gemini_detector as gemini_detector_module
+
                 gemini_detector_module.gemini_processor = mock_processor
-                
-            with patch("src.services.highlight_detection.gemini_detector.initialize_gemini_processor", side_effect=mock_init_func) as mock_init:
+
+            with patch(
+                "src.services.highlight_detection.gemini_detector.initialize_gemini_processor",
+                side_effect=mock_init_func,
+            ) as mock_init:
                 detector = GeminiDetector(gemini_detection_config)
 
                 assert detector.gemini_config == gemini_detection_config
                 assert detector.algorithm_name == "GeminiUnifiedDetector"
                 assert detector.algorithm_version == "2.0.0"
                 assert detector.processor == mock_processor
-                mock_init.assert_called_once_with(gemini_detection_config.processor_config)
+                mock_init.assert_called_once_with(
+                    gemini_detection_config.processor_config
+                )
 
     @pytest.mark.asyncio
     async def test_detect_features(
@@ -582,7 +596,9 @@ class TestGeminiDetector:
                 c for c in candidates if c.features.get("category") == "action"
             ]
             assert len(action_candidates) == 1
-            assert abs(action_candidates[0].score - 0.9) < 0.0001  # Handle floating point precision
+            assert (
+                abs(action_candidates[0].score - 0.9) < 0.0001
+            )  # Handle floating point precision
 
             # Emotional should have reduced score (0.6 * 0.8 = 0.48)
             # This should be filtered out due to threshold (0.5)
@@ -693,7 +709,7 @@ class TestGeminiDetector:
             mock_processor.process_video_stream = mock_stream_generator
             detector.processor = mock_processor
 
-            # Create mock streams  
+            # Create mock streams
             async def mock_video_stream(video_chunks=None):
                 for i in range(3):
                     yield MagicMock(timestamp=i * 10.0)

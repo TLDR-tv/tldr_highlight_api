@@ -1,10 +1,7 @@
 """Comprehensive tests for scoring utilities module."""
 
-import math
 import pytest
 import numpy as np
-from scipy import stats
-from scipy.spatial.distance import cosine
 
 from src.utils.scoring_utils import (
     normalize_score,
@@ -28,13 +25,13 @@ class TestNormalizeScore:
         """Test linear normalization method."""
         # Test within bounds
         assert normalize_score(0.5, 0.0, 1.0, "linear") == 0.5
-        
+
         # Test clamping at min
         assert normalize_score(-1.0, 0.0, 1.0, "linear") == 0.0
-        
+
         # Test clamping at max
         assert normalize_score(2.0, 0.0, 1.0, "linear") == 1.0
-        
+
         # Test custom range
         assert normalize_score(5.0, 0.0, 10.0, "linear") == 5.0
         assert normalize_score(15.0, 0.0, 10.0, "linear") == 10.0
@@ -44,15 +41,15 @@ class TestNormalizeScore:
         # Test near zero
         result = normalize_score(0.0, 0.0, 1.0, "sigmoid")
         assert 0.4 < result < 0.6  # Sigmoid of 0 is 0.5
-        
+
         # Test positive value
         result = normalize_score(2.0, 0.0, 1.0, "sigmoid")
         assert 0.8 < result < 0.9  # Sigmoid of 2 is ~0.88
-        
+
         # Test negative value
         result = normalize_score(-2.0, 0.0, 1.0, "sigmoid")
         assert 0.1 < result < 0.2  # Sigmoid of -2 is ~0.12
-        
+
         # Test custom range
         result = normalize_score(0.0, 10.0, 20.0, "sigmoid")
         assert 14.5 < result < 15.5  # Maps to middle of range
@@ -62,11 +59,11 @@ class TestNormalizeScore:
         # Test near zero
         result = normalize_score(0.0, 0.0, 1.0, "tanh")
         assert 0.45 < result < 0.55  # tanh(0) maps to 0.5
-        
+
         # Test positive value
         result = normalize_score(1.0, 0.0, 1.0, "tanh")
         assert 0.7 < result < 0.9  # tanh(1) is ~0.76
-        
+
         # Test negative value
         result = normalize_score(-1.0, 0.0, 1.0, "tanh")
         assert 0.1 < result < 0.3  # tanh(-1) is ~-0.76, mapped to ~0.24
@@ -84,7 +81,7 @@ class TestCalculateWeightedScore:
         """Test basic weighted score calculation."""
         scores = {"accuracy": 0.8, "speed": 0.6, "quality": 0.9}
         weights = {"accuracy": 0.5, "speed": 0.3, "quality": 0.2}
-        
+
         # Manual calculation: 0.8*0.5 + 0.6*0.3 + 0.9*0.2 = 0.76
         result = calculate_weighted_score(scores, weights, normalize=False)
         assert abs(result - 0.76) < 0.001
@@ -93,7 +90,7 @@ class TestCalculateWeightedScore:
         """Test weighted score with weight normalization."""
         scores = {"a": 0.5, "b": 0.5}
         weights = {"a": 2.0, "b": 2.0}  # Will be normalized to 0.5 each
-        
+
         result = calculate_weighted_score(scores, weights, normalize=True)
         assert abs(result - 0.5) < 0.001
 
@@ -101,7 +98,7 @@ class TestCalculateWeightedScore:
         """Test handling of missing weights."""
         scores = {"a": 0.8, "b": 0.6, "c": 0.4}
         weights = {"a": 0.5, "b": 0.5}  # Missing weight for 'c'
-        
+
         result = calculate_weighted_score(scores, weights, normalize=True)
         # Should only use scores with weights
         assert abs(result - 0.7) < 0.001  # (0.8*0.5 + 0.6*0.5) / 1.0
@@ -116,7 +113,7 @@ class TestCalculateWeightedScore:
         """Test handling of zero total weight."""
         scores = {"a": 0.5, "b": 0.5}
         weights = {"a": 0.0, "b": 0.0}
-        
+
         result = calculate_weighted_score(scores, weights, normalize=True)
         assert result == 0.0
 
@@ -128,17 +125,17 @@ class TestCalculateConfidence:
         """Test entropy-based confidence calculation."""
         # Single score should have high confidence
         assert calculate_confidence([0.9], method="entropy") == 1.0
-        
+
         # Uniform distribution should have low confidence
         scores = [0.25, 0.25, 0.25, 0.25]
         confidence = calculate_confidence(scores, method="entropy")
         assert confidence < 0.1  # Very low confidence
-        
+
         # Skewed distribution should have higher confidence
         scores = [0.9, 0.05, 0.03, 0.02]
         confidence = calculate_confidence(scores, method="entropy")
         assert confidence > 0.5  # Higher confidence
-        
+
         # All zeros should handle gracefully
         scores = [0.0, 0.0, 0.0]
         confidence = calculate_confidence(scores, method="entropy")
@@ -148,12 +145,12 @@ class TestCalculateConfidence:
         """Test variance-based confidence calculation."""
         # Single score should have high confidence
         assert calculate_confidence([0.5], method="variance") == 1.0
-        
+
         # Low variance should have high confidence
         scores = [0.5, 0.51, 0.49, 0.5]
         confidence = calculate_confidence(scores, method="variance", max_variance=1.0)
         assert confidence > 0.95  # Very low variance
-        
+
         # High variance should have low confidence
         scores = [0.1, 0.9, 0.2, 0.8]
         confidence = calculate_confidence(scores, method="variance", max_variance=0.1)
@@ -163,15 +160,19 @@ class TestCalculateConfidence:
         """Test consistency-based confidence calculation."""
         # Single score should have high confidence
         assert calculate_confidence([0.5], method="consistency") == 1.0
-        
+
         # Consistent scores should have high confidence
         scores = [0.5, 0.5, 0.5, 0.5]
-        confidence = calculate_confidence(scores, method="consistency", max_deviation=1.0)
+        confidence = calculate_confidence(
+            scores, method="consistency", max_deviation=1.0
+        )
         assert confidence == 1.0
-        
+
         # Inconsistent scores should have lower confidence
         scores = [0.1, 0.9, 0.1, 0.9]
-        confidence = calculate_confidence(scores, method="consistency", max_deviation=0.5)
+        confidence = calculate_confidence(
+            scores, method="consistency", max_deviation=0.5
+        )
         assert confidence < 0.5
 
     def test_majority_method(self):
@@ -180,12 +181,12 @@ class TestCalculateConfidence:
         scores = [0.7, 0.8, 0.9]
         confidence = calculate_confidence(scores, method="majority", threshold=0.5)
         assert confidence == 1.0
-        
+
         # Half above threshold
         scores = [0.3, 0.7, 0.4, 0.8]
         confidence = calculate_confidence(scores, method="majority", threshold=0.5)
         assert confidence == 0.5
-        
+
         # None above threshold
         scores = [0.1, 0.2, 0.3]
         confidence = calculate_confidence(scores, method="majority", threshold=0.5)
@@ -212,8 +213,10 @@ class TestCalculateTemporalCorrelation:
         # Scores increase with time
         timestamps = [0.0, 10.0, 20.0, 30.0, 40.0]
         scores = [0.1, 0.3, 0.5, 0.7, 0.9]
-        
-        correlation = calculate_temporal_correlation(timestamps, scores, window_size=50.0)
+
+        correlation = calculate_temporal_correlation(
+            timestamps, scores, window_size=50.0
+        )
         assert correlation > 0.7  # Strong positive correlation
 
     def test_negative_correlation(self):
@@ -221,8 +224,10 @@ class TestCalculateTemporalCorrelation:
         # Scores decrease with time
         timestamps = [0.0, 10.0, 20.0, 30.0, 40.0]
         scores = [0.9, 0.7, 0.5, 0.3, 0.1]
-        
-        correlation = calculate_temporal_correlation(timestamps, scores, window_size=50.0)
+
+        correlation = calculate_temporal_correlation(
+            timestamps, scores, window_size=50.0
+        )
         assert correlation > 0.7  # Strong correlation (absolute value)
 
     def test_no_correlation(self):
@@ -230,8 +235,10 @@ class TestCalculateTemporalCorrelation:
         # Random scores
         timestamps = [0.0, 10.0, 20.0, 30.0, 40.0]
         scores = [0.5, 0.3, 0.8, 0.2, 0.6]
-        
-        correlation = calculate_temporal_correlation(timestamps, scores, window_size=50.0)
+
+        correlation = calculate_temporal_correlation(
+            timestamps, scores, window_size=50.0
+        )
         assert correlation < 0.5  # Weak correlation
 
     def test_insufficient_data(self):
@@ -239,7 +246,7 @@ class TestCalculateTemporalCorrelation:
         # Less than 2 points
         assert calculate_temporal_correlation([1.0], [0.5]) == 0.0
         assert calculate_temporal_correlation([], []) == 0.0
-        
+
         # Mismatched lengths
         assert calculate_temporal_correlation([1.0, 2.0], [0.5]) == 0.0
 
@@ -247,17 +254,21 @@ class TestCalculateTemporalCorrelation:
         """Test handling of unsorted timestamps."""
         timestamps = [30.0, 10.0, 40.0, 0.0, 20.0]
         scores = [0.7, 0.3, 0.9, 0.1, 0.5]
-        
-        correlation = calculate_temporal_correlation(timestamps, scores, window_size=50.0)
+
+        correlation = calculate_temporal_correlation(
+            timestamps, scores, window_size=50.0
+        )
         assert correlation > 0.7  # Should sort and find correlation
 
     def test_small_windows(self):
         """Test with small window sizes."""
         timestamps = list(range(0, 100, 10))
-        scores = [i/100 for i in range(10)]
-        
+        scores = [i / 100 for i in range(10)]
+
         # Small window might not capture enough points
-        correlation = calculate_temporal_correlation(timestamps, scores, window_size=15.0)
+        correlation = calculate_temporal_correlation(
+            timestamps, scores, window_size=15.0
+        )
         assert 0.0 <= correlation <= 1.0
 
 
@@ -268,9 +279,9 @@ class TestDetectScorePeaks:
         """Test detection of simple peaks."""
         timestamps = list(range(10))
         scores = [0.1, 0.3, 0.8, 0.3, 0.2, 0.9, 0.4, 0.2, 0.1, 0.1]
-        
+
         peaks = detect_score_peaks(timestamps, scores, prominence=0.3, distance=2.0)
-        
+
         # Should find at least one peak - relaxed assertion due to algorithm sensitivity
         assert len(peaks) >= 1
         # At least one peak should be at or near prominent points
@@ -281,7 +292,7 @@ class TestDetectScorePeaks:
         """Test when no peaks exist."""
         timestamps = list(range(5))
         scores = [0.5, 0.5, 0.5, 0.5, 0.5]  # Flat signal
-        
+
         peaks = detect_score_peaks(timestamps, scores, prominence=0.1)
         assert len(peaks) == 0
 
@@ -295,11 +306,15 @@ class TestDetectScorePeaks:
         """Test peak detection with smoothing."""
         timestamps = list(range(10))
         scores = [0.1, 0.8, 0.2, 0.7, 0.3, 0.9, 0.2, 0.6, 0.1, 0.1]
-        
+
         # With smoothing, should reduce noise
-        peaks_smooth = detect_score_peaks(timestamps, scores, prominence=0.3, smooth=True)
-        peaks_no_smooth = detect_score_peaks(timestamps, scores, prominence=0.3, smooth=False)
-        
+        peaks_smooth = detect_score_peaks(
+            timestamps, scores, prominence=0.3, smooth=True
+        )
+        peaks_no_smooth = detect_score_peaks(
+            timestamps, scores, prominence=0.3, smooth=False
+        )
+
         # Smoothing might reduce peak count
         assert len(peaks_smooth) <= len(peaks_no_smooth)
 
@@ -310,9 +325,9 @@ class TestDetectScorePeaks:
         scores[5] = 0.9
         scores[6] = 0.8  # Close peak, should be ignored
         scores[15] = 0.9  # Far peak, should be detected
-        
+
         peaks = detect_score_peaks(timestamps, scores, prominence=0.2, distance=5.0)
-        
+
         # Should find two peaks with sufficient distance
         assert len(peaks) >= 1
         if len(peaks) > 1:
@@ -329,13 +344,13 @@ class TestCalculateSimilarityScore:
         v2 = np.array([1.0, 2.0, 3.0])
         similarity = calculate_similarity_score(v1, v2, "cosine")
         assert abs(similarity - 1.0) < 0.01
-        
+
         # Orthogonal vectors
         v1 = np.array([1.0, 0.0])
         v2 = np.array([0.0, 1.0])
         similarity = calculate_similarity_score(v1, v2, "cosine")
         assert similarity < 0.1
-        
+
         # Similar vectors but not identical
         v1 = np.array([1.0, 2.0])
         v2 = np.array([2.0, 4.0])
@@ -349,7 +364,7 @@ class TestCalculateSimilarityScore:
         v2 = np.array([1.0, 2.0, 3.0])
         similarity = calculate_similarity_score(v1, v2, "euclidean")
         assert abs(similarity - 1.0) < 0.01
-        
+
         # Different vectors
         v1 = np.array([0.0, 0.0])
         v2 = np.array([1.0, 1.0])
@@ -363,13 +378,13 @@ class TestCalculateSimilarityScore:
         v2 = np.array([2.0, 4.0, 6.0, 8.0])
         similarity = calculate_similarity_score(v1, v2, "pearson")
         assert abs(similarity - 1.0) < 0.01
-        
+
         # Anti-correlated
         v1 = np.array([1.0, 2.0, 3.0, 4.0])
         v2 = np.array([4.0, 3.0, 2.0, 1.0])
         similarity = calculate_similarity_score(v1, v2, "pearson")
         assert similarity < 0.1
-        
+
         # No correlation (constant vector) - should return 0.0 for NaN
         v1 = np.array([1.0, 1.0, 1.0])
         v2 = np.array([1.0, 2.0, 3.0])
@@ -382,18 +397,18 @@ class TestCalculateSimilarityScore:
         v1 = np.array([1.0, 0.0, 1.0, 0.0])
         v2 = np.array([1.0, 0.0, 1.0, 0.0])
         assert calculate_similarity_score(v1, v2, "jaccard") == 1.0
-        
+
         # Partial overlap
         v1 = np.array([1.0, 1.0, 0.0, 0.0])
         v2 = np.array([1.0, 0.0, 1.0, 0.0])
         # Intersection: 1, Union: 3, Similarity: 1/3
-        assert abs(calculate_similarity_score(v1, v2, "jaccard") - 1/3) < 0.01
-        
+        assert abs(calculate_similarity_score(v1, v2, "jaccard") - 1 / 3) < 0.01
+
         # No overlap
         v1 = np.array([1.0, 1.0, 0.0, 0.0])
         v2 = np.array([0.0, 0.0, 1.0, 1.0])
         assert calculate_similarity_score(v1, v2, "jaccard") == 0.0
-        
+
         # All zeros
         v1 = np.array([0.0, 0.0, 0.0])
         v2 = np.array([0.0, 0.0, 0.0])
@@ -422,12 +437,12 @@ class TestCalculateDiversityScore:
         features = np.array([[1.0, 2.0], [1.0, 2.0], [1.0, 2.0]])
         diversity = calculate_diversity_score(features, "pairwise_distance")
         assert diversity < 0.1
-        
+
         # Diverse features - high diversity
         features = np.array([[1.0, 0.0], [0.0, 1.0], [-1.0, 0.0]])
         diversity = calculate_diversity_score(features, "pairwise_distance")
         assert diversity > 0.3
-        
+
         # Single feature - no diversity
         features = np.array([[1.0, 2.0]])
         assert calculate_diversity_score(features, "pairwise_distance") == 0.0
@@ -438,12 +453,12 @@ class TestCalculateDiversityScore:
         features = np.array([[1.0, 2.0], [2.0, 4.0], [3.0, 6.0]])
         diversity = calculate_diversity_score(features, "determinant")
         assert diversity < 0.1
-        
+
         # Independent features - higher diversity
         features = np.array([[1.0, 0.0], [0.0, 1.0], [1.0, 1.0]])
         diversity = calculate_diversity_score(features, "determinant")
         assert diversity > 0.0
-        
+
         # Handle exceptions gracefully
         features = np.array([[1.0]])  # Single dimension
         diversity = calculate_diversity_score(features, "determinant")
@@ -455,7 +470,7 @@ class TestCalculateDiversityScore:
         features = np.random.uniform(0, 1, (10, 5))
         diversity = calculate_diversity_score(features, "entropy")
         assert diversity > 0.5
-        
+
         # Concentrated distribution - low entropy/diversity
         features = np.ones((10, 5)) * 0.5  # All same value
         diversity = calculate_diversity_score(features, "entropy")
@@ -478,7 +493,7 @@ class TestCalculateQualityScore:
             {"score": 0.7, "confidence": 0.8},
             {"score": 0.9, "confidence": 0.95},
         ]
-        
+
         quality = calculate_quality_score(results)
         assert 0.0 <= quality <= 1.0
         assert quality > 0.7  # Should be high given good scores
@@ -490,21 +505,31 @@ class TestCalculateQualityScore:
             {"score": 0.7, "confidence": 0.8, "features": [0.0, 1.0]},
             {"score": 0.9, "confidence": 0.95, "features": [0.5, 0.5]},
         ]
-        
+
         quality = calculate_quality_score(results)
         assert 0.0 <= quality <= 1.0
 
     def test_custom_weights(self):
         """Test quality calculation with custom weights."""
         results = [{"score": 1.0, "confidence": 0.0}]
-        
+
         # Heavy weight on score
-        weights = {"score": 0.9, "confidence": 0.1, "consistency": 0.0, "diversity": 0.0}
+        weights = {
+            "score": 0.9,
+            "confidence": 0.1,
+            "consistency": 0.0,
+            "diversity": 0.0,
+        }
         quality = calculate_quality_score(results, weights)
         assert quality > 0.8
-        
+
         # Heavy weight on confidence
-        weights = {"score": 0.1, "confidence": 0.9, "consistency": 0.0, "diversity": 0.0}
+        weights = {
+            "score": 0.1,
+            "confidence": 0.9,
+            "consistency": 0.0,
+            "diversity": 0.0,
+        }
         quality = calculate_quality_score(results, weights)
         assert quality < 0.2
 
@@ -516,7 +541,7 @@ class TestCalculateQualityScore:
         """Test quality calculation with single result."""
         results = [{"score": 0.5, "confidence": 0.5}]
         quality = calculate_quality_score(results)
-        
+
         # Single result should have perfect consistency
         assert 0.4 < quality < 0.7
 
@@ -528,9 +553,11 @@ class TestApplyTemporalSmoothing:
         """Test moving average smoothing."""
         timestamps = list(range(10))
         scores = [0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0]
-        
-        smoothed = apply_temporal_smoothing(timestamps, scores, "moving_average", window_size=3.0)
-        
+
+        smoothed = apply_temporal_smoothing(
+            timestamps, scores, "moving_average", window_size=3.0
+        )
+
         # Should reduce oscillations
         assert len(smoothed) == len(scores)
         assert all(0.0 <= s <= 1.0 for s in smoothed)
@@ -541,9 +568,11 @@ class TestApplyTemporalSmoothing:
         """Test exponential smoothing."""
         timestamps = list(range(5))
         scores = [1.0, 0.0, 1.0, 0.0, 1.0]
-        
-        smoothed = apply_temporal_smoothing(timestamps, scores, "exponential", window_size=2.0)
-        
+
+        smoothed = apply_temporal_smoothing(
+            timestamps, scores, "exponential", window_size=2.0
+        )
+
         assert len(smoothed) == len(scores)
         assert smoothed[0] == 1.0  # First value unchanged
         # Should show exponential decay/growth
@@ -554,13 +583,13 @@ class TestApplyTemporalSmoothing:
         """Test Savitzky-Golay smoothing."""
         timestamps = list(range(10))
         scores = [0.1, 0.3, 0.2, 0.6, 0.5, 0.7, 0.4, 0.8, 0.6, 0.9]
-        
+
         smoothed = apply_temporal_smoothing(timestamps, scores, "savgol")
-        
+
         assert len(smoothed) == len(scores)
         # Should preserve general trend while smoothing
         assert all(isinstance(s, float) for s in smoothed)
-        
+
         # Test with insufficient points
         short_smoothed = apply_temporal_smoothing([1, 2, 3], [0.1, 0.2, 0.3], "savgol")
         assert short_smoothed == [0.1, 0.2, 0.3]  # Too short, returns original
@@ -569,9 +598,11 @@ class TestApplyTemporalSmoothing:
         """Test smoothing with unsorted timestamps."""
         timestamps = [5, 2, 8, 1, 9]
         scores = [0.5, 0.2, 0.8, 0.1, 0.9]
-        
-        smoothed = apply_temporal_smoothing(timestamps, scores, "moving_average", window_size=3.0)
-        
+
+        smoothed = apply_temporal_smoothing(
+            timestamps, scores, "moving_average", window_size=3.0
+        )
+
         # Should sort first, then smooth
         assert len(smoothed) == len(scores)
 
@@ -579,10 +610,10 @@ class TestApplyTemporalSmoothing:
         """Test handling of insufficient data."""
         # Single point
         assert apply_temporal_smoothing([1], [0.5]) == [0.5]
-        
+
         # Mismatched lengths
         assert apply_temporal_smoothing([1, 2], [0.5]) == [0.5]
-        
+
         # Empty
         assert apply_temporal_smoothing([], [], "exponential") == []
 
@@ -606,7 +637,7 @@ class TestCalculateHighlightOverlap:
         h1 = (10.0, 20.0)
         h2 = (15.0, 25.0)
         # Intersection: 5s (15-20), Union: 15s (10-25)
-        assert abs(calculate_highlight_overlap(h1, h2) - 5/15) < 0.01
+        assert abs(calculate_highlight_overlap(h1, h2) - 5 / 15) < 0.01
 
     def test_no_overlap(self):
         """Test no overlap detection."""
@@ -627,7 +658,7 @@ class TestCalculateHighlightOverlap:
         h1 = (10.0, 20.0)
         h2 = (10.0, 15.0)
         assert calculate_highlight_overlap(h1, h2) == 0.5
-        
+
         # Same end, different start
         h1 = (10.0, 20.0)
         h2 = (15.0, 20.0)
@@ -644,9 +675,9 @@ class TestRankHighlights:
             {"score": 0.8, "confidence": 0.7},
             {"score": 0.3, "confidence": 1.0},
         ]
-        
+
         ranked = rank_highlights(highlights, "weighted_score")
-        
+
         # Should rank by score * confidence
         assert len(ranked) == 3
         assert ranked[0] == 1  # 0.8 * 0.7 = 0.56
@@ -660,9 +691,9 @@ class TestRankHighlights:
             {"score": 0.7, "confidence": 0.8, "duration": 45.0, "features": [0, 1, 0]},
             {"score": 0.9, "confidence": 0.6, "duration": 120.0, "features": [0, 0, 1]},
         ]
-        
+
         ranked = rank_highlights(highlights, "multi_criteria")
-        
+
         assert len(ranked) == 3
         # Exact order depends on weights and calculations
         assert all(0 <= idx <= 2 for idx in ranked)
@@ -674,11 +705,11 @@ class TestRankHighlights:
             {"score": 0.9, "confidence": 0.1, "duration": 30.0},
             {"score": 0.1, "confidence": 0.9, "duration": 45.0},
         ]
-        
+
         # Heavy weight on confidence
         weights = {"score": 0.1, "confidence": 0.8, "duration": 0.1, "diversity": 0.0}
         ranked = rank_highlights(highlights, "multi_criteria", weights=weights)
-        
+
         assert ranked[0] == 1  # High confidence should win
 
     def test_empty_highlights(self):
@@ -691,7 +722,7 @@ class TestRankHighlights:
             {"score": [0.5, 0.6], "confidence": 0.9},
             {"score": 0.8, "confidence": [0.7, 0.8]},
         ]
-        
+
         # Should handle gracefully
         ranked = rank_highlights(highlights, "weighted_score")
         assert len(ranked) == 2

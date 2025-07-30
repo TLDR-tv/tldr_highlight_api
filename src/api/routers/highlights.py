@@ -15,7 +15,6 @@ from src.api.schemas.highlights import (
     HighlightResponse,
     HighlightListResponse,
     HighlightFilters,
-    HighlightUpdate
 )
 from src.application.use_cases.highlight_management import HighlightManagementUseCase
 from src.application.use_cases.base import ResultStatus
@@ -57,40 +56,33 @@ async def list_highlights(
     page: int = Query(1, ge=1, description="Page number"),
     per_page: int = Query(20, ge=1, le=100, description="Items per page"),
     stream_id: Optional[int] = Query(None, description="Filter by stream ID"),
-    min_confidence: Optional[float] = Query(None, ge=0.0, le=1.0, description="Minimum confidence"),
+    min_confidence: Optional[float] = Query(
+        None, ge=0.0, le=1.0, description="Minimum confidence"
+    ),
     current_user: User = Depends(get_current_user),
     use_case: HighlightManagementUseCase = Depends(get_highlight_management_use_case),
 ):
     """List highlights for the authenticated user.
-    
+
     Returns paginated list of highlights with optional filtering.
     """
     # Build filters
-    filters = HighlightFilters(
-        stream_id=stream_id,
-        min_confidence=min_confidence
-    )
-    
+    filters = HighlightFilters(stream_id=stream_id, min_confidence=min_confidence)
+
     request = mapper.to_list_highlights_request(
-        user_id=current_user.id,
-        filters=filters,
-        page=page,
-        per_page=per_page
+        user_id=current_user.id, filters=filters, page=page, per_page=per_page
     )
-    
+
     result = await use_case.list_highlights(request)
-    
+
     if not result.is_success:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=result.errors[0] if result.errors else "Failed to list highlights"
+            detail=result.errors[0] if result.errors else "Failed to list highlights",
         )
-    
+
     return mapper.to_highlight_list_response(
-        highlights=result.highlights,
-        total=result.total,
-        page=page,
-        per_page=per_page
+        highlights=result.highlights, total=result.total, page=page, per_page=per_page
     )
 
 
@@ -107,28 +99,27 @@ async def get_highlight(
     use_case: HighlightManagementUseCase = Depends(get_highlight_management_use_case),
 ):
     """Get highlight details.
-    
+
     Returns detailed information about a specific highlight.
     """
     request = mapper.to_get_highlight_request(highlight_id, current_user.id)
     result = await use_case.get_highlight(request)
-    
+
     if result.status == ResultStatus.NOT_FOUND:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Highlight not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Highlight not found"
         )
     elif result.status == ResultStatus.UNAUTHORIZED:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied to this highlight"
+            detail="Access denied to this highlight",
         )
     elif not result.is_success:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=result.errors[0] if result.errors else "Failed to get highlight"
+            detail=result.errors[0] if result.errors else "Failed to get highlight",
         )
-    
+
     return mapper.to_highlight_response(result.highlight)
 
 
@@ -144,30 +135,31 @@ async def download_highlight(
     use_case: HighlightManagementUseCase = Depends(get_highlight_management_use_case),
 ):
     """Download highlight file.
-    
+
     Returns a presigned URL for downloading the highlight video.
     """
     request = mapper.to_export_highlight_request(highlight_id, current_user.id)
     result = await use_case.export_highlight(request)
-    
+
     if result.status == ResultStatus.NOT_FOUND:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Highlight not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Highlight not found"
         )
     elif result.status == ResultStatus.UNAUTHORIZED:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied to this highlight"
+            detail="Access denied to this highlight",
         )
     elif not result.is_success:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=result.errors[0] if result.errors else "Failed to export highlight"
+            detail=result.errors[0] if result.errors else "Failed to export highlight",
         )
-    
+
     # Redirect to the presigned download URL
-    return RedirectResponse(url=result.download_url, status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(
+        url=result.download_url, status_code=status.HTTP_303_SEE_OTHER
+    )
 
 
 @router.delete(
@@ -175,7 +167,7 @@ async def download_highlight(
     summary="Delete highlight",
     description="Delete a highlight",
     responses=COMMON_RESPONSES,
-    status_code=status.HTTP_204_NO_CONTENT
+    status_code=status.HTTP_204_NO_CONTENT,
 )
 async def delete_highlight(
     highlight_id: int,
@@ -183,24 +175,23 @@ async def delete_highlight(
     use_case: HighlightManagementUseCase = Depends(get_highlight_management_use_case),
 ) -> None:
     """Delete a highlight.
-    
+
     Permanently deletes the highlight and its associated files.
     """
     request = mapper.to_delete_highlight_request(highlight_id, current_user.id)
     result = await use_case.delete_highlight(request)
-    
+
     if result.status == ResultStatus.NOT_FOUND:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Highlight not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Highlight not found"
         )
     elif result.status == ResultStatus.UNAUTHORIZED:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied to this highlight"
+            detail="Access denied to this highlight",
         )
     elif not result.is_success:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=result.errors[0] if result.errors else "Failed to delete highlight"
+            detail=result.errors[0] if result.errors else "Failed to delete highlight",
         )

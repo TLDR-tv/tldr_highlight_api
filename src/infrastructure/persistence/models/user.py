@@ -88,7 +88,7 @@ class User(Base, TimestampMixin):
         cascade="all, delete-orphan",
         lazy="selectin",
     )
-    
+
     webhook_events: Mapped[List["WebhookEvent"]] = relationship(
         "WebhookEvent",
         back_populates="user",

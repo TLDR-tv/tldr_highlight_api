@@ -2,13 +2,12 @@
 
 import pytest
 from datetime import datetime
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, patch
 from fastapi import status
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError
 
-from src.api.main import app
 from src.core.config import settings
 
 
@@ -20,10 +19,11 @@ class TestHealthRouter:
         self, async_client: AsyncClient, db_session: AsyncSession
     ):
         """Test comprehensive health check when all services are healthy."""
-        with patch("src.api.routers.health._check_database_health") as mock_db, \
-             patch("src.api.routers.health._check_redis_health") as mock_redis, \
-             patch("src.api.routers.health._check_storage_health") as mock_storage:
-            
+        with (
+            patch("src.api.routers.health._check_database_health") as mock_db,
+            patch("src.api.routers.health._check_redis_health") as mock_redis,
+            patch("src.api.routers.health._check_storage_health") as mock_storage,
+        ):
             # Mock healthy responses
             mock_db.return_value = {
                 "status": "healthy",
@@ -44,18 +44,18 @@ class TestHealthRouter:
                 "region": "us-east-1",
                 "buckets_total": 3,
             }
-            
+
             response = await async_client.get("/api/v1/health/")
-            
+
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
-            
+
             # Check overall response structure
             assert data["status"] == "healthy"
             assert data["version"] == settings.app_version
             assert "timestamp" in data
             assert "services" in data
-            
+
             # Check individual services
             assert data["services"]["api"]["status"] == "healthy"
             assert data["services"]["database"]["status"] == "healthy"
@@ -66,10 +66,11 @@ class TestHealthRouter:
         self, async_client: AsyncClient, db_session: AsyncSession
     ):
         """Test comprehensive health check when some services are unhealthy."""
-        with patch("src.api.routers.health._check_database_health") as mock_db, \
-             patch("src.api.routers.health._check_redis_health") as mock_redis, \
-             patch("src.api.routers.health._check_storage_health") as mock_storage:
-            
+        with (
+            patch("src.api.routers.health._check_database_health") as mock_db,
+            patch("src.api.routers.health._check_redis_health") as mock_redis,
+            patch("src.api.routers.health._check_storage_health") as mock_storage,
+        ):
             # Mock mixed health responses
             mock_db.return_value = {"status": "healthy", "response_time_ms": 5.5}
             mock_redis.return_value = {
@@ -78,12 +79,12 @@ class TestHealthRouter:
                 "error": "Connection timeout",
             }
             mock_storage.return_value = {"status": "healthy", "response_time_ms": 15.3}
-            
+
             response = await async_client.get("/api/v1/health/")
-            
+
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
-            
+
             # Should be degraded when one service is unhealthy
             assert data["status"] == "degraded"
             assert data["services"]["redis"]["status"] == "unhealthy"
@@ -92,20 +93,21 @@ class TestHealthRouter:
         self, async_client: AsyncClient, db_session: AsyncSession
     ):
         """Test comprehensive health check when services fail with exceptions."""
-        with patch("src.api.routers.health._check_database_health") as mock_db, \
-             patch("src.api.routers.health._check_redis_health") as mock_redis, \
-             patch("src.api.routers.health._check_storage_health") as mock_storage:
-            
+        with (
+            patch("src.api.routers.health._check_database_health") as mock_db,
+            patch("src.api.routers.health._check_redis_health") as mock_redis,
+            patch("src.api.routers.health._check_storage_health") as mock_storage,
+        ):
             # Mock exception responses
             mock_db.side_effect = Exception("Database connection failed")
             mock_redis.return_value = {"status": "healthy", "response_time_ms": 2.1}
             mock_storage.return_value = {"status": "healthy", "response_time_ms": 15.3}
-            
+
             response = await async_client.get("/api/v1/health/")
-            
+
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
-            
+
             # Should be unhealthy when exceptions occur
             assert data["status"] == "unhealthy"
             assert data["services"]["database"]["status"] == "unhealthy"
@@ -114,7 +116,7 @@ class TestHealthRouter:
     async def test_liveness_check(self, async_client: AsyncClient):
         """Test liveness probe endpoint."""
         response = await async_client.get("/api/v1/health/live")
-        
+
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["status"] == "alive"
@@ -131,9 +133,9 @@ class TestHealthRouter:
             mock_redis_client = AsyncMock()
             mock_redis_client.ping = AsyncMock(return_value=True)
             mock_cache.return_value.__aenter__.return_value = mock_redis_client
-            
+
             response = await async_client.get("/api/v1/health/ready")
-            
+
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
             assert data["status"] == "ready"
@@ -148,9 +150,9 @@ class TestHealthRouter:
             mock_db = AsyncMock()
             mock_db.execute.side_effect = SQLAlchemyError("Database unavailable")
             mock_get_db.return_value = mock_db
-            
+
             response = await async_client.get("/api/v1/health/ready")
-            
+
             assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
             data = response.json()
             assert data["detail"] == "Service not ready"
@@ -164,9 +166,9 @@ class TestHealthRouter:
             mock_redis_client = AsyncMock()
             mock_redis_client.ping.side_effect = Exception("Redis connection failed")
             mock_cache.return_value.__aenter__.return_value = mock_redis_client
-            
+
             response = await async_client.get("/api/v1/health/ready")
-            
+
             assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
             data = response.json()
             assert data["detail"] == "Service not ready"
@@ -176,10 +178,10 @@ class TestHealthRouter:
     ):
         """Test dedicated database health endpoint."""
         response = await async_client.get("/api/v1/health/database")
-        
+
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
-        
+
         assert data["status"] == "healthy"
         assert "response_time_ms" in data
         assert "database" in data
@@ -187,21 +189,19 @@ class TestHealthRouter:
         assert "version" in data
         assert "connection_info" in data
 
-    async def test_database_health_endpoint_failure(
-        self, async_client: AsyncClient
-    ):
+    async def test_database_health_endpoint_failure(self, async_client: AsyncClient):
         """Test database health endpoint when database fails."""
         with patch("src.api.routers.health.get_db") as mock_get_db:
             # Mock database failure
             mock_db = AsyncMock()
             mock_db.execute.side_effect = SQLAlchemyError("Connection timeout")
             mock_get_db.return_value = mock_db
-            
+
             response = await async_client.get("/api/v1/health/database")
-            
+
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
-            
+
             assert data["status"] == "unhealthy"
             assert "error" in data
             assert "error_type" in data
@@ -213,22 +213,24 @@ class TestHealthRouter:
             # Mock Redis client
             mock_redis_client = AsyncMock()
             mock_redis_client.ping = AsyncMock(return_value=True)
-            mock_redis_client.info = AsyncMock(return_value={
-                "redis_version": "7.0.0",
-                "redis_mode": "standalone",
-                "connected_clients": 5,
-                "used_memory_human": "10MB",
-            })
+            mock_redis_client.info = AsyncMock(
+                return_value={
+                    "redis_version": "7.0.0",
+                    "redis_mode": "standalone",
+                    "connected_clients": 5,
+                    "used_memory_human": "10MB",
+                }
+            )
             mock_redis_client.set = AsyncMock(return_value=True)
             mock_redis_client.get = AsyncMock(return_value=b"test_value")
             mock_redis_client.delete = AsyncMock(return_value=1)
             mock_cache.return_value.__aenter__.return_value = mock_redis_client
-            
+
             response = await async_client.get("/api/v1/health/redis")
-            
+
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
-            
+
             assert data["status"] == "healthy"
             assert data["version"] == "7.0.0"
             assert data["mode"] == "standalone"
@@ -240,12 +242,12 @@ class TestHealthRouter:
         with patch("src.core.cache.cache.get_client") as mock_cache:
             # Mock Redis failure
             mock_cache.side_effect = Exception("Redis connection refused")
-            
+
             response = await async_client.get("/api/v1/health/redis")
-            
+
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
-            
+
             assert data["status"] == "unhealthy"
             assert "error" in data
             assert "error_type" in data
@@ -254,14 +256,16 @@ class TestHealthRouter:
         """Test dedicated storage health endpoint."""
         with patch("src.services.storage.storage_service") as mock_storage:
             # Mock storage service
-            mock_storage.list_buckets = AsyncMock(return_value=["bucket1", "bucket2", "bucket3"])
+            mock_storage.list_buckets = AsyncMock(
+                return_value=["bucket1", "bucket2", "bucket3"]
+            )
             mock_storage.list_objects = AsyncMock(return_value=[])
-            
+
             response = await async_client.get("/api/v1/health/storage")
-            
+
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
-            
+
             assert data["status"] == "healthy"
             assert "response_time_ms" in data
             assert data["buckets_total"] == 3
@@ -272,12 +276,12 @@ class TestHealthRouter:
         with patch("src.services.storage.storage_service") as mock_storage:
             # Mock storage failure
             mock_storage.list_buckets.side_effect = Exception("S3 access denied")
-            
+
             response = await async_client.get("/api/v1/health/storage")
-            
+
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
-            
+
             assert data["status"] == "unhealthy"
             assert "error" in data
             assert "S3 access denied" in data["error"]
@@ -287,10 +291,10 @@ class TestHealthRouter:
     ):
         """Test that health checks include accurate response times."""
         response = await async_client.get("/api/v1/health/")
-        
+
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
-        
+
         # Check that all services have response times
         for service_name, service_data in data["services"].items():
             if service_name != "api":  # API has 0 response time
@@ -303,25 +307,26 @@ class TestHealthRouter:
         self, async_client: AsyncClient, db_session: AsyncSession
     ):
         """Test that health checks run concurrently."""
-        with patch("src.api.routers.health._check_database_health") as mock_db, \
-             patch("src.api.routers.health._check_redis_health") as mock_redis, \
-             patch("src.api.routers.health._check_storage_health") as mock_storage, \
-             patch("asyncio.gather") as mock_gather:
-            
+        with (
+            patch("src.api.routers.health._check_database_health") as mock_db,
+            patch("src.api.routers.health._check_redis_health") as mock_redis,
+            patch("src.api.routers.health._check_storage_health") as mock_storage,
+            patch("asyncio.gather") as mock_gather,
+        ):
             # Mock healthy responses
             mock_db.return_value = {"status": "healthy", "response_time_ms": 5.0}
             mock_redis.return_value = {"status": "healthy", "response_time_ms": 2.0}
             mock_storage.return_value = {"status": "healthy", "response_time_ms": 10.0}
-            
+
             # Mock gather to return the results
             mock_gather.return_value = [
                 {"status": "healthy", "response_time_ms": 5.0},
                 {"status": "healthy", "response_time_ms": 2.0},
-                {"status": "healthy", "response_time_ms": 10.0}
+                {"status": "healthy", "response_time_ms": 10.0},
             ]
-            
+
             response = await async_client.get("/api/v1/health/")
-            
+
             assert response.status_code == status.HTTP_200_OK
             # Verify asyncio.gather was called (concurrent execution)
             mock_gather.assert_called_once()
@@ -330,20 +335,21 @@ class TestHealthRouter:
         self, async_client: AsyncClient, db_session: AsyncSession
     ):
         """Test health check when some services fail."""
-        with patch("src.api.routers.health._check_database_health") as mock_db, \
-             patch("src.api.routers.health._check_redis_health") as mock_redis, \
-             patch("src.api.routers.health._check_storage_health") as mock_storage:
-            
+        with (
+            patch("src.api.routers.health._check_database_health") as mock_db,
+            patch("src.api.routers.health._check_redis_health") as mock_redis,
+            patch("src.api.routers.health._check_storage_health") as mock_storage,
+        ):
             # Mix of success and failure
             mock_db.return_value = {"status": "healthy", "response_time_ms": 5.0}
             mock_redis.side_effect = Exception("Redis connection failed")
             mock_storage.return_value = {"status": "degraded", "response_time_ms": 50.0}
-            
+
             response = await async_client.get("/api/v1/health/")
-            
+
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
-            
+
             # Overall status should be unhealthy due to Redis exception
             assert data["status"] == "unhealthy"
             assert data["services"]["database"]["status"] == "healthy"
@@ -361,15 +367,15 @@ class TestHealthRouter:
             mock_result.fetchone.return_value = (
                 "PostgreSQL 15.0 on x86_64-pc-linux-gnu",
                 "tldr_test",
-                "testuser"
+                "testuser",
             )
             mock_execute.return_value = mock_result
-            
+
             response = await async_client.get("/api/v1/health/database")
-            
+
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
-            
+
             assert data["status"] == "healthy"
             assert data["database"] == "tldr_test"
             assert data["user"] == "testuser"
@@ -383,29 +389,31 @@ class TestHealthRouter:
         with patch("src.core.cache.cache.get_client") as mock_cache:
             mock_redis_client = AsyncMock()
             mock_redis_client.ping = AsyncMock(return_value=True)
-            mock_redis_client.info = AsyncMock(return_value={
-                "redis_version": "7.0.0",
-                "redis_mode": "standalone",
-                "connected_clients": 10,
-                "used_memory_human": "50MB",
-            })
+            mock_redis_client.info = AsyncMock(
+                return_value={
+                    "redis_version": "7.0.0",
+                    "redis_mode": "standalone",
+                    "connected_clients": 10,
+                    "used_memory_human": "50MB",
+                }
+            )
             mock_redis_client.set = AsyncMock(return_value=True)
             mock_redis_client.get = AsyncMock(return_value=b"test_value")
             mock_redis_client.delete = AsyncMock(return_value=1)
             mock_cache.return_value.__aenter__.return_value = mock_redis_client
-            
+
             response = await async_client.get("/api/v1/health/redis")
-            
+
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
-            
+
             assert data["status"] == "healthy"
             assert data["version"] == "7.0.0"
             assert data["mode"] == "standalone"
             assert data["connected_clients"] == 10
             assert data["used_memory_human"] == "50MB"
             assert data["operations_test"] == "passed"
-            
+
             # Verify operations were tested
             mock_redis_client.set.assert_called_once()
             mock_redis_client.get.assert_called_once()
@@ -418,41 +426,49 @@ class TestHealthRouter:
             mock_redis_client.ping = AsyncMock(return_value=True)
             mock_redis_client.info = AsyncMock(return_value={"redis_version": "7.0.0"})
             mock_redis_client.set = AsyncMock(return_value=True)
-            mock_redis_client.get = AsyncMock(return_value=b"wrong_value")  # Wrong value
+            mock_redis_client.get = AsyncMock(
+                return_value=b"wrong_value"
+            )  # Wrong value
             mock_redis_client.delete = AsyncMock(return_value=1)
             mock_cache.return_value.__aenter__.return_value = mock_redis_client
-            
+
             response = await async_client.get("/api/v1/health/redis")
-            
+
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
-            
+
             assert data["status"] == "healthy"  # Still healthy (ping succeeded)
             assert data["operations_test"] == "failed"  # But operations test failed
 
     async def test_storage_health_detailed_info(self, async_client: AsyncClient):
         """Test detailed storage health information."""
-        with patch("src.services.storage.storage_service") as mock_storage, \
-             patch("src.core.config.settings") as mock_settings:
-            
+        with (
+            patch("src.services.storage.storage_service") as mock_storage,
+            patch("src.core.config.settings") as mock_settings,
+        ):
             # Mock settings
             mock_settings.s3_highlights_bucket = "highlights-bucket"
             mock_settings.s3_thumbnails_bucket = "thumbnails-bucket"
             mock_settings.s3_temp_bucket = "temp-bucket"
             mock_settings.s3_region = "us-east-1"
             mock_settings.s3_endpoint_url = None
-            
+
             # Mock storage responses
-            mock_storage.list_buckets = AsyncMock(return_value=[
-                "highlights-bucket", "thumbnails-bucket", "temp-bucket", "other-bucket"
-            ])
+            mock_storage.list_buckets = AsyncMock(
+                return_value=[
+                    "highlights-bucket",
+                    "thumbnails-bucket",
+                    "temp-bucket",
+                    "other-bucket",
+                ]
+            )
             mock_storage.list_objects = AsyncMock(return_value=[])  # Successful access
-            
+
             response = await async_client.get("/api/v1/health/storage")
-            
+
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
-            
+
             assert data["status"] == "healthy"
             assert data["region"] == "us-east-1"
             assert data["endpoint"] == "default"
@@ -464,19 +480,22 @@ class TestHealthRouter:
 
     async def test_storage_health_bucket_access_errors(self, async_client: AsyncClient):
         """Test storage health when some buckets are inaccessible."""
-        with patch("src.services.storage.storage_service") as mock_storage, \
-             patch("src.core.config.settings") as mock_settings:
-            
+        with (
+            patch("src.services.storage.storage_service") as mock_storage,
+            patch("src.core.config.settings") as mock_settings,
+        ):
             # Mock settings
             mock_settings.s3_highlights_bucket = "highlights-bucket"
             mock_settings.s3_thumbnails_bucket = "thumbnails-bucket"
             mock_settings.s3_temp_bucket = "temp-bucket"
             mock_settings.s3_region = "us-east-1"
             mock_settings.s3_endpoint_url = "https://custom.s3.endpoint"
-            
+
             # Mock storage responses
-            mock_storage.list_buckets = AsyncMock(return_value=["highlights-bucket", "thumbnails-bucket"])
-            
+            mock_storage.list_buckets = AsyncMock(
+                return_value=["highlights-bucket", "thumbnails-bucket"]
+            )
+
             # Mock bucket access - some succeed, some fail
             async def mock_list_objects(bucket_name, limit=None):
                 if bucket_name == "highlights-bucket":
@@ -485,14 +504,14 @@ class TestHealthRouter:
                     raise Exception("Access denied")
                 else:  # temp-bucket
                     raise Exception("Bucket not found")
-            
+
             mock_storage.list_objects = mock_list_objects
-            
+
             response = await async_client.get("/api/v1/health/storage")
-            
+
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
-            
+
             assert data["status"] == "healthy"  # Overall still healthy
             assert data["endpoint"] == "https://custom.s3.endpoint"
             assert data["buckets_total"] == 2
@@ -500,18 +519,20 @@ class TestHealthRouter:
             assert "Access denied" in data["key_buckets"]["thumbnails-bucket"]
             assert "Bucket not found" in data["key_buckets"]["temp-bucket"]
 
-    async def test_health_endpoints_error_format_consistency(self, async_client: AsyncClient):
+    async def test_health_endpoints_error_format_consistency(
+        self, async_client: AsyncClient
+    ):
         """Test that all health endpoints return consistent error formats."""
         # Test database error format
         with patch("src.api.routers.health.get_db") as mock_get_db:
             mock_db = AsyncMock()
             mock_db.execute.side_effect = SQLAlchemyError("Database connection timeout")
             mock_get_db.return_value = mock_db
-            
+
             response = await async_client.get("/api/v1/health/database")
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
-            
+
             assert data["status"] == "unhealthy"
             assert "error" in data
             assert "error_type" in data
@@ -521,11 +542,11 @@ class TestHealthRouter:
         # Test Redis error format
         with patch("src.core.cache.cache.get_client") as mock_cache:
             mock_cache.side_effect = Exception("Redis connection refused")
-            
+
             response = await async_client.get("/api/v1/health/redis")
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
-            
+
             assert data["status"] == "unhealthy"
             assert "error" in data
             assert "error_type" in data
@@ -535,11 +556,11 @@ class TestHealthRouter:
         # Test storage error format
         with patch("src.services.storage.storage_service") as mock_storage:
             mock_storage.list_buckets.side_effect = Exception("S3 service unavailable")
-            
+
             response = await async_client.get("/api/v1/health/storage")
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
-            
+
             assert data["status"] == "unhealthy"
             assert "error" in data
             assert "error_type" in data
@@ -549,20 +570,21 @@ class TestHealthRouter:
         self, async_client: AsyncClient, db_session: AsyncSession
     ):
         """Test that API service info is included in health check."""
-        with patch("src.api.routers.health._check_database_health") as mock_db, \
-             patch("src.api.routers.health._check_redis_health") as mock_redis, \
-             patch("src.api.routers.health._check_storage_health") as mock_storage:
-            
+        with (
+            patch("src.api.routers.health._check_database_health") as mock_db,
+            patch("src.api.routers.health._check_redis_health") as mock_redis,
+            patch("src.api.routers.health._check_storage_health") as mock_storage,
+        ):
             # Mock all services as healthy
             mock_db.return_value = {"status": "healthy", "response_time_ms": 5.0}
             mock_redis.return_value = {"status": "healthy", "response_time_ms": 2.0}
             mock_storage.return_value = {"status": "healthy", "response_time_ms": 10.0}
-            
+
             response = await async_client.get("/api/v1/health/")
-            
+
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
-            
+
             # Check API service info
             assert "api" in data["services"]
             api_info = data["services"]["api"]
@@ -576,13 +598,13 @@ class TestHealthRouter:
         response = await async_client.get("/api/v1/health/")
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
-        
+
         # Verify timestamp format
         timestamp = data["timestamp"]
         assert isinstance(timestamp, str)
         # Should be able to parse as ISO format
         datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
-        
+
         # Test other endpoints
         for endpoint in ["/api/v1/health/live", "/api/v1/health/ready"]:
             response = await async_client.get(endpoint)
@@ -598,11 +620,11 @@ class TestHealthRouter:
         with patch("src.core.config.settings") as mock_settings:
             mock_settings.app_version = "1.2.3"
             mock_settings.environment = "test"
-            
+
             response = await async_client.get("/api/v1/health/")
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
-            
+
             # Check main version
             assert data["version"] == "1.2.3"
             # Check API service version

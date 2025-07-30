@@ -2,7 +2,6 @@
 
 import pytest
 from datetime import datetime, timedelta
-from typing import Dict, Any
 from pydantic import ValidationError
 
 from src.api.schemas.common import (
@@ -34,10 +33,10 @@ class TestTimestampMixin:
     def test_timestamp_mixin_creation(self):
         """Test creating a model with timestamp fields."""
         now = datetime.utcnow()
-        
+
         class TestModel(TimestampMixin):
             name: str
-        
+
         obj = TestModel(name="test", created_at=now, updated_at=now)
         assert obj.created_at == now
         assert obj.updated_at == now
@@ -64,11 +63,11 @@ class TestPaginationSchemas:
         # Negative offset
         with pytest.raises(ValidationError):
             PaginationParams(offset=-1)
-        
+
         # Zero limit
         with pytest.raises(ValidationError):
             PaginationParams(limit=0)
-        
+
         # Limit too high
         with pytest.raises(ValidationError):
             PaginationParams(limit=101)
@@ -76,7 +75,7 @@ class TestPaginationSchemas:
     def test_pagination_meta_create(self):
         """Test creating pagination metadata."""
         meta = PaginationMeta.create(offset=20, limit=10, total=100)
-        
+
         assert meta.offset == 20
         assert meta.limit == 10
         assert meta.total == 100
@@ -89,12 +88,12 @@ class TestPaginationSchemas:
         meta = PaginationMeta.create(offset=0, limit=10, total=50)
         assert meta.has_previous is False
         assert meta.has_next is True
-        
+
         # Last page
         meta = PaginationMeta.create(offset=40, limit=10, total=50)
         assert meta.has_previous is True
         assert meta.has_next is False
-        
+
         # Single page
         meta = PaginationMeta.create(offset=0, limit=10, total=5)
         assert meta.has_previous is False
@@ -109,9 +108,9 @@ class TestResponseWrappers:
         response = SuccessResponse(
             data={"id": 123, "name": "Test"},
             message="Operation successful",
-            request_id="req-123"
+            request_id="req-123",
         )
-        
+
         assert response.success is True
         assert response.data == {"id": 123, "name": "Test"}
         assert response.message == "Operation successful"
@@ -124,9 +123,9 @@ class TestResponseWrappers:
             data=[{"id": 1}, {"id": 2}],
             pagination=meta,
             message="Retrieved items",
-            request_id="req-456"
+            request_id="req-456",
         )
-        
+
         assert response.success is True
         assert len(response.data) == 2
         assert response.pagination.total == 5
@@ -138,14 +137,11 @@ class TestResponseWrappers:
             code="AUTH_001",
             message="Invalid API key",
             status_code=401,
-            details={"key": "test-key"}
+            details={"key": "test-key"},
         )
-        
-        response = ErrorResponse(
-            error=error_detail,
-            request_id="req-789"
-        )
-        
+
+        response = ErrorResponse(error=error_detail, request_id="req-789")
+
         assert response.success is False
         assert response.error.code == "AUTH_001"
         assert response.error.status_code == 401
@@ -156,21 +152,21 @@ class TestResponseWrappers:
         field_error = ValidationErrorDetail(
             message="Invalid email format",
             type="email_validation",
-            input="not-an-email"
+            input="not-an-email",
         )
-        
+
         error_detail = ErrorDetail(
             code="VALIDATION_ERROR",
             message="Request validation failed",
-            status_code=422
+            status_code=422,
         )
-        
+
         response = ValidationErrorResponse(
             error=error_detail,
             field_errors={"email": field_error},
-            request_id="req-val-123"
+            request_id="req-val-123",
         )
-        
+
         assert response.success is False
         assert response.error.status_code == 422
         assert "email" in response.field_errors
@@ -184,11 +180,9 @@ class TestStatusResponses:
         """Test simple status response."""
         now = datetime.utcnow()
         response = StatusResponse(
-            status="Service operational",
-            timestamp=now,
-            request_id="req-status-123"
+            status="Service operational", timestamp=now, request_id="req-status-123"
         )
-        
+
         assert response.status == "Service operational"
         assert response.timestamp == now
         assert response.request_id == "req-status-123"
@@ -199,16 +193,13 @@ class TestStatusResponses:
         services = {
             "database": {"status": "healthy", "response_time_ms": 5.5},
             "redis": {"status": "healthy", "response_time_ms": 2.1},
-            "storage": {"status": "degraded", "response_time_ms": 100.0}
+            "storage": {"status": "degraded", "response_time_ms": 100.0},
         }
-        
+
         response = HealthCheckResponse(
-            status="degraded",
-            version="1.0.0",
-            timestamp=now,
-            services=services
+            status="degraded", version="1.0.0", timestamp=now, services=services
         )
-        
+
         assert response.status == "degraded"
         assert response.version == "1.0.0"
         assert len(response.services) == 3
@@ -225,7 +216,7 @@ class TestOperationResponses:
         response = IdResponse(id="uuid-123", message="Resource created")
         assert response.id == "uuid-123"
         assert response.message == "Resource created"
-        
+
         # Integer ID
         response = IdResponse(id=12345)
         assert response.id == 12345
@@ -235,18 +226,18 @@ class TestOperationResponses:
         """Test bulk operation response."""
         errors = [
             {"id": "item-1", "error": "Invalid format"},
-            {"id": "item-2", "error": "Duplicate entry"}
+            {"id": "item-2", "error": "Duplicate entry"},
         ]
-        
+
         response = BulkOperationResponse(
             success=False,
             total=10,
             successful=8,
             failed=2,
             errors=errors,
-            request_id="bulk-123"
+            request_id="bulk-123",
         )
-        
+
         assert response.success is False
         assert response.total == 10
         assert response.successful == 8
@@ -267,17 +258,13 @@ class TestSearchAndFilterSchemas:
     def test_search_params_validation(self):
         """Test search params validation."""
         # Valid params
-        params = SearchParams(
-            query="test search",
-            sort_by="name",
-            sort_order="asc"
-        )
+        params = SearchParams(query="test search", sort_by="name", sort_order="asc")
         assert params.query == "test search"
-        
+
         # Invalid sort order
         with pytest.raises(ValidationError):
             SearchParams(sort_order="invalid")
-        
+
         # Empty query after stripping
         params = SearchParams(query="   ")
         assert params.query is None
@@ -286,12 +273,12 @@ class TestSearchAndFilterSchemas:
         """Test date range filter validation."""
         start = datetime.utcnow()
         end = start + timedelta(days=7)
-        
+
         # Valid range
         filter_params = DateRangeFilter(start_date=start, end_date=end)
         assert filter_params.start_date == start
         assert filter_params.end_date == end
-        
+
         # Invalid range (end before start)
         with pytest.raises(ValidationError) as exc_info:
             DateRangeFilter(start_date=end, end_date=start)
@@ -303,9 +290,9 @@ class TestSearchAndFilterSchemas:
             query="search term",
             tags=["tag1", "tag2", "  tag3  "],
             status="active",
-            start_date=datetime.utcnow()
+            start_date=datetime.utcnow(),
         )
-        
+
         assert params.query == "search term"
         assert params.tags == ["tag1", "tag2", "tag3"]  # Trimmed
         assert params.status == "active"
@@ -316,12 +303,12 @@ class TestSearchAndFilterSchemas:
         many_tags = [f"tag{i}" for i in range(20)]
         params = FilterParams(tags=many_tags)
         assert len(params.tags) == 10
-        
+
         # Long tag names - should be truncated
         long_tag = "x" * 100
         params = FilterParams(tags=[long_tag])
         assert len(params.tags[0]) == 50
-        
+
         # Empty tags should be removed
         params = FilterParams(tags=["valid", "", "  ", "another"])
         assert params.tags == ["valid", "another"]
@@ -338,9 +325,9 @@ class TestWebhookAndUsageSchemas:
             timestamp=now,
             data={"highlight_id": "123", "stream_id": "456"},
             webhook_id="webhook-789",
-            delivery_id="delivery-abc"
+            delivery_id="delivery-abc",
         )
-        
+
         assert payload.event == "highlight.created"
         assert payload.timestamp == now
         assert payload.data["highlight_id"] == "123"
@@ -354,62 +341,57 @@ class TestWebhookAndUsageSchemas:
             requests_per_minute=16.67,
             requests_per_hour=1000.0,
             error_rate=2.5,
-            avg_response_time_ms=125.5
+            avg_response_time_ms=125.5,
         )
-        
+
         assert stats.requests_count == 1000
         assert stats.error_rate == 2.5
-        
+
         # Error rate validation (clamped to 0-100)
         stats = APIUsageStats(
             requests_count=100,
             requests_per_minute=1.67,
             requests_per_hour=100.0,
             error_rate=150.0,  # Should be clamped to 100
-            avg_response_time_ms=50.0
+            avg_response_time_ms=50.0,
         )
         assert stats.error_rate == 100.0
-        
+
         # Negative error rate
         stats = APIUsageStats(
             requests_count=100,
             requests_per_minute=1.67,
             requests_per_hour=100.0,
             error_rate=-10.0,  # Should be clamped to 0
-            avg_response_time_ms=50.0
+            avg_response_time_ms=50.0,
         )
         assert stats.error_rate == 0.0
 
     def test_resource_quota(self):
         """Test resource quota information."""
         reset_time = datetime.utcnow() + timedelta(hours=1)
-        
+
         # Quota with manual remaining
-        quota = ResourceQuota(
-            used=75,
-            limit=100,
-            remaining=25,
-            reset_at=reset_time
-        )
-        
+        quota = ResourceQuota(used=75, limit=100, remaining=25, reset_at=reset_time)
+
         assert quota.used == 75
         assert quota.limit == 100
         assert quota.remaining == 25
         assert quota.reset_at == reset_time
-        
+
         # Quota with calculated remaining
         quota = ResourceQuota(
             used=80,
             limit=100,
-            remaining=50  # Should be recalculated to 20
+            remaining=50,  # Should be recalculated to 20
         )
         assert quota.remaining == 20
-        
+
         # Over quota
         quota = ResourceQuota(
             used=120,
             limit=100,
-            remaining=0  # Should be 0, not negative
+            remaining=0,  # Should be 0, not negative
         )
         assert quota.remaining == 0
 
@@ -424,18 +406,18 @@ class TestSchemaIntegration:
             {"id": i, "name": f"Item {i}", "created_at": datetime.utcnow()}
             for i in range(3)
         ]
-        
+
         meta = PaginationMeta.create(offset=0, limit=10, total=3)
         response = PaginatedResponse(
             data=items,
             pagination=meta,
             message="Items retrieved successfully",
-            request_id="test-request"
+            request_id="test-request",
         )
-        
+
         # Convert to dict (simulating JSON serialization)
         response_dict = response.model_dump()
-        
+
         assert response_dict["success"] is True
         assert len(response_dict["data"]) == 3
         assert response_dict["pagination"]["total"] == 3
@@ -445,32 +427,25 @@ class TestSchemaIntegration:
         """Test error response serialization with validation errors."""
         field_errors = {
             "email": ValidationErrorDetail(
-                message="Invalid email format",
-                type="email",
-                input="bad-email"
+                message="Invalid email format", type="email", input="bad-email"
             ),
             "age": ValidationErrorDetail(
-                message="Must be at least 18",
-                type="min_value",
-                input=16
-            )
+                message="Must be at least 18", type="min_value", input=16
+            ),
         }
-        
+
         error = ErrorDetail(
             code="VALIDATION_FAILED",
             message="Multiple validation errors",
             status_code=422,
-            details={"fields_count": 2}
+            details={"fields_count": 2},
         )
-        
-        response = ValidationErrorResponse(
-            error=error,
-            field_errors=field_errors
-        )
-        
+
+        response = ValidationErrorResponse(error=error, field_errors=field_errors)
+
         # Serialize to dict
         response_dict = response.model_dump()
-        
+
         assert response_dict["success"] is False
         assert response_dict["error"]["code"] == "VALIDATION_FAILED"
         assert len(response_dict["field_errors"]) == 2

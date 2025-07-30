@@ -340,7 +340,8 @@ class ProgressTracker:
                             0, estimated_remaining
                         )
                         stats["estimated_completion_time"] = (
-                            datetime.now(timezone.utc) + timedelta(seconds=estimated_remaining)
+                            datetime.now(timezone.utc)
+                            + timedelta(seconds=estimated_remaining)
                         ).isoformat()
                 except Exception as e:
                     logger.warning(
@@ -457,7 +458,9 @@ class ProgressTracker:
                         if job_info["started_at"]:
                             try:
                                 started = datetime.fromisoformat(job_info["started_at"])
-                                duration = (datetime.now(timezone.utc) - started).total_seconds()
+                                duration = (
+                                    datetime.now(timezone.utc) - started
+                                ).total_seconds()
                                 job_info["running_duration_seconds"] = duration
                             except Exception:
                                 pass

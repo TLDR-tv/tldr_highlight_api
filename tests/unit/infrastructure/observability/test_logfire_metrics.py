@@ -1,8 +1,7 @@
 """Tests for Logfire metrics collection."""
 
 import pytest
-from unittest.mock import Mock, patch, call
-from datetime import datetime
+from unittest.mock import patch, call
 
 from src.infrastructure.observability.logfire_metrics import MetricsCollector
 
@@ -25,7 +24,7 @@ class TestMetricsCollector:
             endpoint="/api/v1/streams",
             method="POST",
             status_code=201,
-            organization_id="org-123"
+            organization_id="org-123",
         )
 
         # Verify
@@ -37,7 +36,7 @@ class TestMetricsCollector:
             endpoint="/api/v1/streams",
             method="POST",
             status_code=201,
-            organization_id="org-123"
+            organization_id="org-123",
         )
 
     @patch("src.infrastructure.observability.logfire_metrics.logfire")
@@ -48,7 +47,7 @@ class TestMetricsCollector:
             endpoint="/api/v1/highlights",
             method="GET",
             duration_ms=125.5,
-            organization_id="org-456"
+            organization_id="org-456",
         )
 
         # Verify
@@ -60,7 +59,7 @@ class TestMetricsCollector:
             metric_type="histogram",
             endpoint="/api/v1/highlights",
             method="GET",
-            organization_id="org-456"
+            organization_id="org-456",
         )
 
     @patch("src.infrastructure.observability.logfire_metrics.logfire")
@@ -68,9 +67,7 @@ class TestMetricsCollector:
         """Test incrementing stream started metrics."""
         # Execute
         metrics_collector.increment_stream_started(
-            platform="twitch",
-            organization_id="org-789",
-            stream_type="live"
+            platform="twitch", organization_id="org-789", stream_type="live"
         )
 
         # Verify
@@ -81,7 +78,7 @@ class TestMetricsCollector:
             metric_type="counter",
             platform="twitch",
             organization_id="org-789",
-            stream_type="live"
+            stream_type="live",
         )
 
     @patch("src.infrastructure.observability.logfire_metrics.logfire")
@@ -92,7 +89,7 @@ class TestMetricsCollector:
             platform="youtube",
             organization_id="org-111",
             stream_type="vod",
-            success=True
+            success=True,
         )
 
         # Verify
@@ -104,7 +101,7 @@ class TestMetricsCollector:
             platform="youtube",
             organization_id="org-111",
             stream_type="vod",
-            success=True
+            success=True,
         )
 
     @patch("src.infrastructure.observability.logfire_metrics.logfire")
@@ -112,9 +109,7 @@ class TestMetricsCollector:
         """Test recording stream duration metrics."""
         # Execute
         metrics_collector.record_stream_duration(
-            duration_minutes=45.5,
-            platform="rtmp",
-            highlights_count=12
+            duration_minutes=45.5, platform="rtmp", highlights_count=12
         )
 
         # Verify
@@ -125,7 +120,7 @@ class TestMetricsCollector:
             unit="minutes",
             metric_type="histogram",
             platform="rtmp",
-            highlights_count=12
+            highlights_count=12,
         )
 
     @patch("src.infrastructure.observability.logfire_metrics.logfire")
@@ -136,7 +131,7 @@ class TestMetricsCollector:
             count=5,
             platform="twitch",
             organization_id="org-222",
-            detection_method="ai_agent"
+            detection_method="ai_agent",
         )
 
         # Verify
@@ -147,7 +142,7 @@ class TestMetricsCollector:
             metric_type="counter",
             platform="twitch",
             organization_id="org-222",
-            detection_method="ai_agent"
+            detection_method="ai_agent",
         )
 
     @patch("src.infrastructure.observability.logfire_metrics.logfire")
@@ -155,9 +150,7 @@ class TestMetricsCollector:
         """Test recording highlight confidence metrics."""
         # Execute
         metrics_collector.record_highlight_confidence(
-            confidence=0.92,
-            detection_method="b2b_agent",
-            platform="youtube"
+            confidence=0.92, detection_method="b2b_agent", platform="youtube"
         )
 
         # Verify
@@ -167,7 +160,7 @@ class TestMetricsCollector:
             value=0.92,
             metric_type="histogram",
             detection_method="b2b_agent",
-            platform="youtube"
+            platform="youtube",
         )
 
     @patch("src.infrastructure.observability.logfire_metrics.logfire")
@@ -175,9 +168,7 @@ class TestMetricsCollector:
         """Test recording highlight processing time metrics."""
         # Execute
         metrics_collector.record_highlight_processing_time(
-            duration_seconds=3.75,
-            stage="ai_analysis",
-            platform="twitch"
+            duration_seconds=3.75, stage="ai_analysis", platform="twitch"
         )
 
         # Verify
@@ -188,7 +179,7 @@ class TestMetricsCollector:
             unit="seconds",
             metric_type="histogram",
             stage="ai_analysis",
-            platform="twitch"
+            platform="twitch",
         )
 
     @patch("src.infrastructure.observability.logfire_metrics.logfire")
@@ -198,7 +189,7 @@ class TestMetricsCollector:
         metrics_collector.increment_task_executed(
             task_name="detect_highlights_with_ai",
             organization_id="org-333",
-            success=True
+            success=True,
         )
 
         # Verify
@@ -209,7 +200,7 @@ class TestMetricsCollector:
             metric_type="counter",
             task_name="detect_highlights_with_ai",
             organization_id="org-333",
-            success=True
+            success=True,
         )
 
     @patch("src.infrastructure.observability.logfire_metrics.logfire")
@@ -219,7 +210,7 @@ class TestMetricsCollector:
         metrics_collector.record_task_duration(
             duration_seconds=15.25,
             task_name="ingest_stream_with_ffmpeg",
-            organization_id="org-444"
+            organization_id="org-444",
         )
 
         # Verify
@@ -230,7 +221,7 @@ class TestMetricsCollector:
             unit="seconds",
             metric_type="histogram",
             task_name="ingest_stream_with_ffmpeg",
-            organization_id="org-444"
+            organization_id="org-444",
         )
 
     @patch("src.infrastructure.observability.logfire_metrics.logfire")
@@ -238,9 +229,7 @@ class TestMetricsCollector:
         """Test setting active streams gauge."""
         # Execute
         metrics_collector.gauge_active_streams(
-            count=42,
-            platform="twitch",
-            organization_id="org-555"
+            count=42, platform="twitch", organization_id="org-555"
         )
 
         # Verify
@@ -250,17 +239,14 @@ class TestMetricsCollector:
             value=42,
             metric_type="gauge",
             platform="twitch",
-            organization_id="org-555"
+            organization_id="org-555",
         )
 
     @patch("src.infrastructure.observability.logfire_metrics.logfire")
     def test_gauge_queue_size(self, mock_logfire, metrics_collector):
         """Test setting queue size gauge."""
         # Execute
-        metrics_collector.gauge_queue_size(
-            queue_name="celery",
-            size=150
-        )
+        metrics_collector.gauge_queue_size(queue_name="celery", size=150)
 
         # Verify
         mock_logfire.info.assert_called_once_with(
@@ -268,7 +254,7 @@ class TestMetricsCollector:
             metric_name="queue.size",
             value=150,
             metric_type="gauge",
-            queue_name="celery"
+            queue_name="celery",
         )
 
     @patch("src.infrastructure.observability.logfire_metrics.logfire")
@@ -276,9 +262,7 @@ class TestMetricsCollector:
         """Test recording database query time."""
         # Execute
         metrics_collector.record_database_query_time(
-            duration_ms=25.5,
-            operation="select",
-            table="streams"
+            duration_ms=25.5, operation="select", table="streams"
         )
 
         # Verify
@@ -289,7 +273,7 @@ class TestMetricsCollector:
             unit="milliseconds",
             metric_type="histogram",
             operation="select",
-            table="streams"
+            table="streams",
         )
 
     @patch("src.infrastructure.observability.logfire_metrics.logfire")
@@ -297,9 +281,7 @@ class TestMetricsCollector:
         """Test recording Redis operation time."""
         # Execute
         metrics_collector.record_redis_operation_time(
-            duration_ms=2.5,
-            operation="get",
-            key_pattern="stream:*"
+            duration_ms=2.5, operation="get", key_pattern="stream:*"
         )
 
         # Verify
@@ -310,7 +292,7 @@ class TestMetricsCollector:
             unit="milliseconds",
             metric_type="histogram",
             operation="get",
-            key_pattern="stream:*"
+            key_pattern="stream:*",
         )
 
     @patch("src.infrastructure.observability.logfire_metrics.logfire")
@@ -318,9 +300,7 @@ class TestMetricsCollector:
         """Test recording stream cost metrics."""
         # Execute
         metrics_collector.record_stream_cost(
-            cost=12.50,
-            duration_minutes=45,
-            platform="youtube"
+            cost=12.50, duration_minutes=45, platform="youtube"
         )
 
         # Verify
@@ -331,7 +311,7 @@ class TestMetricsCollector:
             unit="dollars",
             metric_type="histogram",
             duration_minutes=45,
-            platform="youtube"
+            platform="youtube",
         )
 
     @patch("src.infrastructure.observability.logfire_metrics.logfire")
@@ -343,7 +323,7 @@ class TestMetricsCollector:
             total_items=100,
             processed_items=95,
             failed_items=5,
-            duration_seconds=300
+            duration_seconds=300,
         )
 
         # Verify
@@ -353,21 +333,21 @@ class TestMetricsCollector:
                 metric_name="batch.size",
                 value=100,
                 metric_type="gauge",
-                batch_id="batch-123"
+                batch_id="batch-123",
             ),
             call(
                 "metric.batch.processed",
                 metric_name="batch.processed",
                 value=95,
                 metric_type="counter",
-                batch_id="batch-123"
+                batch_id="batch-123",
             ),
             call(
                 "metric.batch.failed",
                 metric_name="batch.failed",
                 value=5,
                 metric_type="counter",
-                batch_id="batch-123"
+                batch_id="batch-123",
             ),
             call(
                 "metric.batch.duration",
@@ -375,15 +355,15 @@ class TestMetricsCollector:
                 value=300,
                 unit="seconds",
                 metric_type="histogram",
-                batch_id="batch-123"
+                batch_id="batch-123",
             ),
             call(
                 "metric.batch.success_rate",
                 metric_name="batch.success_rate",
                 value=0.95,
                 metric_type="gauge",
-                batch_id="batch-123"
-            )
+                batch_id="batch-123",
+            ),
         ]
         mock_logfire.info.assert_has_calls(expected_calls)
 
@@ -392,9 +372,7 @@ class TestMetricsCollector:
         """Test incrementing error count metrics."""
         # Execute
         metrics_collector.increment_error_count(
-            error_type="ValueError",
-            service="stream_processor",
-            severity="error"
+            error_type="ValueError", service="stream_processor", severity="error"
         )
 
         # Verify
@@ -405,7 +383,7 @@ class TestMetricsCollector:
             metric_type="counter",
             error_type="ValueError",
             service="stream_processor",
-            severity="error"
+            severity="error",
         )
 
     @patch("src.infrastructure.observability.logfire_metrics.logfire")
@@ -416,7 +394,7 @@ class TestMetricsCollector:
             event_type="stream.started",
             status_code=200,
             duration_ms=150,
-            organization_id="org-666"
+            organization_id="org-666",
         )
 
         # Verify
@@ -428,7 +406,7 @@ class TestMetricsCollector:
                 metric_type="counter",
                 event_type="stream.started",
                 status_code=200,
-                organization_id="org-666"
+                organization_id="org-666",
             ),
             call(
                 "metric.webhook.delivery.time",
@@ -437,8 +415,8 @@ class TestMetricsCollector:
                 unit="milliseconds",
                 metric_type="histogram",
                 event_type="stream.started",
-                organization_id="org-666"
-            )
+                organization_id="org-666",
+            ),
         ]
         mock_logfire.info.assert_has_calls(expected_calls)
 
@@ -446,10 +424,7 @@ class TestMetricsCollector:
     def test_gauge_memory_usage(self, mock_logfire, metrics_collector):
         """Test setting memory usage gauge."""
         # Execute
-        metrics_collector.gauge_memory_usage(
-            service_name="api",
-            memory_mb=512.5
-        )
+        metrics_collector.gauge_memory_usage(service_name="api", memory_mb=512.5)
 
         # Verify
         mock_logfire.info.assert_called_once_with(
@@ -458,17 +433,14 @@ class TestMetricsCollector:
             value=512.5,
             unit="megabytes",
             metric_type="gauge",
-            service_name="api"
+            service_name="api",
         )
 
     @patch("src.infrastructure.observability.logfire_metrics.logfire")
     def test_gauge_cpu_usage(self, mock_logfire, metrics_collector):
         """Test setting CPU usage gauge."""
         # Execute
-        metrics_collector.gauge_cpu_usage(
-            service_name="worker",
-            cpu_percent=75.5
-        )
+        metrics_collector.gauge_cpu_usage(service_name="worker", cpu_percent=75.5)
 
         # Verify
         mock_logfire.info.assert_called_once_with(
@@ -477,5 +449,5 @@ class TestMetricsCollector:
             value=75.5,
             unit="percent",
             metric_type="gauge",
-            service_name="worker"
+            service_name="worker",
         )

@@ -89,15 +89,15 @@ class Highlight(Base):
     confidence_score: Mapped[float] = mapped_column(
         Float, nullable=False, index=True, comment="AI confidence score (0-1)"
     )
-    
+
     start_time_seconds: Mapped[float] = mapped_column(
         Float, nullable=False, comment="Start time in seconds from beginning"
     )
-    
+
     end_time_seconds: Mapped[float] = mapped_column(
         Float, nullable=False, comment="End time in seconds from beginning"
     )
-    
+
     highlight_types: Mapped[List[str]] = mapped_column(
         JSON, nullable=False, default=list, comment="Multiple highlight types"
     )
@@ -105,31 +105,31 @@ class Highlight(Base):
     tags: Mapped[List[str]] = mapped_column(
         JSON, nullable=False, default=list, comment="JSON array of tags"
     )
-    
+
     sentiment_score: Mapped[Optional[float]] = mapped_column(
         Float, nullable=True, comment="Sentiment score (-1.0 to 1.0)"
     )
-    
+
     viewer_engagement: Mapped[Optional[float]] = mapped_column(
         Float, nullable=True, comment="Viewer engagement score (0.0 to 1.0)"
     )
-    
+
     video_analysis: Mapped[Optional[str]] = mapped_column(
         Text, nullable=True, comment="JSON serialized video analysis data"
     )
-    
+
     audio_analysis: Mapped[Optional[str]] = mapped_column(
         Text, nullable=True, comment="JSON serialized audio analysis data"
     )
-    
+
     chat_analysis: Mapped[Optional[str]] = mapped_column(
         Text, nullable=True, comment="JSON serialized chat analysis data"
     )
-    
+
     processed_by: Mapped[Optional[str]] = mapped_column(
         String(100), nullable=True, comment="AI model/version that processed this"
     )
-    
+
     clip_url: Mapped[Optional[str]] = mapped_column(
         Text, nullable=True, comment="URL to the highlight clip"
     )
@@ -147,7 +147,7 @@ class Highlight(Base):
         server_default="CURRENT_TIMESTAMP",
         comment="Timestamp when the highlight was created",
     )
-    
+
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

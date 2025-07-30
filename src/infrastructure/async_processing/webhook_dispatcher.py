@@ -6,7 +6,6 @@ HMAC signature generation, retry logic with exponential backoff, dead letter
 queue handling, and webhook event management.
 """
 
-import asyncio
 import hashlib
 import hmac
 import json
@@ -211,11 +210,13 @@ class WebhookDispatcher:
         try:
             # TODO: Implement WebhookAttempt model properly
             # For now, this is a stub that returns an error
-            logger.warning("WebhookAttempt model not implemented, cannot retry webhooks")
+            logger.warning(
+                "WebhookAttempt model not implemented, cannot retry webhooks"
+            )
             return {
                 "error": "WebhookAttempt model not implemented",
                 "status": "failed",
-                "attempt_id": webhook_attempt_id
+                "attempt_id": webhook_attempt_id,
             }
 
         except Exception as e:
@@ -315,8 +316,7 @@ class WebhookDispatcher:
                 old_attempts = (
                     # db.query(WebhookAttempt)
                     # .filter(WebhookAttempt.created_at < cutoff_time)
-                    []  # TODO: Implement WebhookAttempt model
-                    .delete()
+                    [].delete()  # TODO: Implement WebhookAttempt model
                 )
 
                 db.commit()
@@ -379,6 +379,7 @@ class WebhookDispatcher:
                 # TODO: Implement WebhookAttempt model
                 # For now, create a mock attempt object
                 from types import SimpleNamespace
+
                 attempt = SimpleNamespace(
                     id=f"webhook_attempt_{webhook.id}_{int(time.time())}",
                     webhook_id=webhook.id,
@@ -393,7 +394,7 @@ class WebhookDispatcher:
                     response_time_ms=None,
                     sent_at=None,
                     delivered_at=None,
-                    error_message=None
+                    error_message=None,
                 )
 
             # Send the webhook
@@ -406,7 +407,10 @@ class WebhookDispatcher:
             return {"webhook_id": webhook.id, "status": "failed", "error": str(e)}
 
     async def _send_webhook_attempt(
-        self, webhook: Webhook, payload: Dict[str, Any], attempt: Any  # WebhookAttempt
+        self,
+        webhook: Webhook,
+        payload: Dict[str, Any],
+        attempt: Any,  # WebhookAttempt
     ) -> Dict[str, Any]:
         """Send a single webhook attempt."""
         start_time = time.time()
@@ -562,7 +566,9 @@ class WebhookDispatcher:
             )
             return {"webhook_id": webhook.id, "status": "failed", "error": str(e)}
 
-    async def _move_to_dead_letter(self, attempt: Any) -> Dict[str, Any]:  # WebhookAttempt
+    async def _move_to_dead_letter(
+        self, attempt: Any
+    ) -> Dict[str, Any]:  # WebhookAttempt
         """Move a failed webhook attempt to the dead letter queue."""
         try:
             dead_letter_key = (

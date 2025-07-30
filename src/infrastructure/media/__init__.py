@@ -11,7 +11,7 @@ from .media_utils import (
     StreamCapture,
     FrameExtractor,
     AudioExtractor,
-    MediaValidator
+    MediaValidator,
 )
 
 __all__ = [

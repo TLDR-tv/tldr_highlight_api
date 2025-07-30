@@ -76,78 +76,78 @@ class Batch(Base, TimestampMixin):
     video_count: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, comment="Number of videos in the batch"
     )
-    
+
     # Additional fields for domain model compatibility
     name: Mapped[str] = mapped_column(
         String(255),
         nullable=False,
         comment="Name of the batch job",
     )
-    
+
     processing_options: Mapped[Optional[str]] = mapped_column(
         Text,
         nullable=True,
         comment="JSON serialized processing options",
     )
-    
+
     items_data: Mapped[Optional[str]] = mapped_column(
         Text,
         nullable=True,
         comment="JSON serialized batch items data",
     )
-    
+
     dimension_set_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("dimension_sets.id"),
         nullable=True,
         comment="Optional custom dimension set for flexible highlight detection",
     )
-    
+
     type_registry_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("highlight_type_registries.id"),
         nullable=True,
         comment="Optional custom type registry for flexible highlight types",
     )
-    
+
     started_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
         comment="When processing started",
     )
-    
+
     completed_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
         comment="When processing completed",
     )
-    
+
     total_items: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
         default=0,
         comment="Total number of items in batch",
     )
-    
+
     processed_items: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
         default=0,
         comment="Number of processed items",
     )
-    
+
     successful_items: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
         default=0,
         comment="Number of successfully processed items",
     )
-    
+
     failed_items: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
         default=0,
         comment="Number of failed items",
     )
-    
+
     webhook_url: Mapped[Optional[str]] = mapped_column(
         Text,
         nullable=True,

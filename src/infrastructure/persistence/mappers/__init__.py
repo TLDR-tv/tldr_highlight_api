@@ -7,7 +7,9 @@ of concerns.
 
 from src.infrastructure.persistence.mappers.base import Mapper
 from src.infrastructure.persistence.mappers.user_mapper import UserMapper
-from src.infrastructure.persistence.mappers.organization_mapper import OrganizationMapper
+from src.infrastructure.persistence.mappers.organization_mapper import (
+    OrganizationMapper,
+)
 from src.infrastructure.persistence.mappers.api_key_mapper import APIKeyMapper
 from src.infrastructure.persistence.mappers.stream_mapper import StreamMapper
 from src.infrastructure.persistence.mappers.highlight_mapper import HighlightMapper

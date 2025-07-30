@@ -8,34 +8,32 @@ alternative to class-based mappers, following the principle of
 from typing import List, Callable, TypeVar, Dict, Any
 from datetime import datetime
 
-from src.api.schemas.auth import (
-    APIKeyResponse,
-    APIKeyCreateResponse,
-    LoginResponse
-)
+from src.api.schemas.auth import APIKeyResponse, APIKeyCreateResponse, LoginResponse
 from src.api.schemas.users import UserRegistrationRequest
 from src.application.use_cases.authentication import (
     RegisterRequest,
     LoginRequest,
     RegisterResult,
-    LoginResult
+    LoginResult,
 )
 from src.domain.entities.api_key import APIKey, APIKeyScope
 
 
 # Type variable for generic mapping
-T = TypeVar('T')
-U = TypeVar('U')
+T = TypeVar("T")
+U = TypeVar("U")
 
 
 def create_mapper(mapping_func: Callable[[T], U]) -> Callable[[T], U]:
     """Create a mapper function with optional preprocessing.
-    
+
     This is a higher-order function that can wrap mapping logic
     with additional features like validation or logging.
     """
+
     def mapper(source: T) -> U:
         return mapping_func(source)
+
     return mapper
 
 
@@ -46,11 +44,13 @@ def registration_to_domain(dto: UserRegistrationRequest) -> RegisterRequest:
         email=dto.email,
         password=dto.password,
         company_name=dto.company_name,
-        organization_name=None
+        organization_name=None,
     )
 
 
-def registration_to_response(result: RegisterResult, api_key: str) -> APIKeyCreateResponse:
+def registration_to_response(
+    result: RegisterResult, api_key: str
+) -> APIKeyCreateResponse:
     """Convert registration result to response DTO."""
     return APIKeyCreateResponse(
         id=result.user_id,
@@ -61,7 +61,7 @@ def registration_to_response(result: RegisterResult, api_key: str) -> APIKeyCrea
         created_at=datetime.utcnow(),
         expires_at=None,
         last_used_at=None,
-        is_expired=False
+        is_expired=False,
     )
 
 
@@ -72,17 +72,13 @@ def login_to_domain(dto) -> LoginRequest:
         email=dto.email,
         password=dto.password,
         create_api_key=True,
-        api_key_name="Login API Key"
+        api_key_name="Login API Key",
     )
 
 
 def login_to_response(result: LoginResult, token: str) -> LoginResponse:
     """Convert login result to response DTO."""
-    return LoginResponse(
-        access_token=token,
-        token_type="bearer",
-        expires_in=3600
-    )
+    return LoginResponse(access_token=token, token_type="bearer", expires_in=3600)
 
 
 # API Key mappings
@@ -92,7 +88,7 @@ def scopes_to_domain(scopes: List[str]) -> List[APIKeyScope]:
         "admin": APIKeyScope.ADMIN,
         # Add more mappings as needed
     }
-    
+
     domain_scopes = []
     for scope in scopes:
         if scope in scope_mapping:
@@ -104,15 +100,14 @@ def scopes_to_domain(scopes: List[str]) -> List[APIKeyScope]:
                 domain_scopes.append(APIKeyScope[enum_name])
             except (KeyError, ValueError):
                 pass  # Skip invalid scopes
-    
+
     return domain_scopes
 
 
 def scopes_to_strings(scopes: List[APIKeyScope]) -> List[str]:
     """Convert domain scope enums to string representation."""
     return [
-        "admin" if scope == APIKeyScope.ADMIN
-        else scope.value.lower().replace("_", ":")
+        "admin" if scope == APIKeyScope.ADMIN else scope.value.lower().replace("_", ":")
         for scope in scopes
     ]
 
@@ -127,7 +122,7 @@ def api_key_to_response(api_key: APIKey) -> APIKeyResponse:
         created_at=api_key.created_at.value,
         expires_at=api_key.expires_at.value if api_key.expires_at else None,
         last_used_at=api_key.last_used_at.value if api_key.last_used_at else None,
-        is_expired=api_key.is_expired
+        is_expired=api_key.is_expired,
     )
 
 
@@ -142,7 +137,7 @@ def api_key_to_create_response(api_key: APIKey, key: str) -> APIKeyCreateRespons
         created_at=api_key.created_at.value,
         expires_at=api_key.expires_at.value if api_key.expires_at else None,
         last_used_at=api_key.last_used_at.value if api_key.last_used_at else None,
-        is_expired=api_key.is_expired
+        is_expired=api_key.is_expired,
     )
 
 
@@ -155,7 +150,7 @@ def map_collection(items: List[T], mapper: Callable[[T], U]) -> List[U]:
 # Dictionary-based mapping for flexible conversions
 def dict_to_dto(data: Dict[str, Any], dto_class: type[T]) -> T:
     """Convert a dictionary to a DTO instance.
-    
+
     This is useful for flexible mappings where the source
     data might come from various sources.
     """
@@ -165,9 +160,11 @@ def dict_to_dto(data: Dict[str, Any], dto_class: type[T]) -> T:
 # Partial mapping for commonly used transformations
 def create_partial_mapper(mapper: Callable[..., T], **kwargs) -> Callable[..., T]:
     """Create a partial mapper with pre-filled arguments.
-    
+
     This allows creating specialized mappers from generic ones.
     """
+
     def partial_mapper(**additional_kwargs):
         return mapper(**{**kwargs, **additional_kwargs})
+
     return partial_mapper

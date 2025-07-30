@@ -413,7 +413,9 @@ def calculate_quality_score(
     quality_components["score"] = float(np.mean(scores)) if scores else 0.0
 
     # Average confidence
-    quality_components["confidence"] = float(np.mean(confidences)) if confidences else 0.0
+    quality_components["confidence"] = (
+        float(np.mean(confidences)) if confidences else 0.0
+    )
 
     # Consistency (inverse of score variance)
     if len(scores) > 1:
@@ -599,11 +601,15 @@ def rank_highlights(
 
             # Base score
             score_val = highlight.get("score", 0.0)
-            criteria_scores["score"] = float(score_val) if not isinstance(score_val, list) else 0.0
+            criteria_scores["score"] = (
+                float(score_val) if not isinstance(score_val, list) else 0.0
+            )
 
             # Confidence
             conf_val = highlight.get("confidence", 0.0)
-            criteria_scores["confidence"] = float(conf_val) if not isinstance(conf_val, list) else 0.0
+            criteria_scores["confidence"] = (
+                float(conf_val) if not isinstance(conf_val, list) else 0.0
+            )
 
             # Duration preference (moderate duration preferred)
             dur_val = highlight.get("duration", 30.0)
@@ -632,9 +638,9 @@ def rank_highlights(
             criteria_scores["diversity"] = diversity_score
 
             # Calculate weighted ranking score
-            ranking_score = float(calculate_weighted_score(
-                criteria_scores, weights, normalize=True
-            ))
+            ranking_score = float(
+                calculate_weighted_score(criteria_scores, weights, normalize=True)
+            )
             ranking_scores.append(ranking_score)
 
         # Sort indices by ranking score (descending)

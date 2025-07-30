@@ -265,7 +265,9 @@ class HLSParser:
                 master_playlist_uri=manifest_uri,
                 is_live=not parsed_m3u8.is_endlist,
                 version=parsed_m3u8.version or 3,
-                independent_segments=getattr(parsed_m3u8, 'is_independent_segments', False),
+                independent_segments=getattr(
+                    parsed_m3u8, "is_independent_segments", False
+                ),
             )
 
             # Process playlists

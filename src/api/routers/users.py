@@ -6,17 +6,15 @@ user profile management using domain-driven design principles.
 
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from src.api.dependencies.auth import get_current_user
 from src.api.dependencies.use_cases import (
     get_user_management_use_case,
-    get_authentication_use_case
 )
 from src.api.schemas.users import (
     PasswordChangeRequest,
     PasswordChangeResponse,
-    UserListResponse,
     UserProfileResponse,
     UserResponse,
     UserUpdate,
@@ -25,11 +23,7 @@ from src.application.use_cases.user_management import (
     UserManagementUseCase,
     UpdateProfileRequest,
     ChangePasswordRequest,
-    GetProfileRequest
-)
-from src.application.use_cases.authentication import (
-    AuthenticationUseCase,
-    ListAPIKeysResult
+    GetProfileRequest,
 )
 from src.application.use_cases.base import ResultStatus
 from src.domain.entities.user import User
@@ -40,7 +34,7 @@ router = APIRouter(prefix="/api/v1/users", tags=["Users"])
 @router.get("/me", response_model=UserProfileResponse)
 async def get_current_user_profile(
     current_user: User = Depends(get_current_user),
-    user_mgmt_use_case: UserManagementUseCase = Depends(get_user_management_use_case)
+    user_mgmt_use_case: UserManagementUseCase = Depends(get_user_management_use_case),
 ) -> UserProfileResponse:
     """Get current user's profile information.
 
@@ -51,18 +45,18 @@ async def get_current_user_profile(
     if current_user.id is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid user authentication"
+            detail="Invalid user authentication",
         )
-    
+
     # Get profile with stats
     request = GetProfileRequest(user_id=current_user.id)
     result = await user_mgmt_use_case.get_profile(request)
-    
+
     if result.status == ResultStatus.SUCCESS:
         if not result.user or result.user.id is None:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Invalid response from user management service"
+                detail="Invalid response from user management service",
             )
         return UserProfileResponse(
             id=result.user.id,
@@ -76,13 +70,12 @@ async def get_current_user_profile(
         )
     elif result.status == ResultStatus.NOT_FOUND:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )
     else:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=result.errors[0] if result.errors else "Failed to get profile"
+            detail=result.errors[0] if result.errors else "Failed to get profile",
         )
 
 
@@ -90,7 +83,7 @@ async def get_current_user_profile(
 async def update_current_user_profile(
     user_data: UserUpdate,
     current_user: User = Depends(get_current_user),
-    user_mgmt_use_case: UserManagementUseCase = Depends(get_user_management_use_case)
+    user_mgmt_use_case: UserManagementUseCase = Depends(get_user_management_use_case),
 ) -> UserResponse:
     """Update current user's profile information.
 
@@ -100,25 +93,25 @@ async def update_current_user_profile(
     if current_user.id is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid user authentication"
+            detail="Invalid user authentication",
         )
-    
+
     # Create update request
     request = UpdateProfileRequest(
         user_id=current_user.id,
         email=user_data.email,
         company_name=user_data.company_name,
-        password=user_data.password
+        password=user_data.password,
     )
-    
+
     # Execute update
     result = await user_mgmt_use_case.update_profile(request)
-    
+
     if result.status == ResultStatus.SUCCESS:
         if not result.user or result.user.id is None:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Invalid response from user management service"
+                detail="Invalid response from user management service",
             )
         return UserResponse(
             id=result.user.id,
@@ -129,18 +122,17 @@ async def update_current_user_profile(
         )
     elif result.status == ResultStatus.NOT_FOUND:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )
     elif result.status == ResultStatus.VALIDATION_ERROR:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=result.errors[0] if result.errors else "Validation error"
+            detail=result.errors[0] if result.errors else "Validation error",
         )
     else:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=result.errors[0] if result.errors else "Failed to update profile"
+            detail=result.errors[0] if result.errors else "Failed to update profile",
         )
 
 
@@ -148,7 +140,7 @@ async def update_current_user_profile(
 async def change_password(
     password_data: PasswordChangeRequest,
     current_user: User = Depends(get_current_user),
-    user_mgmt_use_case: UserManagementUseCase = Depends(get_user_management_use_case)
+    user_mgmt_use_case: UserManagementUseCase = Depends(get_user_management_use_case),
 ) -> PasswordChangeResponse:
     """Change current user's password.
 
@@ -159,38 +151,36 @@ async def change_password(
     if current_user.id is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid user authentication"
+            detail="Invalid user authentication",
         )
-    
+
     # Create change password request
     request = ChangePasswordRequest(
         user_id=current_user.id,
         current_password=password_data.current_password,
-        new_password=password_data.new_password
+        new_password=password_data.new_password,
     )
-    
+
     # Execute password change
     result = await user_mgmt_use_case.change_password(request)
-    
+
     if result.status == ResultStatus.SUCCESS:
         return PasswordChangeResponse(
-            message="Password changed successfully",
-            changed_at=datetime.utcnow()
+            message="Password changed successfully", changed_at=datetime.utcnow()
         )
     elif result.status == ResultStatus.NOT_FOUND:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )
     elif result.status == ResultStatus.VALIDATION_ERROR:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=result.errors[0] if result.errors else "Validation error"
+            detail=result.errors[0] if result.errors else "Validation error",
         )
     else:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=result.errors[0] if result.errors else "Failed to change password"
+            detail=result.errors[0] if result.errors else "Failed to change password",
         )
 
 

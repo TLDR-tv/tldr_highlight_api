@@ -278,7 +278,9 @@ class TestMultiModalPipeline:
         max_timeout = 50  # 5 seconds
 
         while len(processed_windows) < 2 and timeout_counter < max_timeout:
-            ready_windows = await pipeline["buffer"].windows_ready_for_processing(limit=1)
+            ready_windows = await pipeline["buffer"].windows_ready_for_processing(
+                limit=1
+            )
 
             if ready_windows:
                 window = ready_windows[0]

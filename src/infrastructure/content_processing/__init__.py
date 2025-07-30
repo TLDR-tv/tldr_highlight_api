@@ -12,7 +12,7 @@ from .gemini_processor import GeminiProcessor, GeminiProcessorConfig
 __all__ = [
     "VideoProcessor",
     "VideoProcessorConfig",
-    "AudioProcessor", 
+    "AudioProcessor",
     "AudioProcessorConfig",
     "ChatProcessor",
     "ChatProcessorConfig",

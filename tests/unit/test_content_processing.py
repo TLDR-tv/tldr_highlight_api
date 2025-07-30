@@ -142,7 +142,9 @@ class TestVideoProcessor:
         stream_url = "rtmp://example.com/stream"
         stream_id = "test_stream"
 
-        with patch("src.services.content_processing.video_processor.StreamCapture") as mock_capture:
+        with patch(
+            "src.services.content_processing.video_processor.StreamCapture"
+        ) as mock_capture:
             mock_capture_instance = AsyncMock()
             mock_capture_instance.start_capture = AsyncMock()
             mock_capture_instance.stop_capture = AsyncMock()

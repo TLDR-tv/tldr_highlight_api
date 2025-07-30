@@ -75,8 +75,15 @@ class Organization(Base):
     owner: Mapped["User"] = relationship(
         "User", back_populates="owned_organizations", lazy="joined"
     )
-    dimension_sets = relationship("DimensionSet", back_populates="organization", cascade="all, delete-orphan")
-    highlight_type_registry = relationship("HighlightTypeRegistry", back_populates="organization", uselist=False, cascade="all, delete-orphan")
+    dimension_sets = relationship(
+        "DimensionSet", back_populates="organization", cascade="all, delete-orphan"
+    )
+    highlight_type_registry = relationship(
+        "HighlightTypeRegistry",
+        back_populates="organization",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
 
     @property
     def plan_limits(self) -> Dict[str, int]:

@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 class LoggingTask(Task):
     """Custom task class with enhanced logging and error handling.
-    
+
     This provides infrastructure-level logging without coupling
     to business logic.
     """
@@ -46,7 +46,7 @@ class LoggingTask(Task):
 
 def create_celery_app() -> Celery:
     """Create and configure Celery application.
-    
+
     This factory function creates a properly configured Celery instance
     following Pythonic patterns.
     """
@@ -92,13 +92,13 @@ def create_celery_app() -> Celery:
 
     # Configure exchanges and queues
     configure_queues(app)
-    
+
     # Configure task routing
     configure_routing(app)
-    
+
     # Setup signal handlers
     setup_signal_handlers()
-    
+
     return app
 
 
@@ -144,15 +144,12 @@ def configure_routing(app: Celery) -> None:
         # Core stream processing tasks (high priority)
         "ingest_stream_with_ffmpeg": {"queue": "high_priority", "priority": 9},
         "detect_highlights_with_ai": {"queue": "high_priority", "priority": 8},
-        
         # Webhook tasks (highest priority for real-time notifications)
         "src.tasks.webhook.*": {"queue": "high_priority", "priority": 10},
-        
         # Maintenance and cleanup (low priority)
         "cleanup_stream_resources": {"queue": "low_priority", "priority": 1},
         "cleanup_job_resources": {"queue": "low_priority", "priority": 1},
         "health_check_task": {"queue": "default", "priority": 2},
-        
         # Legacy tasks (for backwards compatibility)
         "src.tasks.stream.*": {"queue": "high_priority", "priority": 7},
         "src.tasks.batch.*": {"queue": "batch", "priority": 3},
@@ -161,7 +158,7 @@ def configure_routing(app: Celery) -> None:
 
 def setup_signal_handlers() -> None:
     """Setup Celery signal handlers for monitoring."""
-    
+
     @worker_ready.connect
     def worker_ready_handler(sender=None, **kwargs):
         """Handle worker ready signal."""
@@ -210,23 +207,26 @@ def setup_signal_handlers() -> None:
         sender=None, task_id=None, exception=None, traceback=None, **kwargs
     ):
         """Handle task failure signal."""
-        logger.error(f"Task {sender.name}[{task_id}] failed with exception: {exception}")
+        logger.error(
+            f"Task {sender.name}[{task_id}] failed with exception: {exception}"
+        )
 
 
 # Create the Celery app instance
 celery_app = create_celery_app()
 
 # Import task manager to avoid circular imports
-_task_manager: Optional['TaskManager'] = None
+_task_manager: Optional["TaskManager"] = None
 
 
-def get_task_manager() -> 'TaskManager':
+def get_task_manager() -> "TaskManager":
     """Get or create the global task manager instance.
-    
+
     This follows a lazy initialization pattern to avoid circular imports.
     """
     global _task_manager
     if _task_manager is None:
         from .task_manager import TaskManager
+
         _task_manager = TaskManager(celery_app)
     return _task_manager

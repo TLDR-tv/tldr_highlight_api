@@ -11,6 +11,7 @@ from src.domain.value_objects.duration import Duration
 
 class UsageType(Enum):
     """Type of usage being recorded."""
+
     STREAM_PROCESSING = "stream_processing"
     BATCH_PROCESSING = "batch_processing"
     API_CALL = "api_call"
@@ -22,65 +23,65 @@ class UsageType(Enum):
 @dataclass
 class UsageRecord(Entity[int]):
     """Domain entity representing resource usage.
-    
+
     Usage records track consumption of various resources
     for billing and analytics purposes.
     """
-    
+
     user_id: int
     organization_id: Optional[int]
     usage_type: UsageType
-    
+
     # What was consumed
     resource_id: Optional[int] = None  # ID of stream, batch, etc.
     resource_type: Optional[str] = None  # "stream", "batch", etc.
-    
+
     # Quantity consumed
     quantity: float = 1.0
     unit: str = "unit"  # "minutes", "requests", "GB", etc.
-    
+
     # When it was consumed
     period_start: Timestamp = None
     period_end: Optional[Timestamp] = None
-    
+
     # Billing information
     billable: bool = True
     rate: Optional[float] = None  # Cost per unit
     total_cost: Optional[float] = None
-    
+
     # Metadata
     api_key_id: Optional[int] = None
     ip_address: Optional[str] = None
     user_agent: Optional[str] = None
-    
+
     def __post_init__(self):
         """Set period_start if not provided."""
         if self.period_start is None:
-            object.__setattr__(self, 'period_start', Timestamp.now())
+            object.__setattr__(self, "period_start", Timestamp.now())
         super().__post_init__()
-    
+
     @property
     def duration(self) -> Optional[Duration]:
         """Calculate duration of usage period."""
         if self.period_start and self.period_end:
             return self.period_end.duration_since(self.period_start)
         return None
-    
+
     @property
     def is_complete(self) -> bool:
         """Check if usage period is complete."""
         return self.period_end is not None
-    
+
     def complete(self, quantity: Optional[float] = None) -> "UsageRecord":
         """Mark usage as complete."""
         if self.is_complete:
             return self
-        
+
         final_quantity = quantity if quantity is not None else self.quantity
         final_cost = None
         if self.rate:
             final_cost = final_quantity * self.rate
-        
+
         return UsageRecord(
             id=self.id,
             user_id=self.user_id,
@@ -99,15 +100,15 @@ class UsageRecord(Entity[int]):
             ip_address=self.ip_address,
             user_agent=self.user_agent,
             created_at=self.created_at,
-            updated_at=Timestamp.now()
+            updated_at=Timestamp.now(),
         )
-    
+
     def update_quantity(self, new_quantity: float) -> "UsageRecord":
         """Update the quantity consumed."""
         new_cost = None
         if self.rate:
             new_cost = new_quantity * self.rate
-        
+
         return UsageRecord(
             id=self.id,
             user_id=self.user_id,
@@ -126,9 +127,9 @@ class UsageRecord(Entity[int]):
             ip_address=self.ip_address,
             user_agent=self.user_agent,
             created_at=self.created_at,
-            updated_at=Timestamp.now()
+            updated_at=Timestamp.now(),
         )
-    
+
     def mark_non_billable(self, reason: Optional[str] = None) -> "UsageRecord":
         """Mark usage as non-billable."""
         return UsageRecord(
@@ -149,13 +150,17 @@ class UsageRecord(Entity[int]):
             ip_address=self.ip_address,
             user_agent=self.user_agent,
             created_at=self.created_at,
-            updated_at=Timestamp.now()
+            updated_at=Timestamp.now(),
         )
-    
+
     @classmethod
-    def for_stream_processing(cls, user_id: int, stream_id: int,
-                            duration_minutes: float,
-                            organization_id: Optional[int] = None) -> "UsageRecord":
+    def for_stream_processing(
+        cls,
+        user_id: int,
+        stream_id: int,
+        duration_minutes: float,
+        organization_id: Optional[int] = None,
+    ) -> "UsageRecord":
         """Create usage record for stream processing."""
         return cls(
             id=None,
@@ -167,13 +172,18 @@ class UsageRecord(Entity[int]):
             quantity=duration_minutes,
             unit="minutes",
             created_at=Timestamp.now(),
-            updated_at=Timestamp.now()
+            updated_at=Timestamp.now(),
         )
-    
+
     @classmethod
-    def for_api_call(cls, user_id: int, api_key_id: int,
-                    endpoint: str, ip_address: str,
-                    organization_id: Optional[int] = None) -> "UsageRecord":
+    def for_api_call(
+        cls,
+        user_id: int,
+        api_key_id: int,
+        endpoint: str,
+        ip_address: str,
+        organization_id: Optional[int] = None,
+    ) -> "UsageRecord":
         """Create usage record for API call."""
         return cls(
             id=None,
@@ -186,5 +196,5 @@ class UsageRecord(Entity[int]):
             api_key_id=api_key_id,
             ip_address=ip_address,
             created_at=Timestamp.now(),
-            updated_at=Timestamp.now()
+            updated_at=Timestamp.now(),
         )

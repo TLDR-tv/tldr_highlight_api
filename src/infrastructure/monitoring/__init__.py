@@ -10,7 +10,7 @@ from .metrics import (
     PerformanceMonitor,
     HealthChecker,
     StreamMetrics,
-    SystemMetrics
+    SystemMetrics,
 )
 
 __all__ = [

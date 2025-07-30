@@ -13,6 +13,7 @@ from src.domain.value_objects.processing_options import ProcessingOptions
 
 class StreamStatus(Enum):
     """Stream processing status."""
+
     PENDING = "pending"
     PROCESSING = "processing"
     COMPLETED = "completed"
@@ -22,6 +23,7 @@ class StreamStatus(Enum):
 
 class StreamPlatform(Enum):
     """Supported streaming platforms."""
+
     TWITCH = "twitch"
     YOUTUBE = "youtube"
     RTMP = "rtmp"
@@ -31,19 +33,19 @@ class StreamPlatform(Enum):
 @dataclass
 class Stream(Entity[int]):
     """Domain entity representing a stream processing job.
-    
+
     Streams are individual livestream or video URLs submitted
     for highlight extraction processing.
     """
-    
+
     url: Url
     platform: StreamPlatform
     status: StreamStatus
     user_id: int
-    
+
     # Processing configuration
     processing_options: ProcessingOptions
-    
+
     # Stream metadata
     title: Optional[str] = None
     channel_name: Optional[str] = None
@@ -51,23 +53,23 @@ class Stream(Entity[int]):
     language: Optional[str] = None
     viewer_count: Optional[int] = None
     duration: Optional[Duration] = None
-    
+
     # Processing results
     started_at: Optional[Timestamp] = None
     completed_at: Optional[Timestamp] = None
     error_message: Optional[str] = None
-    
+
     # Related entity IDs
     highlight_ids: List[int] = field(default_factory=list)
-    
+
     # Raw platform data (for debugging/analysis)
     platform_data: Dict[str, Any] = field(default_factory=dict)
-    
+
     def start_processing(self) -> "Stream":
         """Mark stream as processing."""
         if self.status != StreamStatus.PENDING:
             raise ValueError(f"Cannot start processing stream in {self.status} status")
-        
+
         return Stream(
             id=self.id,
             url=self.url,
@@ -87,14 +89,14 @@ class Stream(Entity[int]):
             created_at=self.created_at,
             updated_at=Timestamp.now(),
             highlight_ids=self.highlight_ids.copy(),
-            platform_data=self.platform_data.copy()
+            platform_data=self.platform_data.copy(),
         )
-    
+
     def complete_processing(self, duration: Optional[Duration] = None) -> "Stream":
         """Mark stream as completed."""
         if self.status != StreamStatus.PROCESSING:
             raise ValueError(f"Cannot complete stream in {self.status} status")
-        
+
         return Stream(
             id=self.id,
             url=self.url,
@@ -114,14 +116,14 @@ class Stream(Entity[int]):
             created_at=self.created_at,
             updated_at=Timestamp.now(),
             highlight_ids=self.highlight_ids.copy(),
-            platform_data=self.platform_data.copy()
+            platform_data=self.platform_data.copy(),
         )
-    
+
     def fail_processing(self, error_message: str) -> "Stream":
         """Mark stream as failed."""
         if self.status not in [StreamStatus.PENDING, StreamStatus.PROCESSING]:
             raise ValueError(f"Cannot fail stream in {self.status} status")
-        
+
         return Stream(
             id=self.id,
             url=self.url,
@@ -141,14 +143,14 @@ class Stream(Entity[int]):
             created_at=self.created_at,
             updated_at=Timestamp.now(),
             highlight_ids=self.highlight_ids.copy(),
-            platform_data=self.platform_data.copy()
+            platform_data=self.platform_data.copy(),
         )
-    
+
     def cancel(self) -> "Stream":
         """Cancel stream processing."""
         if self.status in [StreamStatus.COMPLETED, StreamStatus.FAILED]:
             raise ValueError(f"Cannot cancel stream in {self.status} status")
-        
+
         return Stream(
             id=self.id,
             url=self.url,
@@ -168,17 +170,17 @@ class Stream(Entity[int]):
             created_at=self.created_at,
             updated_at=Timestamp.now(),
             highlight_ids=self.highlight_ids.copy(),
-            platform_data=self.platform_data.copy()
+            platform_data=self.platform_data.copy(),
         )
-    
+
     def add_highlight(self, highlight_id: int) -> "Stream":
         """Add a highlight to this stream."""
         if highlight_id in self.highlight_ids:
             return self
-        
+
         new_highlight_ids = self.highlight_ids.copy()
         new_highlight_ids.append(highlight_id)
-        
+
         return Stream(
             id=self.id,
             url=self.url,
@@ -198,22 +200,26 @@ class Stream(Entity[int]):
             created_at=self.created_at,
             updated_at=Timestamp.now(),
             highlight_ids=new_highlight_ids,
-            platform_data=self.platform_data.copy()
+            platform_data=self.platform_data.copy(),
         )
-    
+
     @property
     def is_live(self) -> bool:
         """Check if this is a live stream (vs VOD)."""
         return self.platform_data.get("is_live", False)
-    
+
     @property
     def processing_duration(self) -> Optional[Duration]:
         """Calculate how long processing took."""
         if self.started_at and self.completed_at:
             return self.completed_at.duration_since(self.started_at)
         return None
-    
+
     @property
     def is_terminal_state(self) -> bool:
         """Check if stream is in a terminal state."""
-        return self.status in [StreamStatus.COMPLETED, StreamStatus.FAILED, StreamStatus.CANCELLED]
+        return self.status in [
+            StreamStatus.COMPLETED,
+            StreamStatus.FAILED,
+            StreamStatus.CANCELLED,
+        ]

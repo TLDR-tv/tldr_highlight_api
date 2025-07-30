@@ -6,7 +6,6 @@ from fastapi import status
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.main import app
 
 
 @pytest.mark.asyncio
@@ -16,7 +15,7 @@ class TestAuthRouter:
     async def test_auth_status(self, async_client: AsyncClient):
         """Test authentication service status endpoint."""
         response = await async_client.get("/api/v1/auth/status")
-        
+
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["status"] == "Authentication service operational"
@@ -29,7 +28,7 @@ class TestAuthRouter:
     ):
         """Test create API key endpoint returns not implemented."""
         response = await async_client.post("/api/v1/auth/api-keys")
-        
+
         assert response.status_code == status.HTTP_501_NOT_IMPLEMENTED
         data = response.json()
         assert data["detail"] == "API key creation will be implemented in Phase 2.3"
@@ -39,7 +38,7 @@ class TestAuthRouter:
     ):
         """Test list API keys endpoint returns not implemented."""
         response = await async_client.get("/api/v1/auth/api-keys")
-        
+
         assert response.status_code == status.HTTP_501_NOT_IMPLEMENTED
         data = response.json()
         assert data["detail"] == "API key listing will be implemented in Phase 2.3"
@@ -49,7 +48,7 @@ class TestAuthRouter:
     ):
         """Test delete API key endpoint returns not implemented."""
         response = await async_client.delete("/api/v1/auth/api-keys/test-key-id")
-        
+
         assert response.status_code == status.HTTP_501_NOT_IMPLEMENTED
         data = response.json()
         assert data["detail"] == "API key deletion will be implemented in Phase 2.3"
@@ -57,10 +56,10 @@ class TestAuthRouter:
     async def test_auth_status_response_format(self, async_client: AsyncClient):
         """Test auth status response matches expected schema."""
         response = await async_client.get("/api/v1/auth/status")
-        
+
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
-        
+
         # Verify all required fields are present
         assert "status" in data
         assert "timestamp" in data
@@ -72,16 +71,19 @@ class TestAuthRouter:
         # Status endpoint should work without DB
         response = await async_client.get("/api/v1/auth/status")
         assert response.status_code == status.HTTP_200_OK
-        
+
         # Other endpoints should fail gracefully
         response = await async_client.post("/api/v1/auth/api-keys")
         assert response.status_code == status.HTTP_501_NOT_IMPLEMENTED
 
-    @pytest.mark.parametrize("endpoint,method", [
-        ("/api/v1/auth/api-keys", "post"),
-        ("/api/v1/auth/api-keys", "get"),
-        ("/api/v1/auth/api-keys/test-id", "delete"),
-    ])
+    @pytest.mark.parametrize(
+        "endpoint,method",
+        [
+            ("/api/v1/auth/api-keys", "post"),
+            ("/api/v1/auth/api-keys", "get"),
+            ("/api/v1/auth/api-keys/test-id", "delete"),
+        ],
+    )
     async def test_placeholder_endpoints(
         self, async_client: AsyncClient, endpoint: str, method: str
     ):

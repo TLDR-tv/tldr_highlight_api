@@ -90,7 +90,7 @@ async def async_client():
     """Create async test client for API testing."""
     from httpx import AsyncClient, ASGITransport
     from src.api.main import app
-    
+
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         yield client

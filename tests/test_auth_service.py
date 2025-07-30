@@ -83,11 +83,11 @@ class TestAuthService:
         result_mock = MagicMock()
         result_mock.scalars = MagicMock()
         result_mock.scalars().all = MagicMock(return_value=[sample_api_key])
-        
+
         db_session.execute = AsyncMock(return_value=result_mock)
 
         # Mock verify_api_key to return True
-        with patch('src.services.auth.verify_api_key', return_value=True):
+        with patch("src.services.auth.verify_api_key", return_value=True):
             result = await auth_service.validate_api_key("test_api_key_123", db_session)
 
         assert result is not None
@@ -101,7 +101,7 @@ class TestAuthService:
         result_mock = MagicMock()
         result_mock.scalars = MagicMock()
         result_mock.scalars().all = MagicMock(return_value=[])
-        
+
         db_session.execute = AsyncMock(return_value=result_mock)
 
         result = await auth_service.validate_api_key("invalid_key", db_session)
@@ -114,12 +114,12 @@ class TestAuthService:
     ):
         """Test API key validation with inactive key."""
         sample_api_key.active = False
-        
+
         # Setup database mock
         result_mock = MagicMock()
         result_mock.scalars = MagicMock()
         result_mock.scalars().all = MagicMock(return_value=[sample_api_key])
-        
+
         db_session.execute = AsyncMock(return_value=result_mock)
 
         result = await auth_service.validate_api_key("test_api_key_123", db_session)
@@ -132,12 +132,12 @@ class TestAuthService:
     ):
         """Test API key validation with expired key."""
         sample_api_key.expires_at = datetime.now(timezone.utc) - timedelta(days=1)
-        
+
         # Setup database mock
         result_mock = MagicMock()
         result_mock.scalars = MagicMock()
         result_mock.scalars().all = MagicMock(return_value=[sample_api_key])
-        
+
         db_session.execute = AsyncMock(return_value=result_mock)
 
         result = await auth_service.validate_api_key("test_api_key_123", db_session)
@@ -178,7 +178,7 @@ class TestAuthService:
         # Setup database mock
         result_mock = MagicMock()
         result_mock.scalar_one_or_none = MagicMock(return_value=sample_organization)
-        
+
         db_session.execute = AsyncMock(return_value=result_mock)
 
         result = await auth_service.get_user_organization(sample_user.id, db_session)
@@ -194,7 +194,7 @@ class TestAuthService:
         # Setup database mock
         result_mock = MagicMock()
         result_mock.scalar_one_or_none = MagicMock(return_value=None)
-        
+
         db_session.execute = AsyncMock(return_value=result_mock)
 
         result = await auth_service.get_user_organization(sample_user.id, db_session)
@@ -236,7 +236,7 @@ class TestAuthService:
         # Setup database mock
         result_mock = MagicMock()
         result_mock.scalar_one_or_none = MagicMock(return_value=sample_api_key)
-        
+
         db_session.execute = AsyncMock(return_value=result_mock)
 
         result = await auth_service.revoke_api_key(
@@ -253,7 +253,7 @@ class TestAuthService:
         # Setup database mock
         result_mock = MagicMock()
         result_mock.scalar_one_or_none = MagicMock(return_value=None)
-        
+
         db_session.execute = AsyncMock(return_value=result_mock)
 
         result = await auth_service.revoke_api_key(999, 1, db_session)
@@ -269,7 +269,7 @@ class TestAuthService:
         result_mock = MagicMock()
         result_mock.scalars = MagicMock()
         result_mock.scalars().all = MagicMock(return_value=[sample_api_key])
-        
+
         db_session.execute = AsyncMock(return_value=result_mock)
 
         result = await auth_service.list_user_api_keys(sample_user.id, db_session)
@@ -289,9 +289,7 @@ class TestAuthService:
 
         rate_limit = await auth_service.rate_limit_for_key(sample_api_key)
 
-        expected_limit = sample_organization.plan_limits[
-            "api_rate_limit_per_minute"
-        ]
+        expected_limit = sample_organization.plan_limits["api_rate_limit_per_minute"]
         assert rate_limit == expected_limit
 
     @pytest.mark.asyncio

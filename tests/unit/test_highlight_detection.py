@@ -646,7 +646,7 @@ class TestFusionScorer:
         assert abs(weights[ModalityType.VIDEO] - 0.4 / 0.7) < 1e-10  # ~0.571
         assert abs(weights[ModalityType.AUDIO] - 0.3 / 0.7) < 1e-10  # ~0.429
         assert abs(weights[ModalityType.CHAT] - 0.3) < 1e-10  # Unchanged
-        
+
         # Video + Audio should sum to 1.0 (chat is bonus)
         video_audio_sum = weights[ModalityType.VIDEO] + weights[ModalityType.AUDIO]
         assert abs(video_audio_sum - 1.0) < 1e-10

@@ -13,7 +13,7 @@ from src.domain.value_objects import *  # noqa: F403, F401
 __all__ = [
     # Re-export entities
     "User",
-    "Stream", 
+    "Stream",
     "Highlight",
     "Batch",
     "Organization",
