@@ -398,6 +398,15 @@ class FFmpegProcessor:
         cmd.append(output_path)
         return cmd
 
+    async def run_ffmpeg_async(self, cmd: List[str]) -> None:
+        """Run FFmpeg command asynchronously."""
+        process = await asyncio.create_subprocess_exec(
+            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await process.communicate()
+        if process.returncode != 0:
+            raise FFmpegError(f"FFmpeg command failed: {stderr.decode()}")
+
     async def extract_frames(
         self,
         input_source: str,

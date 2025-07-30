@@ -18,15 +18,10 @@ import logfire
 from src.core.database import get_db_session
 from src.infrastructure.persistence.models.stream import Stream, StreamStatus
 from src.infrastructure.async_processing.celery_app import celery_app
-from src.infrastructure.media.ffmpeg_integration import (
-    FFmpegProcessor,
-    FFmpegProbe,
-    VideoFrameExtractor,
-    TranscodeOptions,
-    VideoCodec,
-    AudioCodec,
-    ContainerFormat,
-)
+from src.infrastructure.media.clip_generator import ClipGenerator
+from src.infrastructure.media.thumbnail_generator import ThumbnailGenerator
+from src.infrastructure.content_processing.gemini import GeminiCaptionGenerator
+from src.infrastructure.storage.s3_storage import S3Storage
 from src.domain.services.b2b_stream_agent import B2BStreamAgent
 from src.infrastructure.async_processing.error_handler import ErrorHandler
 from src.infrastructure.async_processing.progress_tracker import (
@@ -268,35 +263,6 @@ def ingest_stream_with_ffmpeg(
                         platform=stream.platform,
                     )
 
-                # Extract keyframes for visual analysis
-                with logfire.span("extract_keyframes") as keyframe_span:
-                    keyframe_span.set_attribute("keyframes.max_duration", 300)
-                    keyframe_start_time = datetime.now(timezone.utc)
-
-                    keyframes = loop.run_until_complete(
-                        self._extract_keyframes_for_analysis(
-                            stream.source_url,
-                            temp_dir,
-                            max_duration=300,  # 5 minutes max for initial analysis
-                        )
-                    )
-
-                    keyframe_duration = (
-                        datetime.now(timezone.utc) - keyframe_start_time
-                    ).total_seconds()
-                    keyframe_span.set_attribute("keyframes.count", len(keyframes))
-                    keyframe_span.set_attribute(
-                        "keyframes.duration_seconds", keyframe_duration
-                    )
-                    keyframe_span.set_attribute("keyframes.success", True)
-
-                    # Track keyframe extraction metrics
-                    metrics.record_highlight_processing_time(
-                        duration_seconds=keyframe_duration,
-                        stage="keyframe_extraction",
-                        platform=stream.platform,
-                    )
-
                 # Update progress
                 self.progress_tracker.update_progress(
                     stream_id=stream_id,
@@ -306,7 +272,6 @@ def ingest_stream_with_ffmpeg(
                     details={
                         "task": "stream_ingestion_complete",
                         "segments_created": len(segments),
-                        "keyframes_extracted": len(keyframes),
                         "temp_dir": temp_dir,
                     },
                 )
@@ -319,7 +284,6 @@ def ingest_stream_with_ffmpeg(
                         stream_id=stream_id,
                         ingestion_data={
                             "segments": segments,
-                            "keyframes": keyframes,
                             "temp_dir": temp_dir,
                             "media_info": {
                                 "format": media_info.format_name,
@@ -356,7 +320,6 @@ def ingest_stream_with_ffmpeg(
                     "stream_id": stream_id,
                     "status": "ingestion_complete",
                     "segments_created": len(segments),
-                    "keyframes_extracted": len(keyframes),
                     "media_info": {
                         "format": media_info.format_name,
                         "duration": media_info.duration,
@@ -371,7 +334,6 @@ def ingest_stream_with_ffmpeg(
                     "Stream ingestion completed successfully",
                     stream_id=stream_id,
                     segments_created=len(segments),
-                    keyframes_extracted=len(keyframes),
                     platform=stream.platform,
                     organization_id=stream.organization_id,
                 )
@@ -492,35 +454,7 @@ def ingest_stream_with_ffmpeg(
             logger.error(f"Failed to create stream segments: {e}")
             raise
 
-    async def _extract_keyframes_for_analysis(
-        self, stream_url: str, temp_dir: str, max_duration: Optional[float] = None
-    ) -> List[Dict[str, Any]]:
-        """Extract keyframes for visual analysis."""
-        try:
-            keyframes_dir = os.path.join(temp_dir, "keyframes")
-            os.makedirs(keyframes_dir, exist_ok=True)
-
-            # Extract keyframes
-            keyframe_files = await self.frame_extractor.extract_keyframes(
-                stream_url=stream_url, output_dir=keyframes_dir, duration=max_duration
-            )
-
-            keyframes = []
-            for frame_path, timestamp in keyframe_files:
-                keyframe_info = {
-                    "path": frame_path,
-                    "timestamp": timestamp,
-                    "filename": os.path.basename(frame_path),
-                }
-                keyframes.append(keyframe_info)
-
-            logger.info(f"Extracted {len(keyframes)} keyframes for analysis")
-            return keyframes
-
-        except Exception as e:
-            logger.error(f"Failed to extract keyframes: {e}")
-            # Don't fail the entire task if keyframe extraction fails
-            return []
+    
 
 
 @celery_app.task(bind=True, base=StreamProcessingTask, name="detect_highlights_with_ai")
@@ -655,153 +589,183 @@ def detect_highlights_with_ai(
                 raise ValueError("Gemini API key is required for highlight detection")
 
             # Create B2B agent with observability
-            with logfire.span("initialize_b2b_agent") as agent_span:
-                agent_span.set_attribute("agent_config_id", agent_config_id)
-                agent_span.set_attribute("agent_config.type", agent_config.config_type)
-                agent_span.set_attribute("gemini.enabled", gemini_processor is not None)
+                with logfire.span("initialize_b2b_agent") as agent_span:
+                    agent_span.set_attribute("agent_config_id", agent_config_id)
+                    agent_span.set_attribute("agent_config.type", agent_config.config_type)
+                    agent_span.set_attribute("gemini.enabled", gemini_processor is not None)
 
-                b2b_agent = B2BStreamAgent(
-                    stream=stream,
-                    agent_config=agent_config,
-                    gemini_processor=gemini_processor,
-                    dimension_set=dimension_set,
+                    b2b_agent = B2BStreamAgent(
+                        stream=stream,
+                        agent_config=agent_config,
+                        gemini_processor=gemini_processor,
+                        dimension_set=dimension_set,
+                    )
+
+                    agent_span.set_attribute("agent.initialized", True)
+
+                # Initialize clip, thumbnail, and caption generators
+                clip_generator = ClipGenerator()
+                thumbnail_generator = ThumbnailGenerator()
+                caption_generator = GeminiCaptionGenerator(api_key=settings.gemini_api_key)
+                s3_storage = S3Storage(
+                    access_key_id=settings.aws_access_key_id,
+                    secret_access_key=settings.aws_secret_access_key,
+                    bucket_name=settings.aws_s3_bucket,
+                    endpoint_url=settings.aws_s3_endpoint_url,
+                    region_name=settings.aws_region,
                 )
 
-                agent_span.set_attribute("agent.initialized", True)
+                # Start the agent
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
 
-            # Start the agent
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
+                try:
+                    with logfire.span("start_b2b_agent"):
+                        loop.run_until_complete(b2b_agent.start())
+                        logfire.info("B2B agent started successfully", stream_id=stream_id)
 
-            try:
-                with logfire.span("start_b2b_agent"):
-                    loop.run_until_complete(b2b_agent.start())
-                    logfire.info("B2B agent started successfully", stream_id=stream_id)
+                    # Process each segment
+                    all_highlights = []
+                    segments = ingestion_data.get("segments", [])
 
-                # Process each segment
-                all_highlights = []
-                segments = ingestion_data.get("segments", [])
-                keyframes = ingestion_data.get("keyframes", [])
+                    for i, segment in enumerate(segments):
+                        with logfire.span(f"process_segment_{i}") as segment_span:
+                            segment_span.set_attribute("segment.index", i)
+                            segment_span.set_attribute("segment.id", segment["id"])
+                            segment_span.set_attribute(
+                                "segment.start_time", segment["start_time"]
+                            )
+                            segment_span.set_attribute(
+                                "segment.duration", segment["duration"]
+                            )
 
-                for i, segment in enumerate(segments):
-                    with logfire.span(f"process_segment_{i}") as segment_span:
-                        segment_span.set_attribute("segment.index", i)
-                        segment_span.set_attribute("segment.id", segment["id"])
-                        segment_span.set_attribute(
-                            "segment.start_time", segment["start_time"]
-                        )
-                        segment_span.set_attribute(
-                            "segment.duration", segment["duration"]
-                        )
+                            # Create segment data for analysis
+                            segment_data = {
+                                "id": segment["id"],
+                                "path": segment["path"],
+                                "start_time": segment["start_time"],
+                                "duration": segment["duration"],
+                                "video_info": segment["video_info"],
+                                "audio_info": segment["audio_info"],
+                            }
 
-                        # Create segment data for analysis
-                        segment_data = {
-                            "id": segment["id"],
-                            "path": segment["path"],
-                            "start_time": segment["start_time"],
-                            "duration": segment["duration"],
-                            "video_info": segment["video_info"],
-                            "audio_info": segment["audio_info"],
-                            "keyframes": [
-                                kf
-                                for kf in keyframes
-                                if segment["start_time"]
-                                <= kf["timestamp"]
-                                < segment["start_time"] + segment["duration"]
-                            ],
-                        }
+                            # Process segment with Gemini (now primary method)
+                            candidates = []
 
-                        segment_span.set_attribute(
-                            "segment.keyframes_count", len(segment_data["keyframes"])
-                        )
+                            # Use Gemini analysis for all video segments
+                            if segment.get("path"):
+                                with logfire.span(
+                                    "analyze_video_segment_gemini"
+                                ) as analyze_span:
+                                    analyze_span.set_attribute(
+                                        "method", "gemini_dimensions"
+                                    )
+                                    analyze_span.set_attribute(
+                                        "dimension_set",
+                                        dimension_set.name if dimension_set else "none",
+                                    )
+                                    analyze_start = datetime.now(timezone.utc)
 
-                        # Process segment with Gemini (now primary method)
-                        candidates = []
-
-                        # Use Gemini analysis for all video segments
-                        if segment.get("path"):
-                            with logfire.span(
-                                "analyze_video_segment_gemini"
-                            ) as analyze_span:
-                                analyze_span.set_attribute(
-                                    "method", "gemini_dimensions"
-                                )
-                                analyze_span.set_attribute(
-                                    "dimension_set",
-                                    dimension_set.name if dimension_set else "none",
-                                )
-                                analyze_start = datetime.now(timezone.utc)
-
-                                try:
-                                    candidates = loop.run_until_complete(
-                                        b2b_agent.analyze_video_segment_with_gemini(
-                                            segment_data
+                                    try:
+                                        candidates = loop.run_until_complete(
+                                            b2b_agent.analyze_video_segment_with_gemini(
+                                                segment_data
+                                            )
                                         )
+
+                                        analyze_duration = (
+                                            datetime.now(timezone.utc) - analyze_start
+                                        ).total_seconds()
+                                        analyze_span.set_attribute(
+                                            "candidates.count", len(candidates)
+                                        )
+                                        analyze_span.set_attribute(
+                                            "analysis.duration_seconds", analyze_duration
+                                        )
+                                        analyze_span.set_attribute("success", True)
+
+                                        # Track Gemini analysis metrics
+                                        metrics.record_highlight_processing_time(
+                                            duration_seconds=analyze_duration,
+                                            stage="gemini_video_analysis",
+                                            platform=stream.platform,
+                                        )
+                                    except Exception as gemini_error:
+                                        analyze_span.set_attribute("success", False)
+                                        analyze_span.set_attribute(
+                                            "error", str(gemini_error)
+                                        )
+                                        logger.error(
+                                            f"Gemini analysis failed for segment {segment_data.get('id')}: {gemini_error}",
+                                            exc_info=True,
+                                        )
+                                        # Re-raise to fail the task - Gemini is now required
+                                        raise
+
+                            # Create highlights from candidates
+                            segment_highlights = []
+                            for candidate in candidates:
+                                with logfire.span("evaluate_highlight_candidate"):
+                                    should_create = loop.run_until_complete(
+                                        b2b_agent.should_create_highlight(candidate)
                                     )
 
-                                    analyze_duration = (
-                                        datetime.now(timezone.utc) - analyze_start
-                                    ).total_seconds()
-                                    analyze_span.set_attribute(
-                                        "candidates.count", len(candidates)
-                                    )
-                                    analyze_span.set_attribute(
-                                        "analysis.duration_seconds", analyze_duration
-                                    )
-                                    analyze_span.set_attribute("success", True)
+                                    if should_create:
+                                        highlight = loop.run_until_complete(
+                                            b2b_agent.create_highlight(candidate)
+                                        )
+                                        if highlight:
+                                            # Generate clip, thumbnail, and caption
+                                            clip_path = await clip_generator.generate_clip(
+                                                source_path=segment["path"],
+                                                output_dir=ingestion_data["temp_dir"],
+                                                start_time=highlight.start_time,
+                                                duration=highlight.duration,
+                                            )
+                                            thumbnail_path = await thumbnail_generator.generate_thumbnail(
+                                                video_path=clip_path,
+                                                output_dir=ingestion_data["temp_dir"],
+                                            )
+                                            caption = await caption_generator.generate_caption(
+                                                video_path=clip_path
+                                            )
 
-                                    # Track Gemini analysis metrics
-                                    metrics.record_highlight_processing_time(
-                                        duration_seconds=analyze_duration,
-                                        stage="gemini_video_analysis",
-                                        platform=stream.platform,
-                                    )
-                                except Exception as gemini_error:
-                                    analyze_span.set_attribute("success", False)
-                                    analyze_span.set_attribute(
-                                        "error", str(gemini_error)
-                                    )
-                                    logger.error(
-                                        f"Gemini analysis failed for segment {segment_data.get('id')}: {gemini_error}",
-                                        exc_info=True,
-                                    )
-                                    # Re-raise to fail the task - Gemini is now required
-                                    raise
+                                            # Upload to S3
+                                            clip_url = await s3_storage.upload_file(
+                                                file_path=clip_path,
+                                                object_name=f"clips/{highlight.id}.mp4",
+                                            )
+                                            thumbnail_url = await s3_storage.upload_file(
+                                                file_path=thumbnail_path,
+                                                object_name=f"thumbnails/{highlight.id}.jpg",
+                                            )
 
-                        # Create highlights from candidates
-                        segment_highlights = []
-                        for candidate in candidates:
-                            with logfire.span("evaluate_highlight_candidate"):
-                                should_create = loop.run_until_complete(
-                                    b2b_agent.should_create_highlight(candidate)
-                                )
+                                            # Update highlight with URLs and caption
+                                            highlight.video_url = clip_url
+                                            highlight.thumbnail_url = thumbnail_url
+                                            highlight.caption = caption
 
-                                if should_create:
-                                    highlight = loop.run_until_complete(
-                                        b2b_agent.create_highlight(candidate)
-                                    )
-                                    if highlight:
-                                        all_highlights.append(highlight)
-                                        segment_highlights.append(highlight)
+                                            all_highlights.append(highlight)
+                                            segment_highlights.append(highlight)
 
-                        segment_span.set_attribute(
-                            "highlights.created", len(segment_highlights)
+                            segment_span.set_attribute(
+                                "highlights.created", len(segment_highlights)
+                            )
+
+                        # Update progress
+                        progress = 50 + (i + 1) * 30 / len(segments)
+                        self.progress_tracker.update_progress(
+                            stream_id=stream_id,
+                            progress_percentage=progress,
+                            status="processing",
+                            event_type=ProgressEvent.PROGRESS_UPDATE,
+                            details={
+                                "task": "segment_analysis_complete",
+                                "segment": i + 1,
+                                "total_segments": len(segments),
+                                "highlights_so_far": len(all_highlights),
+                            },
                         )
-
-                    # Update progress
-                    progress = 50 + (i + 1) * 30 / len(segments)
-                    self.progress_tracker.update_progress(
-                        stream_id=stream_id,
-                        progress_percentage=progress,
-                        status="processing",
-                        event_type=ProgressEvent.PROGRESS_UPDATE,
-                        details={
-                            "task": "segment_analysis_complete",
-                            "segment": i + 1,
-                            "total_segments": len(segments),
-                            "highlights_so_far": len(all_highlights),
-                        },
-                    )
 
                 # Stop the agent
                 with logfire.span("stop_b2b_agent"):
