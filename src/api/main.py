@@ -29,9 +29,9 @@ from src.api.routers import (
     webhooks_router,
     webhook_receiver_router,
 )
-from src.core.cache import cache
+from src.infrastructure.cache import get_redis_cache
 from src.core.config import settings
-from src.core.database import close_db, init_db
+from src.infrastructure.database import close_db, init_db
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +51,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info("Database initialized successfully")
 
         # Connect to Redis
-        await cache.connect()
+        cache = await get_redis_cache()
         logger.info("Redis connected successfully")
 
         logger.info("Application startup completed")
@@ -67,6 +67,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info("Shutting down TL;DR Highlight API...")
 
         # Close Redis connection
+        cache = await get_redis_cache()
         await cache.disconnect()
         logger.info("Redis disconnected successfully")
 

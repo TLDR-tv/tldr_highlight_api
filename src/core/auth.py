@@ -15,13 +15,13 @@ from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import settings
-from src.core.database import get_db
-from src.core.cache import cache
+from src.infrastructure.database import get_db
+from src.infrastructure.cache import get_redis_cache
 from src.infrastructure.persistence.models.api_key import APIKey
 from src.infrastructure.persistence.models.organization import Organization
 from src.infrastructure.persistence.models.user import User
-from src.services.auth import AuthService
-from src.services.rate_limit import RateLimitService
+from src.infrastructure.security import APIKeyValidator
+from src.infrastructure.cache import get_rate_limiter
 
 logger = logging.getLogger(__name__)
 
@@ -47,9 +47,7 @@ class RateLimitExceeded(Exception):
         self.reset_time = reset_time
 
 
-# Service instances
-auth_service = AuthService(cache)
-rate_limit_service = RateLimitService(cache)
+# Infrastructure services are created on demand
 
 
 def get_api_key_from_header(request: Request) -> str:
@@ -87,14 +85,12 @@ def get_api_key_from_header(request: Request) -> str:
 async def get_current_api_key(
     api_key: str = Depends(get_api_key_from_header),
     db: AsyncSession = Depends(get_db),
-    auth_service: AuthService = Depends(lambda: auth_service),
 ) -> APIKey:
     """Get and validate the current API key.
 
     Args:
         api_key: API key from header
         db: Database session
-        auth_service: Authentication service
 
     Returns:
         APIKey: Validated API key object
@@ -103,16 +99,17 @@ async def get_current_api_key(
         HTTPException: If API key is invalid or expired
     """
     try:
-        validated_key = await auth_service.validate_api_key(api_key, db)
+        validator = APIKeyValidator()
+        result = await validator.validate_api_key(api_key, db)
 
-        if not validated_key:
+        if not result.is_valid:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or expired API key.",
+                detail=result.error_message or "Invalid or expired API key.",
                 headers={"WWW-Authenticate": "ApiKey"},
             )
 
-        return validated_key
+        return result.api_key
 
     except HTTPException:
         raise
@@ -165,7 +162,14 @@ async def get_current_organization(
         HTTPException: If organization is not found
     """
     try:
-        organization = await auth_service.get_user_organization(user.id, db)
+        # Get user's organization from their owned_organizations
+        from sqlalchemy import select
+        from src.infrastructure.persistence.models.organization import Organization
+        
+        result = await db.execute(
+            select(Organization).where(Organization.owner_id == user.id)
+        )
+        organization = result.scalar_one_or_none()
 
         if not organization:
             raise HTTPException(
@@ -216,8 +220,9 @@ def require_scope(required_scopes: Union[str, List[str]]):
         """
         try:
             # Check each required scope
+            validator = APIKeyValidator()
             for scope in required_scopes:
-                if not await auth_service.has_permission(api_key, scope):
+                if not await validator.has_permission(api_key, scope):
                     logger.warning(
                         f"API key {api_key.id} denied access to scope '{scope}'. "
                         f"Available scopes: {api_key.scopes}"
@@ -243,7 +248,6 @@ def require_scope(required_scopes: Union[str, List[str]]):
 
 async def check_rate_limit(
     api_key: APIKey = Depends(get_current_api_key),
-    rate_limit_service: RateLimitService = Depends(lambda: rate_limit_service),
 ) -> APIKey:
     """Check rate limit for the current API key.
 
@@ -258,11 +262,25 @@ async def check_rate_limit(
         HTTPException: If rate limit is exceeded
     """
     try:
-        is_allowed, remaining = await rate_limit_service.check_rate_limit(api_key)
-
-        if not is_allowed:
+        rate_limiter = await get_rate_limiter()
+        validator = APIKeyValidator()
+        
+        # Get rate limit for this API key
+        max_requests = await validator.get_rate_limit(api_key)
+        
+        # Check rate limit
+        result = await rate_limiter.is_allowed(
+            key=f"api_key:{api_key.id}",
+            max_requests=max_requests,
+            window_seconds=60  # Per minute
+        )
+        
+        if not result.is_allowed:
             # Get detailed rate limit info for headers
-            rate_info = await rate_limit_service.get_rate_limit_info(api_key)
+            rate_info = {
+                "max_requests_per_minute": max_requests,
+                "reset_time": result.reset_time
+            }
 
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -287,7 +305,6 @@ async def check_rate_limit(
 
 async def check_burst_limit(
     api_key: APIKey = Depends(get_current_api_key),
-    rate_limit_service: RateLimitService = Depends(lambda: rate_limit_service),
 ) -> APIKey:
     """Check burst rate limit for the current API key.
 
@@ -302,7 +319,17 @@ async def check_burst_limit(
         HTTPException: If burst limit is exceeded
     """
     try:
-        is_allowed, remaining = await rate_limit_service.check_burst_limit(api_key)
+        rate_limiter = await get_rate_limiter()
+        
+        # Check burst limit (20 requests per 10 seconds)
+        result = await rate_limiter.is_allowed(
+            key=f"burst:{api_key.id}",
+            max_requests=20,
+            window_seconds=10
+        )
+        
+        is_allowed = result.is_allowed
+        remaining = result.remaining_requests
 
         if not is_allowed:
             raise HTTPException(
@@ -397,8 +424,9 @@ async def optional_authentication(
         if not api_key or not api_key.strip():
             return None
 
-        validated_key = await auth_service.validate_api_key(api_key.strip(), db)
-        return validated_key
+        validator = APIKeyValidator()
+        result = await validator.validate_api_key(api_key.strip(), db)
+        return result.api_key if result.is_valid else None
 
     except Exception as e:
         logger.debug(f"Optional authentication failed: {e}")

@@ -17,6 +17,7 @@ from .auth_utils import (
     constant_time_compare,
 )
 from .api_key_validator import APIKeyValidator
+from .jwt_utils import create_access_token
 
 __all__ = [
     # Auth utilities
@@ -30,6 +31,8 @@ __all__ = [
     "decode_jwt_token",
     "generate_secure_random_string",
     "constant_time_compare",
+    # JWT utilities
+    "create_access_token",
     # Validators
     "APIKeyValidator",
 ]

@@ -22,7 +22,7 @@ from src.api.dependencies import (
     get_authentication_use_case,
     CurrentUser
 )
-from src.api.auth_utils import create_access_token
+from src.infrastructure.security import create_access_token
 from src.application.use_cases.authentication import AuthenticationUseCase
 from src.domain.exceptions import (
     DuplicateEntityError,

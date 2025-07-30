@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
-from src.core.database import get_db as get_db_session
+from src.infrastructure.database import get_db as get_db_session
 from src.core.config import settings
 from src.infrastructure.persistence.models.api_key import APIKey
 from src.infrastructure.persistence.models.user import User
