@@ -33,8 +33,30 @@ from .auth import (
 # Re-export database dependency from infrastructure
 from src.infrastructure.database import get_db as get_db_session
 
-# Import existing dependencies to maintain compatibility
-from src.api.dependencies import (
+# Import repository dependencies
+from .repositories import (
+    get_user_repository,
+    get_api_key_repository,
+    get_organization_repository,
+    get_stream_repository,
+    get_highlight_repository,
+    get_batch_repository,
+    get_webhook_repository,
+    get_webhook_event_repository,
+    get_usage_record_repository,
+)
+
+# Import service dependencies
+from .services import (
+    get_organization_management_service,
+    get_stream_processing_service,
+    get_highlight_detection_service,
+    get_webhook_delivery_service,
+    get_usage_tracking_service,
+)
+
+# Import use case dependencies
+from .use_cases import (
     get_authentication_use_case,
     get_stream_processing_use_case,
     get_batch_processing_use_case,
@@ -67,6 +89,22 @@ __all__ = [
     # Rate limiting
     "check_rate_limit",
     "check_burst_limit",
+    # Repositories
+    "get_user_repository",
+    "get_api_key_repository",
+    "get_organization_repository",
+    "get_stream_repository",
+    "get_highlight_repository",
+    "get_batch_repository",
+    "get_webhook_repository",
+    "get_webhook_event_repository",
+    "get_usage_record_repository",
+    # Services
+    "get_organization_management_service",
+    "get_stream_processing_service",
+    "get_highlight_detection_service",
+    "get_webhook_delivery_service",
+    "get_usage_tracking_service",
     # Use cases
     "get_authentication_use_case",
     "get_stream_processing_use_case",

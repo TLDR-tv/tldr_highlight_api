@@ -5,7 +5,7 @@ import logging
 from fastapi import APIRouter, Request, Response, Header, HTTPException, Depends, BackgroundTasks
 from fastapi.responses import JSONResponse
 
-from src.api.models.webhook_models import (
+from src.api.schemas.webhook_models import (
     WebhookResponse,
     HundredMSWebhookPayload,
     TwitchWebhookPayload,

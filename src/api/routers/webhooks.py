@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.schemas.common import COMMON_RESPONSES, StatusResponse
-from src.core.database import get_db
+from src.infrastructure.database import get_db
 
 router = APIRouter()
 

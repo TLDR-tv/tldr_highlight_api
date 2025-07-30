@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
-from src.core.database import get_db
+from src.infrastructure.database import get_db
 from src.infrastructure.persistence.models.organization import Organization
 from src.infrastructure.persistence.models.user import User
 from src.api.dependencies.auth import require_scopes
