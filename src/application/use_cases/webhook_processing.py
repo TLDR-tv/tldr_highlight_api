@@ -15,7 +15,7 @@ from src.infrastructure.security.webhook_validator import (
     WebhookValidatorFactory,
     WebhookAuthenticationError
 )
-from src.api.models.webhook_models import (
+from src.api.schemas.webhook_models import (
     StreamStartedWebhookEvent,
     HundredMSWebhookPayload,
     TwitchWebhookPayload,

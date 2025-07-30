@@ -30,8 +30,13 @@ from src.api.routers import (
     webhook_receiver_router,
 )
 from src.infrastructure.cache import get_redis_cache
-from src.core.config import settings
+from src.infrastructure.config import settings
 from src.infrastructure.database import close_db, init_db
+from src.infrastructure.observability import (
+    configure_logfire,
+    LogfireMiddleware,
+    metrics,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +50,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Startup
     try:
         logger.info("Starting TL;DR Highlight API...")
+        
+        # Initialize Logfire observability
+        configure_logfire(app)
+        logger.info("Logfire observability configured successfully")
+        
+        # Start metrics background collection
+        await metrics.start_background_collection()
+        logger.info("Metrics collection started")
 
         # Initialize database
         await init_db()
@@ -65,6 +78,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Shutdown
     try:
         logger.info("Shutting down TL;DR Highlight API...")
+        
+        # Stop metrics background collection
+        await metrics.stop_background_collection()
+        logger.info("Metrics collection stopped")
 
         # Close Redis connection
         cache = await get_redis_cache()
@@ -151,6 +168,13 @@ def create_app() -> FastAPI:
 
     # Security headers middleware
     app.add_middleware(SecurityHeadersMiddleware)
+    
+    # Logfire observability middleware
+    app.add_middleware(
+        LogfireMiddleware,
+        capture_request_headers=settings.logfire_capture_headers,
+        capture_request_body=settings.logfire_capture_body,
+    )
 
     # Request logging middleware
     app.add_middleware(RequestLoggingMiddleware)

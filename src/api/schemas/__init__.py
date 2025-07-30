@@ -30,6 +30,17 @@ from .webhooks import (
     WebhookTest,
     WebhookUpdate,
 )
+from .webhook_models import (
+    WebhookEventType,
+    WebhookPlatform,
+    BaseWebhookEvent,
+    StreamMetadata,
+    StreamStartedWebhookEvent,
+    HundredMSWebhookPayload,
+    TwitchWebhookPayload,
+    WebhookResponse as WebhookProcessingResponse,
+    WebhookVerificationHeaders,
+)
 
 __all__ = [
     # Stream schemas
@@ -57,6 +68,16 @@ __all__ = [
     "WebhookResponse",
     "WebhookListResponse",
     "WebhookTest",
+    # Webhook processing schemas
+    "WebhookEventType",
+    "WebhookPlatform",
+    "BaseWebhookEvent",
+    "StreamMetadata",
+    "StreamStartedWebhookEvent",
+    "HundredMSWebhookPayload",
+    "TwitchWebhookPayload",
+    "WebhookProcessingResponse",
+    "WebhookVerificationHeaders",
     # Common schemas
     "PaginationParams",
     "PaginatedResponse",

@@ -10,7 +10,7 @@ from typing import Optional, Union, List, Annotated
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.config import settings
+from src.infrastructure.config import settings
 from src.infrastructure.database import get_db
 from src.infrastructure.security import APIKeyValidator
 from src.infrastructure.cache import get_rate_limiter, RateLimiter

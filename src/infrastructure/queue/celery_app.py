@@ -141,10 +141,21 @@ def configure_queues(app: Celery) -> None:
 def configure_routing(app: Celery) -> None:
     """Configure task routing rules."""
     app.conf.task_routes = {
-        "src.tasks.stream.*": {"queue": "high_priority", "priority": 8},
-        "src.tasks.webhook.*": {"queue": "high_priority", "priority": 9},
+        # Core stream processing tasks (high priority)
+        "ingest_stream_with_ffmpeg": {"queue": "high_priority", "priority": 9},
+        "detect_highlights_with_ai": {"queue": "high_priority", "priority": 8},
+        
+        # Webhook tasks (highest priority for real-time notifications)
+        "src.tasks.webhook.*": {"queue": "high_priority", "priority": 10},
+        
+        # Maintenance and cleanup (low priority)
+        "cleanup_stream_resources": {"queue": "low_priority", "priority": 1},
+        "cleanup_job_resources": {"queue": "low_priority", "priority": 1},
+        "health_check_task": {"queue": "default", "priority": 2},
+        
+        # Legacy tasks (for backwards compatibility)
+        "src.tasks.stream.*": {"queue": "high_priority", "priority": 7},
         "src.tasks.batch.*": {"queue": "batch", "priority": 3},
-        "src.tasks.cleanup.*": {"queue": "low_priority", "priority": 1},
     }
 
 

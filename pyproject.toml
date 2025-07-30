@@ -22,6 +22,7 @@ dependencies = [
     "passlib[bcrypt]>=1.7.4",
     "tenacity>=9.0.0",
     "structlog>=24.4.0",
+    "logfire>=2.0.0",  # Pydantic Logfire for observability
     # Multi-modal content processing dependencies
     "opencv-python>=4.8.0",
     "openai>=1.0.0",
