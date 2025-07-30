@@ -23,7 +23,7 @@ class DimensionWeights:
     timing_importance: float = 0.05    # Clutch timing factors
     momentum_shift: float = 0.05       # Game momentum changes
     
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate that weights sum to approximately 1.0."""
         total = (
             self.skill_execution + self.game_impact + self.rarity +
@@ -103,7 +103,7 @@ class ScoreThresholds:
     wake_word_boost: float = 0.15     # Boost for wake word triggers
     manual_trigger: float = 0.90      # Score for manual highlights
     
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate threshold ordering."""
         thresholds = [
             self.minimum_viable,
@@ -203,7 +203,7 @@ class ScoringDimensions:
     timing_importance: float = 0.0
     momentum_shift: float = 0.0
     
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate all dimensions are in valid range."""
         dimensions = [
             self.skill_execution, self.game_impact, self.rarity,

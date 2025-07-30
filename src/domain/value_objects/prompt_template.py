@@ -6,7 +6,7 @@ to tailor highlight detection to their specific content and requirements.
 
 import re
 from dataclasses import dataclass
-from typing import Dict, Any, List, Set
+from typing import Dict, Any, List, Set, Optional
 from string import Template
 
 
@@ -32,9 +32,9 @@ class ConfigurablePromptTemplate:
     
     # Safety constraints
     max_length: int = 4000
-    required_variables: Set[str] = None
+    required_variables: Optional[Set[str]] = None
     
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate the prompt template."""
         if self.required_variables is None:
             # Set default required variables

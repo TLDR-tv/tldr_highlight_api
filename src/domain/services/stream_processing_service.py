@@ -1,17 +1,19 @@
 """Stream processing domain service.
 
 This service orchestrates the complete lifecycle of stream processing,
-including state management, highlight detection coordination, and usage tracking.
+including state management, B2B agent coordination, and usage tracking.
 """
 
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 
 from src.domain.services.base import BaseDomainService
+from src.domain.services.b2b_stream_agent import B2BStreamAgent
 from src.domain.entities.stream import Stream, StreamStatus, StreamPlatform
 from src.domain.entities.user import User
 from src.domain.entities.organization import Organization
 from src.domain.entities.usage_record import UsageRecord
+from src.domain.entities.highlight_agent_config import HighlightAgentConfig
 from src.domain.value_objects.url import Url
 from src.domain.value_objects.timestamp import Timestamp
 from src.domain.value_objects.duration import Duration
@@ -27,13 +29,15 @@ from src.domain.repositories.user_repository import UserRepository
 from src.domain.repositories.organization_repository import OrganizationRepository
 from src.domain.repositories.usage_record_repository import UsageRecordRepository
 from src.domain.repositories.highlight_repository import HighlightRepository
+from src.domain.repositories.highlight_agent_config_repository import HighlightAgentConfigRepository
 
 
 class StreamProcessingService(BaseDomainService):
     """Domain service for stream processing orchestration.
     
     Handles the business logic for starting, monitoring, and completing
-    stream processing operations while enforcing business rules and quotas.
+    stream processing operations with B2B agent integration while enforcing
+    business rules and quotas.
     """
     
     def __init__(
@@ -42,7 +46,9 @@ class StreamProcessingService(BaseDomainService):
         user_repo: UserRepository,
         org_repo: OrganizationRepository,
         usage_repo: UsageRecordRepository,
-        highlight_repo: HighlightRepository
+        highlight_repo: HighlightRepository,
+        agent_config_repo: HighlightAgentConfigRepository,
+        content_analyzer: Optional[Any] = None
     ):
         """Initialize stream processing service.
         
@@ -52,6 +58,8 @@ class StreamProcessingService(BaseDomainService):
             org_repo: Repository for organization operations
             usage_repo: Repository for usage tracking
             highlight_repo: Repository for highlight operations
+            agent_config_repo: Repository for agent configurations
+            content_analyzer: Optional content analysis service for B2B agents
         """
         super().__init__()
         self.stream_repo = stream_repo
@@ -59,6 +67,9 @@ class StreamProcessingService(BaseDomainService):
         self.org_repo = org_repo
         self.usage_repo = usage_repo
         self.highlight_repo = highlight_repo
+        self.agent_config_repo = agent_config_repo
+        self.content_analyzer = content_analyzer
+        self._active_agents: Dict[int, B2BStreamAgent] = {}
     
     async def start_stream_processing(
         self,
@@ -66,9 +77,10 @@ class StreamProcessingService(BaseDomainService):
         url: str,
         title: str,
         processing_options: Optional[ProcessingOptions] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
+        agent_config_id: Optional[int] = None
     ) -> Stream:
-        """Start processing a new stream.
+        """Start processing a new stream with B2B agent.
         
         Args:
             user_id: ID of the user starting the stream
@@ -76,6 +88,7 @@ class StreamProcessingService(BaseDomainService):
             title: Stream title
             processing_options: Optional processing configuration
             metadata: Optional metadata for the stream
+            agent_config_id: Optional agent configuration ID
             
         Returns:
             Created stream entity
@@ -116,6 +129,27 @@ class StreamProcessingService(BaseDomainService):
         # Save stream
         saved_stream = await self.stream_repo.save(stream)
         
+        # Get or create agent configuration
+        agent_config = await self._get_or_create_agent_config(
+            user_id=user_id,
+            organization_id=org.id if org else None,
+            agent_config_id=agent_config_id,
+            url=url
+        )
+        
+        # Create and start B2B agent
+        b2b_agent = B2BStreamAgent(
+            stream=saved_stream,
+            agent_config=agent_config,
+            content_analyzer=self.content_analyzer
+        )
+        
+        # Store active agent
+        self._active_agents[saved_stream.id] = b2b_agent
+        
+        # Start the agent
+        await b2b_agent.start()
+        
         # Create initial usage record
         usage_record = UsageRecord.for_stream_processing(
             user_id=user_id,
@@ -125,7 +159,7 @@ class StreamProcessingService(BaseDomainService):
         )
         await self.usage_repo.save(usage_record)
         
-        self.logger.info(f"Started stream processing: {saved_stream.id} for user {user_id}")
+        self.logger.info(f"Started stream processing with B2B agent: {saved_stream.id} for user {user_id}")
         
         return saved_stream
     
@@ -193,6 +227,10 @@ class StreamProcessingService(BaseDomainService):
         
         # Save updated stream
         saved_stream = await self.stream_repo.save(updated_stream)
+        
+        # Stop B2B agent if stream is ending
+        if new_status in [StreamStatus.COMPLETED, StreamStatus.FAILED, StreamStatus.CANCELLED]:
+            await self._stop_stream_agent(stream_id)
         
         # Update usage record if completed
         if new_status in [StreamStatus.COMPLETED, StreamStatus.FAILED]:
@@ -289,6 +327,88 @@ class StreamProcessingService(BaseDomainService):
         cutoff_date = Timestamp.now().subtract_days(days_old)
         return await self.stream_repo.cleanup_old_streams(cutoff_date)
     
+    async def process_content_segment(
+        self,
+        stream_id: int,
+        segment_data: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
+        """Process a content segment using the B2B agent.
+        
+        Args:
+            stream_id: Stream ID
+            segment_data: Content segment data
+            
+        Returns:
+            List of highlight candidates
+        """
+        agent = self._active_agents.get(stream_id)
+        if not agent:
+            self.logger.warning(f"No active agent found for stream {stream_id}")
+            return []
+        
+        try:
+            # Analyze content segment
+            candidates = await agent.analyze_content_segment(segment_data)
+            
+            # Process candidates to create highlights
+            created_highlights = []
+            for candidate in candidates:
+                if await agent.should_create_highlight(candidate):
+                    highlight = await agent.create_highlight(candidate)
+                    if highlight:
+                        # Save highlight to repository
+                        saved_highlight = await self.highlight_repo.save(highlight)
+                        created_highlights.append({
+                            "id": saved_highlight.id,
+                            "start_time": candidate.start_time,
+                            "end_time": candidate.end_time,
+                            "score": candidate.final_score,
+                            "description": candidate.description
+                        })
+            
+            return created_highlights
+            
+        except Exception as e:
+            self.logger.error(f"Error processing segment for stream {stream_id}: {str(e)}")
+            return []
+    
+    async def get_agent_metrics(self, stream_id: int) -> Optional[Dict[str, Any]]:
+        """Get performance metrics for a stream's B2B agent.
+        
+        Args:
+            stream_id: Stream ID
+            
+        Returns:
+            Agent metrics dictionary or None if agent not found
+        """
+        agent = self._active_agents.get(stream_id)
+        if not agent:
+            return None
+        
+        return agent.get_performance_metrics()
+    
+    async def stop_stream_processing(
+        self,
+        stream_id: int,
+        force: bool = False
+    ) -> Stream:
+        """Stop stream processing and clean up agent.
+        
+        Args:
+            stream_id: Stream ID
+            force: Whether to force stop
+            
+        Returns:
+            Updated stream entity
+        """
+        # Update stream status
+        updated_stream = await self.update_stream_status(
+            stream_id=stream_id,
+            new_status=StreamStatus.COMPLETED if not force else StreamStatus.CANCELLED
+        )
+        
+        return updated_stream
+    
     # Private helper methods
     
     async def _get_user_organization(self, user_id: int) -> Optional[Organization]:
@@ -360,3 +480,62 @@ class StreamProcessingService(BaseDomainService):
                 duration_minutes = stream.duration_seconds / 60.0
                 completed_record = record.complete(quantity=duration_minutes)
                 await self.usage_repo.save(completed_record)
+    
+    async def _get_or_create_agent_config(
+        self,
+        user_id: int,
+        organization_id: Optional[int],
+        agent_config_id: Optional[int],
+        url: str
+    ) -> HighlightAgentConfig:
+        """Get or create an agent configuration for stream processing."""
+        # If specific config requested, try to get it
+        if agent_config_id:
+            config = await self.agent_config_repo.get(agent_config_id)
+            if config and (config.user_id == user_id or config.organization_id == organization_id):
+                return config
+        
+        # Try to get organization's default config
+        if organization_id:
+            org_configs = await self.agent_config_repo.get_active_for_organization(organization_id)
+            if org_configs:
+                return org_configs[0]  # Use first active config
+        
+        # Detect content type from URL and create appropriate default
+        content_type = self._detect_content_type(url)
+        
+        if content_type == "valorant":
+            return HighlightAgentConfig.create_valorant_config(
+                organization_id=organization_id or 0,
+                user_id=user_id
+            )
+        else:
+            return HighlightAgentConfig.create_default_gaming_config(
+                organization_id=organization_id or 0,
+                user_id=user_id
+            )
+    
+    async def _stop_stream_agent(self, stream_id: int) -> None:
+        """Stop and clean up a B2B stream agent."""
+        agent = self._active_agents.pop(stream_id, None)
+        if agent:
+            try:
+                await agent.stop()
+                self.logger.info(f"Stopped B2B agent for stream {stream_id}")
+            except Exception as e:
+                self.logger.error(f"Error stopping agent for stream {stream_id}: {str(e)}")
+    
+    def _detect_content_type(self, url: str) -> str:
+        """Detect content type from stream URL."""
+        url_lower = url.lower()
+        
+        # Gaming platform detection
+        if "twitch.tv" in url_lower:
+            # Could parse Twitch categories or game names from URL/metadata
+            return "gaming"
+        elif "youtube.com" in url_lower:
+            # Could analyze YouTube title/description for game detection
+            return "gaming"
+        
+        # Default to general gaming
+        return "gaming"
