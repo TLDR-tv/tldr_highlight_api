@@ -18,7 +18,7 @@ from src.domain.services.url_signer_interface import TokenScope
 from src.domain.repositories.organization_key_repository import (
     OrganizationKeyRepository,
 )
-from src.domain.models.organization_key import OrganizationKey
+from src.domain.entities.organization_key import OrganizationKey
 from src.infrastructure.security.key_service import KeyGenerationService
 from src.infrastructure.security.config import SecurityConfig
 

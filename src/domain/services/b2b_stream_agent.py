@@ -7,6 +7,7 @@ according to their specific requirements.
 
 import asyncio
 import uuid
+
 # deque removed for simplified processing
 from datetime import datetime
 from enum import Enum
@@ -16,7 +17,6 @@ from ..entities.stream import Stream
 from ..entities.highlight import Highlight, HighlightCandidate
 from ..entities.highlight_agent_config import HighlightAgentConfig
 from ..entities.stream_processing_config import StreamProcessingConfig
-from ..entities.dimension_set import DimensionSet
 from ..value_objects.processing_options import ProcessingOptions
 from ..exceptions import BusinessRuleViolation, ProcessingError
 from src.infrastructure.observability import traced_service_method, metrics
@@ -51,9 +51,10 @@ class B2BStreamAgent:
     def __init__(
         self,
         stream: Stream,
-        agent_config: HighlightAgentConfig | StreamProcessingConfig,  # Accept either config type
+        agent_config: HighlightAgentConfig
+        | StreamProcessingConfig,  # Accept either config type
         gemini_processor: Any,  # Required Gemini processor
-        dimension_set: DimensionSet,  # Required dimension set
+        dimension_set: DimensionSetAggregate,  # Required dimension set
         processing_options: Optional[ProcessingOptions] = None,
     ):
         """Initialize B2B stream agent.
@@ -90,7 +91,9 @@ class B2BStreamAgent:
         self.last_activity = datetime.utcnow()
 
         # Simplified tracking
-        self.recent_highlights: List[HighlightCandidate] = []  # Keep last few for metrics
+        self.recent_highlights: List[
+            HighlightCandidate
+        ] = []  # Keep last few for metrics
         self.stream_start_time = datetime.utcnow()
 
         # Control flags
@@ -98,12 +101,14 @@ class B2BStreamAgent:
         self._tasks: List[asyncio.Task] = []
 
         # Consumer-specific state
-        self.consumer_metrics: Dict[str, Any] = self._extract_consumer_metrics(agent_config)
+        self.consumer_metrics: Dict[str, Any] = self._extract_consumer_metrics(
+            agent_config
+        )
 
     # ============================================================================
     # CONFIG COMPATIBILITY HELPERS
     # ============================================================================
-    
+
     def _extract_consumer_metrics(self, config) -> Dict[str, Any]:
         """Extract consumer metrics from either config type."""
         if isinstance(config, StreamProcessingConfig):
@@ -121,29 +126,33 @@ class B2BStreamAgent:
                 "content_type": config.content_type,
                 "game_name": config.game_name,
             }
-    
+
     def _get_confidence_threshold(self) -> float:
         """Get confidence threshold from either config type."""
         if isinstance(self.agent_config, StreamProcessingConfig):
             return self.agent_config.confidence_threshold
         else:
             return self.agent_config.min_confidence_threshold
-    
+
     def _get_organization_id(self) -> int:
         """Get organization ID from either config type."""
         return self.agent_config.organization_id
-    
+
     def _record_config_usage(self) -> None:
         """Record usage on either config type."""
         self.agent_config.record_usage()
 
     # ============================================================================
-    # SIMPLIFIED CONTEXT MANAGEMENT  
+    # SIMPLIFIED CONTEXT MANAGEMENT
     # ============================================================================
 
     def get_context_for_prompt(self) -> Dict[str, Any]:
         """Build basic context dictionary for prompt rendering."""
-        recent_highlights = [h.description for h in self.recent_highlights[-3:]] if self.recent_highlights else []
+        recent_highlights = (
+            [h.description for h in self.recent_highlights[-3:]]
+            if self.recent_highlights
+            else []
+        )
 
         return {
             "context": f"Stream: {self.stream.title}, Recent highlights: {'; '.join(recent_highlights) if recent_highlights else 'None'}",
@@ -229,7 +238,9 @@ class B2BStreamAgent:
                     "agent_id": self.agent_id,
                     "config_version": self.agent_config.version,
                     "final_score": candidate.final_score,
-                    "dimensions": candidate.dimensions.to_dict() if hasattr(candidate.dimensions, 'to_dict') else candidate.dimensions,
+                    "dimensions": candidate.dimensions.to_dict()
+                    if hasattr(candidate.dimensions, "to_dict")
+                    else candidate.dimensions,
                     "keywords": candidate.detected_keywords,
                     "context_type": candidate.context_type,
                     "trigger_type": candidate.trigger_type,
@@ -335,7 +346,9 @@ class B2BStreamAgent:
                 )
 
                 span.set_attribute("highlights.found", len(analysis.highlights))
-                span.set_attribute("processing.refinement_enabled", False)  # Refinement removed
+                span.set_attribute(
+                    "processing.refinement_enabled", False
+                )  # Refinement removed
 
             # Convert to highlight candidates using dimension framework
             candidates = self.gemini_processor.convert_to_highlight_candidates(
@@ -399,7 +412,9 @@ class B2BStreamAgent:
                 if isinstance(self.agent_config, StreamProcessingConfig):
                     if not self.agent_config.validate():
                         span.set_attribute("error", True)
-                        span.set_attribute("error.message", "Invalid configuration parameters")
+                        span.set_attribute(
+                            "error.message", "Invalid configuration parameters"
+                        )
                         raise BusinessRuleViolation("Invalid configuration parameters")
 
                 span.set_attribute("status", "active")
@@ -477,7 +492,9 @@ class B2BStreamAgent:
             "uptime_seconds": uptime,
             "configuration": {
                 "organization_id": self._get_organization_id(),
-                "config_type": "simplified" if isinstance(self.agent_config, StreamProcessingConfig) else "legacy",
+                "config_type": "simplified"
+                if isinstance(self.agent_config, StreamProcessingConfig)
+                else "legacy",
                 "confidence_threshold": self._get_confidence_threshold(),
             },
             "processing_stats": {

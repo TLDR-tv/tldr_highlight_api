@@ -6,7 +6,7 @@ in the persistence layer.
 
 from typing import Optional, List, Protocol
 
-from src.domain.models.organization_key import OrganizationKey, KeyStatus
+from src.domain.entities.organization_key import OrganizationKey, KeyStatus
 
 
 class OrganizationKeyRepository(Protocol):

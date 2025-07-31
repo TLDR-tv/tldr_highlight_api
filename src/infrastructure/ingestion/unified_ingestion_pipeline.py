@@ -16,8 +16,6 @@ from ..adapters.stream.factory import StreamAdapterFactory
 from ..media.ffmpeg_integration import (
     FFmpegProcessor,
     TranscodeOptions,
-    VideoCodec,
-    AudioCodec,
 )
 from ..content_processing.gemini_video_processor import GeminiVideoProcessor
 from ..streaming.segment_processor import (

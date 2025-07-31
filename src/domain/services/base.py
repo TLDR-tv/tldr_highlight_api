@@ -5,7 +5,6 @@ establishing common patterns and interfaces.
 """
 
 from typing import Protocol, runtime_checkable
-from abc import abstractmethod
 import logging
 
 
@@ -19,7 +18,6 @@ class DomainService(Protocol):
     """
 
     @property
-    @abstractmethod
     def logger(self) -> logging.Logger:
         """Service-specific logger."""
         ...

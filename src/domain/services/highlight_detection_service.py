@@ -15,7 +15,7 @@ from src.domain.value_objects.processing_options import (
 )
 from src.domain.repositories.highlight_repository import HighlightRepository
 from src.domain.repositories.stream_repository import StreamRepository
-from src.domain.repositories.dimension_set_repository import DimensionSetRepository
+from src.domain.repositories.dimension_set_repository_interface import DimensionSetRepository
 from src.domain.repositories.highlight_type_registry_repository import (
     HighlightTypeRegistryRepository,
 )
@@ -118,16 +118,6 @@ class HighlightDetectionService(BaseDomainService):
             "this method is deprecated, use B2BStreamAgent directly"
         )
         return []
-
-
-
-
-
-
-
-
-
-
 
     async def process_detection_results(
         self,

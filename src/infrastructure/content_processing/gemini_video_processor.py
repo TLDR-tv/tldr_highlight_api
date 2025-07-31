@@ -16,8 +16,8 @@ from pydantic import BaseModel
 
 from src.domain.entities.highlight import HighlightCandidate
 from src.domain.entities.highlight_agent_config import HighlightAgentConfig
-from src.domain.entities.dimension_set import DimensionSet
-from src.domain.value_objects.scoring_config import ScoringDimensions
+from src.domain.entities.dimension_set_aggregate import DimensionSetAggregate
+from src.domain.value_objects.dimension_score import DimensionScore
 from src.infrastructure.content_processing.schemas.gemini_schemas import (
     GeminiVideoAnalysis,
     GeminiHighlight,
@@ -56,7 +56,7 @@ class GeminiVideoProcessor:
         self,
         video_path: str,
         segment_info: Dict[str, Any],
-        dimension_set: DimensionSet,
+        dimension_set: DimensionSetAggregate,
         agent_config: HighlightAgentConfig,
     ) -> GeminiVideoAnalysis:
         """
@@ -136,7 +136,7 @@ class GeminiVideoProcessor:
 
     def _build_dimension_aware_prompt(
         self,
-        dimension_set: DimensionSet,
+        dimension_set: DimensionSetAggregate,
         agent_config: HighlightAgentConfig,
         segment_info: Dict[str, Any],
     ) -> str:
@@ -192,7 +192,7 @@ especially those with higher weights. Quality over quantity - only identify
 truly noteworthy moments.
 """
 
-    def _build_dimension_instructions(self, dimension_set: DimensionSet) -> str:
+    def _build_dimension_instructions(self, dimension_set: DimensionSetAggregate) -> str:
         """Build detailed instructions for each dimension."""
         instructions = []
 
@@ -268,7 +268,7 @@ truly noteworthy moments.
     def _validate_dimension_scores(
         self,
         analysis: GeminiVideoAnalysis,
-        dimension_set: DimensionSet,
+        dimension_set: DimensionSetAggregate,
     ) -> GeminiVideoAnalysis:
         """Ensure all highlights have scores for all dimensions."""
         dimension_ids = set(dimension_set.dimensions.keys())
@@ -297,7 +297,7 @@ truly noteworthy moments.
     def convert_to_highlight_candidates(
         self,
         analysis: GeminiVideoAnalysis,
-        dimension_set: DimensionSet,
+        dimension_set: DimensionSetAggregate,
         segment_info: Dict[str, Any],
         min_confidence: float = 0.7,
     ) -> List[HighlightCandidate]:
@@ -328,10 +328,17 @@ truly noteworthy moments.
             start_time = segment_info["start_time"] + start_seconds
             end_time = segment_info["start_time"] + end_seconds
 
-            # Create scoring dimensions object
-            dimensions = ScoringDimensions()
-            for dim_id, score in highlight.dimension_scores.items():
-                setattr(dimensions, dim_id, score)
+            # Create proper DimensionScore objects from raw scores
+            dimension_scores = {}
+            for dim_id, score_value in highlight.dimension_scores.items():
+                if dim_id in dimension_set.dimensions:
+                    dimension_def = dimension_set.dimensions[dim_id]
+                    dimension_scores[dim_id] = DimensionScore(
+                        dimension_id=dim_id,
+                        value=float(score_value),
+                        confidence="high" if score_value > 0.8 else "medium" if score_value > 0.5 else "low",
+                        evidence=f"Gemini analysis score: {score_value:.3f}"
+                    )
 
             candidate = HighlightCandidate(
                 id=str(uuid.uuid4()),
@@ -340,10 +347,10 @@ truly noteworthy moments.
                 peak_time=(start_time + end_time) / 2,
                 description=highlight.description,
                 confidence=highlight.confidence,
-                dimensions=dimensions,
+                dimension_scores=dimension_scores,
                 final_score=highlight.ranking_score,
                 detected_keywords=self._extract_keywords(highlight, analysis),
-                context_type=highlight.type.value,
+                context_type=highlight.type,
                 metadata={
                     "gemini_analysis": True,
                     "dimension_set": dimension_set.name,

@@ -8,7 +8,6 @@ and transcoding operations for RTMP streams and other video sources.
 import asyncio
 import logging
 import subprocess
-import os
 import json
 from typing import Dict, List, Optional, Tuple, Any, AsyncGenerator
 from dataclasses import dataclass

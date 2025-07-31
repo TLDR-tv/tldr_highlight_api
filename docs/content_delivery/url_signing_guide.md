@@ -85,21 +85,21 @@ async def access_content(
 
 ```python
 from src.infrastructure.security.key_service import KeyGenerationService
-from src.domain.models.organization_key import KeyAlgorithm
+from src.domain.entities.organization_key import KeyAlgorithm
 
 # Initialize key service
 key_service = KeyGenerationService(
-    security_config=config,
-    master_encryption_key=master_key
+   security_config=config,
+   master_encryption_key=master_key
 )
 
 # Create a new organization key
 org_key = key_service.create_organization_key(
-    organization_id=123,
-    algorithm=KeyAlgorithm.HS256,
-    expires_in_days=365,
-    created_by="admin",
-    description="Primary signing key"
+   organization_id=123,
+   algorithm=KeyAlgorithm.HS256,
+   expires_in_days=365,
+   created_by="admin",
+   description="Primary signing key"
 )
 
 # Save to repository
@@ -126,12 +126,15 @@ if should_rotate:
 ### Key Lifecycle States
 
 ```python
-from src.domain.models.organization_key import KeyStatus
+from src.domain.entities.organization_key import KeyStatus
 
 # Key status transitions
 ACTIVE → ROTATING → DEACTIVATED
-ACTIVE → EXPIRED (automatic on expiry)
-ACTIVE → COMPROMISED (security event)
+ACTIVE → EXPIRED(automatic
+on
+expiry)
+ACTIVE → COMPROMISED(security
+event)
 ```
 
 ## Advanced Features

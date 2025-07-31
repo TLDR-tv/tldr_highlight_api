@@ -3,10 +3,10 @@
 from typing import List, Optional
 from sqlalchemy import select, and_
 
-from src.domain.repositories.dimension_set_repository import (
+from src.domain.repositories.dimension_set_repository_interface import (
     DimensionSetRepository as IDimensionSetRepository,
 )
-from src.domain.entities.dimension_set import DimensionSet
+from src.domain.entities.dimension_set_aggregate import DimensionSetAggregate
 from src.infrastructure.persistence.repositories.base_repository import BaseRepository
 from src.infrastructure.persistence.models.dimension_set import (
     DimensionSet as DimensionSetModel,
@@ -17,7 +17,7 @@ from src.infrastructure.persistence.mappers.dimension_set_mapper import (
 
 
 class DimensionSetRepository(
-    BaseRepository[DimensionSet, DimensionSetModel, int], IDimensionSetRepository
+    BaseRepository[DimensionSetAggregate, DimensionSetModel, int], IDimensionSetRepository
 ):
     """Concrete implementation of DimensionSetRepository using SQLAlchemy."""
 
@@ -31,7 +31,7 @@ class DimensionSetRepository(
             session=session, model_class=DimensionSetModel, mapper=DimensionSetMapper()
         )
 
-    async def get_by_organization(self, organization_id: int) -> List[DimensionSet]:
+    async def get_by_organization(self, organization_id: int) -> List[DimensionSetAggregate]:
         """Get all dimension sets for an organization.
 
         Args:
@@ -53,7 +53,7 @@ class DimensionSetRepository(
 
     async def get_by_name(
         self, organization_id: int, name: str
-    ) -> Optional[DimensionSet]:
+    ) -> Optional[DimensionSetAggregate]:
         """Get a dimension set by name within an organization.
 
         Args:

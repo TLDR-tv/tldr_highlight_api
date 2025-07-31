@@ -2,8 +2,6 @@
 
 import os
 import pytest
-from unittest.mock import Mock, patch, AsyncMock
-from datetime import datetime, timedelta
 
 # Set test environment variables before imports
 os.environ["DATABASE_URL"] = "postgresql+asyncpg://test:test@localhost:5432/tldr_test"

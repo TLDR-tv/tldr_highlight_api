@@ -15,7 +15,7 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 import base64
 
-from src.domain.models.organization_key import OrganizationKey, KeyAlgorithm
+from src.domain.entities.organization_key import OrganizationKey, KeyAlgorithm
 from src.infrastructure.security.config import SecurityConfig
 
 

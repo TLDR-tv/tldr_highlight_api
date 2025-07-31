@@ -519,7 +519,7 @@ class StreamProcessingService(BaseDomainService):
 
     def _detect_platform(self, url: str) -> StreamPlatform:
         """Detect streaming platform/protocol from URL.
-        
+
         Supports any format that FFmpeg can ingest.
         """
         url_lower = url.lower()
@@ -537,7 +537,11 @@ class StreamProcessingService(BaseDomainService):
             return StreamPlatform.UDP
         elif url_lower.startswith("srt://"):
             return StreamPlatform.SRT
-        elif url_lower.startswith("file://") or url_lower.startswith("/") or (len(url_lower) > 1 and url_lower[1] == ":"):
+        elif (
+            url_lower.startswith("file://")
+            or url_lower.startswith("/")
+            or (len(url_lower) > 1 and url_lower[1] == ":")
+        ):
             # Local file paths
             return StreamPlatform.FILE
         elif url_lower.endswith(".m3u8") or "#ext-x-" in url_lower:

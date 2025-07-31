@@ -568,7 +568,7 @@ def detect_highlights_with_ai(
                     from src.infrastructure.content_processing import (
                         GeminiVideoProcessor,
                     )
-                    from src.domain.entities.dimension_set import DimensionSet
+                    from src.domain.entities.dimension_set_aggregate import DimensionSetAggregate
 
                     gemini_processor = GeminiVideoProcessor(
                         api_key=settings.gemini_api_key,
@@ -583,7 +583,7 @@ def detect_highlights_with_ai(
 
                     # Get dimension set based on processing options
                     # For now, use gaming set as default
-                    dimension_set = DimensionSet.create_gaming_set(
+                    dimension_set = DimensionSetAggregate.create_gaming_set(
                         organization_id=1,  # Would get from stream/org
                         user_id=stream.user_id,
                     )

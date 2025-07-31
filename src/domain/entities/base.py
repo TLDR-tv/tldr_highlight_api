@@ -1,17 +1,16 @@
 """Base entity class for domain entities."""
 
-from dataclasses import dataclass
-from typing import TypeVar, Generic, Optional
-from abc import ABC
+from dataclasses import dataclass, field
+from typing import TypeVar, Generic, Optional, List
 
-from src.domain.value_objects.timestamp import Timestamp
+from src.domain.events import DomainEvent
 
 
 T = TypeVar("T")
 
 
 @dataclass
-class Entity(ABC, Generic[T]):
+class Entity(Generic[T]):
     """Base class for all domain entities.
 
     Entities have identity and are distinguishable by their ID,
@@ -19,8 +18,10 @@ class Entity(ABC, Generic[T]):
     """
 
     id: Optional[T]
-    created_at: Timestamp
-    updated_at: Timestamp
+
+    def __post_init__(self):
+        """Initialize entity after dataclass initialization."""
+        pass
 
     def __eq__(self, other: object) -> bool:
         """Entities are equal if they have the same type and ID."""
@@ -35,3 +36,34 @@ class Entity(ABC, Generic[T]):
         if self.id is None:
             raise ValueError("Cannot hash entity without ID")
         return hash((self.__class__.__name__, self.id))
+
+
+@dataclass
+class AggregateRoot(Entity[T]):
+    """Base class for aggregate roots.
+
+    Aggregate roots are the entry point to an aggregate and
+    maintain consistency across the aggregate boundary.
+    They can raise domain events.
+    """
+
+    _domain_events: List[DomainEvent] = field(default_factory=list, init=False)
+
+    def add_domain_event(self, event: DomainEvent) -> None:
+        """Add a domain event to be raised."""
+        if event.aggregate_id is None:
+            event.aggregate_id = self.id
+        if event.aggregate_type is None:
+            event.aggregate_type = self.__class__.__name__
+        self._domain_events.append(event)
+
+    def clear_domain_events(self) -> List[DomainEvent]:
+        """Clear and return all domain events."""
+        events = self._domain_events.copy()
+        self._domain_events.clear()
+        return events
+
+    @property
+    def domain_events(self) -> List[DomainEvent]:
+        """Get copy of domain events."""
+        return self._domain_events.copy()

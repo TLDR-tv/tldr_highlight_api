@@ -9,8 +9,8 @@ from datetime import datetime, timedelta
 from sqlalchemy import select, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.domain.models.organization_key import OrganizationKey as DomainOrganizationKey
-from src.domain.models.organization_key import KeyStatus
+from src.domain.entities.organization_key import OrganizationKey as DomainOrganizationKey
+from src.domain.entities.organization_key import KeyStatus
 from src.infrastructure.persistence.models.organization_key import OrganizationKey
 from src.infrastructure.persistence.repositories.base import BaseRepository
 

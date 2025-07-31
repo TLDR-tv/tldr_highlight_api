@@ -8,6 +8,7 @@ from src.domain.value_objects.timestamp import Timestamp
 from src.domain.value_objects.duration import Duration
 from src.domain.value_objects.confidence_score import ConfidenceScore
 from src.domain.value_objects.url import Url
+from src.domain.value_objects.dimension_score import DimensionScore
 
 
 @dataclass
@@ -39,6 +40,9 @@ class Highlight(Entity[int]):
     video_analysis: Dict[str, Any] = field(default_factory=dict)
     audio_analysis: Dict[str, Any] = field(default_factory=dict)
     chat_analysis: Dict[str, Any] = field(default_factory=dict)
+
+    # Dimension-based scoring
+    dimension_scores: Dict[str, DimensionScore] = field(default_factory=dict)
 
     # Processing metadata
     processed_by: Optional[str] = None  # AI model/version
@@ -74,6 +78,7 @@ class Highlight(Entity[int]):
             video_analysis=self.video_analysis.copy(),
             audio_analysis=self.audio_analysis.copy(),
             chat_analysis=self.chat_analysis.copy(),
+            dimension_scores=self.dimension_scores.copy(),
             processed_by=self.processed_by,
             created_at=self.created_at,
             updated_at=Timestamp.now(),
@@ -104,6 +109,7 @@ class Highlight(Entity[int]):
             video_analysis=self.video_analysis.copy(),
             audio_analysis=self.audio_analysis.copy(),
             chat_analysis=self.chat_analysis.copy(),
+            dimension_scores=self.dimension_scores.copy(),
             processed_by=self.processed_by,
             created_at=self.created_at,
             updated_at=Timestamp.now(),
@@ -159,39 +165,41 @@ class Highlight(Entity[int]):
 @dataclass
 class HighlightCandidate:
     """A potential highlight identified during analysis.
-    
+
     This represents a candidate highlight before it becomes a final Highlight entity.
     Used in the processing pipeline to evaluate potential highlights with dimension-based scoring.
     """
-    
+
     id: str
     start_time: float  # Stream time in seconds
-    end_time: float    # Stream time in seconds
-    peak_time: float   # Peak moment within the highlight
-    
+    end_time: float  # Stream time in seconds
+    peak_time: float  # Peak moment within the highlight
+
     # Scoring and analysis
     confidence: float  # 0.0 to 1.0 confidence in detection
-    final_score: float # 0.0 to 1.0 final weighted score
+    final_score: float  # 0.0 to 1.0 final weighted score
     description: str
-    
+
     # Dimension-based scoring
-    dimensions: Any = field(default_factory=dict)  # ScoringDimensions object
+    dimension_scores: Dict[str, DimensionScore] = field(
+        default_factory=dict
+    )  # Dimension scores with full score objects
     detected_keywords: List[str] = field(default_factory=list)
     context_type: Optional[str] = None
-    
+
     # Processing metadata
     metadata: Dict[str, Any] = field(default_factory=dict)
     trigger_type: Optional[str] = None
-    
+
     @property
     def duration(self) -> float:
         """Get highlight duration in seconds."""
         return self.end_time - self.start_time
-    
+
     def meets_threshold(self, threshold: float) -> bool:
         """Check if candidate meets minimum threshold."""
         return self.final_score >= threshold
-    
+
     def to_highlight(self, stream_id: int) -> "Highlight":
         """Convert candidate to final Highlight entity."""
         return Highlight(
@@ -205,5 +213,6 @@ class HighlightCandidate:
             highlight_types=self.metadata.get("highlight_types", []),
             tags=self.detected_keywords[:10],  # Use keywords as tags
             video_analysis=self.metadata.get("video_analysis", {}),
+            dimension_scores=self.dimension_scores.copy(),
             processed_by=self.metadata.get("processed_by", "dimension_analysis"),
         )

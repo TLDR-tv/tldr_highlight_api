@@ -2,7 +2,6 @@
 
 import os
 import pytest
-from unittest.mock import Mock, patch
 
 # Set test environment variables before imports
 os.environ["DATABASE_URL"] = "postgresql+asyncpg://test:test@localhost:5432/tldr_test"
@@ -20,9 +19,7 @@ os.environ["AWS_REGION"] = "us-east-1"
 @pytest.mark.asyncio
 async def test_basic_imports():
     """Test that basic imports work."""
-    from src.domain.entities.stream import Stream, StreamStatus
-    from src.domain.entities.organization import Organization
-    from src.domain.entities.user import User
+    from src.domain.entities.stream import StreamStatus
     
     assert StreamStatus.PENDING.value == "pending"
     assert StreamStatus.PROCESSING.value == "processing"

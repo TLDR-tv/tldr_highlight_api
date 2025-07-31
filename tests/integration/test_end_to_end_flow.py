@@ -6,30 +6,21 @@ to receiving processed highlights, ensuring all components work together.
 """
 
 import asyncio
-import json
 import os
 import tempfile
 from datetime import datetime, timedelta
-from typing import Dict, List, Any
-from unittest.mock import Mock, patch, AsyncMock, MagicMock
+from unittest.mock import Mock, patch, AsyncMock
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 
 from src.api.main import app
 from src.infrastructure.database import Base, get_db
-from src.infrastructure.config import settings
-from src.infrastructure.cache import cache, get_redis_client
-from src.infrastructure.persistence.models.user import User
 from src.infrastructure.persistence.models.organization import Organization
-from src.infrastructure.persistence.models.api_key import APIKey
-from src.infrastructure.persistence.models.stream import Stream, StreamStatus, StreamPlatform
+from src.infrastructure.persistence.models.stream import Stream, StreamStatus
 from src.infrastructure.persistence.models.highlight import Highlight
-from src.infrastructure.async_processing.celery_app import celery_app
-from src.infrastructure.media.ffmpeg_integration import FFmpegProbe, MediaInfo
 
 
 # Test database URL
@@ -376,7 +367,7 @@ class TestEndToEndFlow:
         # Step 8: Check Usage Statistics
         print("\n=== Step 8: Check Usage Statistics ===")
         response = test_client.get(
-            f"/api/v1/organizations/1/usage",
+            "/api/v1/organizations/1/usage",
             headers={"Authorization": f"Bearer {access_token}"}
         )
         assert response.status_code == 200
