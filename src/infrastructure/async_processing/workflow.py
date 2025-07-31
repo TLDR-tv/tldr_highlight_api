@@ -18,13 +18,13 @@ from celery.result import AsyncResult
 from src.core.cache import get_redis_client
 from src.core.database import get_db_session
 from src.infrastructure.persistence.models.stream import Stream, StreamStatus
-from src.services.async_processing.celery_app import celery_app, get_task_options
-from src.services.async_processing.job_manager import JobManager, JobPriority
-from src.services.async_processing.progress_tracker import (
+from src.infrastructure.async_processing.celery_app import celery_app, get_task_options
+from src.infrastructure.async_processing.job_manager import JobManager, JobPriority
+from src.infrastructure.async_processing.progress_tracker import (
     ProgressTracker,
     ProgressEvent,
 )
-from src.services.async_processing.error_handler import ErrorHandler
+from src.infrastructure.async_processing.error_handler import ErrorHandler
 
 
 logger = structlog.get_logger(__name__)

@@ -448,7 +448,7 @@ class StreamProcessingService(BaseDomainService):
             if not stream or not stream.metadata.get("ingestion_task_id"):
                 return None
 
-            from src.infrastructure.queue.celery_app import celery_app
+            from src.infrastructure.async_processing.celery_app import celery_app
 
             task_id = stream.metadata["ingestion_task_id"]
             task_result = celery_app.AsyncResult(task_id)
@@ -587,7 +587,7 @@ class StreamProcessingService(BaseDomainService):
             if not stream or not stream.metadata.get("ingestion_task_id"):
                 return
 
-            from src.infrastructure.queue.celery_app import celery_app
+            from src.infrastructure.async_processing.celery_app import celery_app
 
             task_id = stream.metadata["ingestion_task_id"]
             celery_app.control.revoke(task_id, terminate=True)

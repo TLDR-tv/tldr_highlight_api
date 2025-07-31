@@ -16,13 +16,13 @@ from celery import Task
 from src.core.database import get_db_session
 from src.infrastructure.persistence.models.stream import Stream, StreamStatus
 from src.infrastructure.persistence.models.highlight import Highlight
-from src.services.async_processing.celery_app import celery_app
-from src.services.async_processing.error_handler import ErrorHandler
-from src.services.async_processing.progress_tracker import (
+from src.infrastructure.async_processing.celery_app import celery_app
+from src.infrastructure.async_processing.error_handler import ErrorHandler
+from src.infrastructure.async_processing.progress_tracker import (
     ProgressTracker,
     ProgressEvent,
 )
-from src.services.async_processing.webhook_dispatcher import (
+from src.infrastructure.async_processing.webhook_dispatcher import (
     WebhookDispatcher,
     WebhookEvent,
 )

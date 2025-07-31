@@ -18,7 +18,7 @@ from celery import chain
 from src.core.cache import get_redis_client
 from src.core.database import get_db_session
 from src.infrastructure.persistence.models.stream import Stream, StreamStatus
-from src.services.async_processing.celery_app import celery_app, get_task_options
+from src.infrastructure.async_processing.celery_app import celery_app, get_task_options
 
 
 logger = structlog.get_logger(__name__)
@@ -584,7 +584,7 @@ class JobManager:
         self, job_data: Dict[str, Any], task_options: Dict[str, Any]
     ) -> chain:
         """Create Celery workflow chain for stream processing."""
-        from src.services.async_processing.tasks import (
+        from src.infrastructure.async_processing.tasks import (
             start_stream_processing,
             ingest_stream_data,
             process_multimodal_content,
