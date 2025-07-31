@@ -26,6 +26,7 @@ Welcome to the comprehensive documentation for the TL;DR Highlight API - an ente
 
 ### AI & Processing
 - [**Highlight Detection System**](./ai/highlight-detection.md) - AI-powered analysis pipeline
+- [**Flexible Highlight Detection**](./ai/flexible-highlight-detection.md) - Industry-agnostic detection system
 - [**Flexible Analysis Framework**](./ai/analysis-framework.md) - Custom dimensions and strategies
 - [**Gemini Integration**](./ai/gemini-integration.md) - Google Gemini AI configuration
 - [**Multi-Modal Analysis**](./ai/multi-modal.md) - Video, audio, and chat processing
@@ -35,6 +36,10 @@ Welcome to the comprehensive documentation for the TL;DR Highlight API - an ente
 - [**Asynchronous Processing**](./infrastructure/async-processing.md) - Celery tasks and workflows
 - [**Caching & Storage**](./infrastructure/storage.md) - Redis caching and S3 storage
 - [**Observability**](./infrastructure/observability.md) - Monitoring, metrics, and logging
+
+### Content Delivery & Security
+- [**Content Security**](./content_delivery/content_security.md) - Enhanced signed URL security architecture
+- [**URL Signing Guide**](./content_delivery/url_signing_guide.md) - Implementation guide for secure content access
 
 ### Deployment & Operations
 - [**Deployment Guide**](./deployment/overview.md) - Production deployment strategies
@@ -97,4 +102,4 @@ This project is proprietary software. See the LICENSE file for details.
 
 ---
 
-*Last updated: 2025-07-30*
+*Last updated: 2025-07-31*

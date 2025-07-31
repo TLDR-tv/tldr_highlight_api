@@ -25,7 +25,7 @@ from src.application.use_cases.stream_processing import (
 from src.application.use_cases.base import ResultStatus
 from src.domain.entities.user import User
 
-router = APIRouter(prefix="/streams", tags=["streams"])
+router = APIRouter(tags=["streams"])
 
 
 @router.get(

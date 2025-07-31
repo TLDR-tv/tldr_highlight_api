@@ -291,6 +291,25 @@ const highlights = await client.highlights.list({
 });
 ```
 
+## 🔐 Content Delivery
+
+The API provides secure content delivery through signed URLs, enabling external users (like streamers) to access their content without requiring API authentication.
+
+### Signed URL Access
+
+```http
+GET /api/v1/content/{highlight_id}?token={jwt}    # Access specific highlight
+GET /api/v1/content/stream/{stream_id}?token={jwt} # List stream highlights
+```
+
+### Key Features
+- **No Authentication Required**: Access via signed JWT tokens
+- **Per-Organization Keys**: Each organization has unique signing keys  
+- **Advanced Security**: Token revocation, IP restrictions, usage limits
+- **Flexible Expiration**: Configure token lifetime (hours to days)
+
+See the [Content Security documentation](../content_delivery/content_security.md) for implementation details.
+
 ## 🔔 Webhooks
 
 The API supports webhooks for event-driven integrations. See the [Webhooks API documentation](./webhooks.md) for detailed information.
@@ -307,8 +326,12 @@ The API supports webhooks for event-driven integrations. See the [Webhooks API d
 Monitor API availability with health check endpoints:
 
 ```http
-GET /health
-GET /health/detailed
+GET /health/                # Comprehensive health check
+GET /health/live           # Simple liveness check
+GET /health/ready          # Readiness check
+GET /health/database       # Database health
+GET /health/redis          # Redis health  
+GET /health/storage        # S3 storage health
 ```
 
 ## 📚 Next Steps
