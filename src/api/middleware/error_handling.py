@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from src.api.exceptions import create_error_response
-from src.core.config import settings
+from src.infrastructure.config import settings
 
 logger = logging.getLogger(__name__)
 

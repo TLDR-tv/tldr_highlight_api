@@ -18,7 +18,6 @@ from src.domain.entities.webhook import (
     WebhookStatus,
     WebhookDelivery,
 )
-from src.domain.entities.batch import Batch, BatchStatus, BatchItem
 from src.domain.entities.usage_record import UsageRecord, UsageType
 
 __all__ = [
@@ -41,10 +40,6 @@ __all__ = [
     "WebhookEvent",
     "WebhookStatus",
     "WebhookDelivery",
-    # Batch
-    "Batch",
-    "BatchStatus",
-    "BatchItem",
     # Usage
     "UsageRecord",
     "UsageType",

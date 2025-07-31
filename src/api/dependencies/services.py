@@ -21,6 +21,8 @@ from .repositories import (
     get_highlight_repository,
     get_webhook_repository,
     get_usage_record_repository,
+    get_dimension_set_repository,
+    get_highlight_type_registry_repository,
 )
 
 from src.infrastructure.persistence.repositories.user_repository import UserRepository
@@ -41,6 +43,12 @@ from src.infrastructure.persistence.repositories.webhook_repository import (
 )
 from src.infrastructure.persistence.repositories.usage_record_repository import (
     UsageRecordRepository,
+)
+from src.infrastructure.persistence.repositories.dimension_set_repository import (
+    DimensionSetRepository,
+)
+from src.infrastructure.persistence.repositories.highlight_type_registry_repository import (
+    HighlightTypeRegistryRepository,
 )
 
 
@@ -78,10 +86,15 @@ async def get_stream_processing_service(
 async def get_highlight_detection_service(
     highlight_repo: HighlightRepository = Depends(get_highlight_repository),
     stream_repo: StreamRepository = Depends(get_stream_repository),
+    dimension_set_repo: DimensionSetRepository = Depends(get_dimension_set_repository),
+    type_registry_repo: HighlightTypeRegistryRepository = Depends(get_highlight_type_registry_repository),
 ) -> HighlightDetectionService:
     """Get highlight detection service instance."""
     return HighlightDetectionService(
-        highlight_repo=highlight_repo, stream_repo=stream_repo
+        highlight_repo=highlight_repo,
+        stream_repo=stream_repo,
+        dimension_set_repo=dimension_set_repo,
+        type_registry_repo=type_registry_repo,
     )
 
 
