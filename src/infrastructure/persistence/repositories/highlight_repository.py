@@ -398,6 +398,24 @@ class HighlightRepository(
             await self.session.rollback()
             raise
 
+    async def count_by_stream(self, stream_id: int) -> int:
+        """Count the total number of highlights for a stream.
+
+        Args:
+            stream_id: Stream ID
+
+        Returns:
+            Total count of highlights for the stream
+        """
+        # Build count query
+        count_stmt = (
+            select(func.count())
+            .select_from(HighlightModel)
+            .where(HighlightModel.stream_id == stream_id)
+        )
+        count_result = await self.session.execute(count_stmt)
+        return count_result.scalar() or 0
+
     async def get_by_stream_with_pagination(
         self,
         stream_id: int,

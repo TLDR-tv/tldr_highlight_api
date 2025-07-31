@@ -348,20 +348,42 @@ class HighlightManagementUseCase(UseCase[GetHighlightRequest, GetHighlightResult
                     status=ResultStatus.UNAUTHORIZED, errors=["Access denied"]
                 )
 
-            # Generate download URL
-            # In production, this would generate a pre-signed S3 URL or similar
-            download_url = str(highlight.video_url)
+            # Get user and organization info
+            user = await self.user_repo.get(request.user_id)
+            if not user or not user.organization_id:
+                return ExportHighlightResult(
+                    status=ResultStatus.FAILURE, 
+                    errors=["User or organization not found"]
+                )
 
-            # Set expiration (e.g., 1 hour from now)
+            # Generate signed download URL
+            from src.infrastructure.security.url_signer import url_signer
+            from src.infrastructure.config import settings
             from datetime import datetime, timedelta
 
-            expires_at = (datetime.utcnow() + timedelta(hours=1)).isoformat()
+            # Determine expiration time based on request or default
+            expiry_hours = 1  # Default 1 hour
+            if request.format == "embed":
+                expiry_hours = 24  # 24 hours for embeds
+            
+            # Generate the signed URL
+            download_url = url_signer.generate_signed_url(
+                base_url=settings.api_base_url,
+                highlight_id=highlight.id,
+                stream_id=stream.id,
+                org_id=user.organization_id,
+                expiry_hours=expiry_hours,
+                additional_claims={"format": request.format, "quality": request.quality}
+            )
+
+            # Calculate expiration time
+            expires_at = (datetime.utcnow() + timedelta(hours=expiry_hours)).isoformat()
 
             return ExportHighlightResult(
                 status=ResultStatus.SUCCESS,
                 download_url=download_url,
                 expires_at=expires_at,
-                message="Export URL generated successfully",
+                message="Signed URL generated successfully",
             )
 
         except Exception as e:

@@ -30,7 +30,6 @@ from src.services.async_processing.workflow import StreamProcessingWorkflow
 from src.services.async_processing.tasks import (
     start_stream_processing,
     ingest_stream_data,
-    process_multimodal_content,
     detect_highlights,
     finalize_highlights,
     notify_completion,
@@ -272,35 +271,16 @@ class TestTaskExecution:
                 assert "chunks_created" in result.result
                 assert result.result["chunks_created"] > 0
 
-    def test_process_multimodal_content_task(self, celery_app_test, test_stream):
-        """Test process_multimodal_content task execution."""
-        ingestion_data = {
-            "platform": "twitch",
-            "chunks_created": 10,
-            "video_chunks": ["chunk1.mp4", "chunk2.mp4"],
-            "audio_chunks": ["chunk1.wav", "chunk2.wav"],
-        }
-
-        with patch("src.services.async_processing.tasks.ProgressTracker") as mock_pt:
-            mock_pt.return_value.update_progress = Mock()
-
-            result = process_multimodal_content.apply(
-                args=[test_stream.id, ingestion_data]
-            )
-
-            assert result.successful()
-            assert result.result["stream_id"] == test_stream.id
-            assert "video_features" in result.result
-            assert "audio_features" in result.result
-            assert "chat_analysis" in result.result
 
     def test_detect_highlights_task(self, celery_app_test, test_stream):
         """Test detect_highlights task execution."""
         processed_content = {
             "stream_id": test_stream.id,
-            "video_features": {"scene_changes": [10.5, 25.3]},
-            "audio_features": {"transcription": "Test content"},
-            "chat_analysis": {"sentiment_distribution": {"positive": 0.7}},
+            "segments": [
+                {"segment_id": "seg_1", "start_time": 0, "end_time": 30, "path": "/tmp/seg_1.mp4"},
+                {"segment_id": "seg_2", "start_time": 30, "end_time": 60, "path": "/tmp/seg_2.mp4"}
+            ],
+            "dimension_scores": {"action_intensity": 0.8, "educational_value": 0.3},
         }
 
         with (

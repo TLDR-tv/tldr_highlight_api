@@ -9,11 +9,7 @@ from src.api.schemas.streams import (
 from src.domain.entities.stream import Stream, StreamPlatform, StreamStatus
 from src.domain.value_objects.url import Url
 from src.domain.value_objects.timestamp import Timestamp
-from src.domain.value_objects.processing_options import (
-    ProcessingOptions,
-    DetectionStrategy,
-    FusionStrategy,
-)
+from src.domain.value_objects.processing_options import ProcessingOptions
 
 
 class StreamMapper:
@@ -78,22 +74,18 @@ class StreamMapper:
         # Map to API field names
         api_options = {
             "dimension_set_id": options_dict.get("dimension_set_id"),
-            "type_registry_id": options_dict.get("type_registry_id"),
-            "detection_strategy": options_dict.get("detection_strategy"),
-            "fusion_strategy": options_dict.get("fusion_strategy"),
-            "enabled_modalities": list(options_dict.get("enabled_modalities", [])),
-            "modality_weights": options_dict.get("modality_weights", {}),
             "min_confidence_threshold": options_dict.get(
-                "min_confidence_threshold", 0.65
+                "min_confidence_threshold", 0.5
             ),
             "target_confidence_threshold": options_dict.get(
-                "target_confidence_threshold", 0.75
+                "target_confidence_threshold", 0.7
             ),
             "exceptional_threshold": options_dict.get("exceptional_threshold", 0.85),
             "min_duration": int(options_dict.get("min_highlight_duration", 10)),
             "max_duration": int(options_dict.get("max_highlight_duration", 300)),
             "output_format": "mp4",  # Default
-            "generate_thumbnails": True,  # Default
+            "generate_thumbnails": options_dict.get("generate_thumbnails", True),
+            "generate_previews": options_dict.get("generate_previews", True),
             "custom_tags": [],  # Default
             "webhook_events": [],  # Default
         }
@@ -132,29 +124,18 @@ class StreamMapper:
         Returns:
             ProcessingOptions domain value object
         """
-        # Create enabled modalities set
-        enabled_modalities = set()
-        if options.enable_scene_detection:
-            enabled_modalities.add("video")
-        if options.enable_audio_analysis:
-            enabled_modalities.add("audio")
-        if options.enable_chat_analysis:
-            enabled_modalities.add("text")
-
-        # Default modality weights
-        modality_weights = {"video": 0.4, "audio": 0.3, "text": 0.3}
-
         return ProcessingOptions(
             dimension_set_id=getattr(options, "dimension_set_id", None),
-            type_registry_id=getattr(options, "type_registry_id", None),
-            detection_strategy=DetectionStrategy.AI_ONLY,  # Default
-            fusion_strategy=FusionStrategy.WEIGHTED,  # Default
-            enabled_modalities=enabled_modalities,
-            modality_weights=modality_weights,
             min_confidence_threshold=options.highlight_threshold,
             target_confidence_threshold=options.highlight_threshold,
             exceptional_threshold=min(0.9, options.highlight_threshold + 0.15),
             min_highlight_duration=float(options.min_duration),
             max_highlight_duration=float(options.max_duration),
+            typical_highlight_duration=(float(options.min_duration) + float(options.max_duration)) / 2,
+            enable_scene_detection=options.enable_scene_detection,
+            enable_silence_detection=getattr(options, "enable_audio_analysis", True),
+            enable_motion_detection=getattr(options, "enable_scene_detection", True),
             processing_priority="balanced",
+            generate_thumbnails=getattr(options, "generate_thumbnails", True),
+            generate_previews=getattr(options, "generate_previews", True),
         )

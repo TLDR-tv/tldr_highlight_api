@@ -75,3 +75,19 @@ class HighlightRepository(Repository[Highlight, int], Protocol):
     async def bulk_create(self, highlights: List[Highlight]) -> List[Highlight]:
         """Create multiple highlights at once."""
         ...
+        
+    @abstractmethod
+    async def count_by_stream(self, stream_id: int) -> int:
+        """Count the total number of highlights for a stream."""
+        ...
+        
+    @abstractmethod
+    async def get_by_stream_with_pagination(
+        self,
+        stream_id: int,
+        limit: int = 50,
+        offset: int = 0,
+        order_by: str = "confidence",
+    ) -> Dict[str, any]:
+        """Get highlights for a stream with pagination and metadata."""
+        ...

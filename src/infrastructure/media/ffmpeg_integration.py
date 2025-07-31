@@ -1,7 +1,7 @@
 """FFmpeg integration utilities for video processing and format conversion.
 
 This module provides comprehensive FFmpeg integration for the TL;DR Highlight API,
-supporting real-time video processing, format conversion, frame extraction,
+supporting real-time video processing, format conversion,
 and transcoding operations for RTMP streams and other video sources.
 """
 
@@ -407,30 +407,42 @@ class FFmpegProcessor:
         if process.returncode != 0:
             raise FFmpegError(f"FFmpeg command failed: {stderr.decode()}")
 
-    async def extract_frames(
+    async def extract_clip(
         self,
         input_source: str,
-        output_pattern: str,
-        interval: float = 1.0,
-        max_frames: Optional[int] = None,
-    ) -> List[str]:
-        """Extract frames from video at specified interval."""
+        output_path: str,
+        start_time: float,
+        duration: float,
+        options: Optional[TranscodeOptions] = None,
+    ) -> bool:
+        """Extract a clip from video at specified time range."""
         try:
             cmd = [
                 "ffmpeg",
                 "-y",
+                "-ss",
+                str(start_time),
                 "-i",
                 input_source,
-                "-vf",
-                f"fps=1/{interval}",
-                "-q:v",
-                "2",  # High quality
+                "-t",
+                str(duration),
             ]
 
-            if max_frames:
-                cmd.extend(["-frames:v", str(max_frames)])
+            # Apply transcoding options if provided
+            if options:
+                if options.video_codec:
+                    cmd.extend(["-c:v", options.video_codec.value])
+                if options.audio_codec:
+                    cmd.extend(["-c:a", options.audio_codec.value])
+                if options.video_bitrate:
+                    cmd.extend(["-b:v", f"{options.video_bitrate}k"])
+                if options.audio_bitrate:
+                    cmd.extend(["-b:a", f"{options.audio_bitrate}k"])
+            else:
+                # Default: copy codecs for speed
+                cmd.extend(["-c:v", "copy", "-c:a", "copy"])
 
-            cmd.append(output_pattern)
+            cmd.append(output_path)
 
             process = await asyncio.create_subprocess_exec(
                 *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
@@ -440,20 +452,14 @@ class FFmpegProcessor:
 
             if process.returncode != 0:
                 error_msg = stderr.decode() if stderr else "Unknown error"
-                raise FFmpegError(f"Frame extraction failed: {error_msg}")
+                raise FFmpegError(f"Clip extraction failed: {error_msg}")
 
-            # Find generated frame files
-            import glob
-
-            frame_files = glob.glob(output_pattern.replace("%d", "*"))
-            frame_files.sort()
-
-            logger.info(f"Extracted {len(frame_files)} frames")
-            return frame_files
+            logger.info(f"Extracted clip: {output_path}")
+            return True
 
         except Exception as e:
-            logger.error(f"Frame extraction error: {e}")
-            raise FFmpegError(f"Frame extraction failed: {e}")
+            logger.error(f"Clip extraction error: {e}")
+            raise FFmpegError(f"Clip extraction failed: {e}")
 
     async def create_thumbnail(
         self,
@@ -651,119 +657,6 @@ class PyAVProcessor:
             self.container = None
 
 
-class VideoFrameExtractor:
-    """High-level video frame extractor for highlight analysis."""
-
-    def __init__(self, use_hardware_acceleration: bool = False):
-        self.ffmpeg_processor = FFmpegProcessor(use_hardware_acceleration)
-        self.pyav_processor = PyAVProcessor()
-
-    async def extract_keyframes(
-        self, stream_url: str, output_dir: str, duration: Optional[float] = None
-    ) -> List[Tuple[str, float]]:
-        """Extract keyframes from stream for analysis.
-
-        Returns:
-            List of (frame_path, timestamp) tuples
-        """
-        try:
-            # Create temporary directory for frames
-            os.makedirs(output_dir, exist_ok=True)
-
-            frame_pattern = os.path.join(output_dir, "keyframe_%05d.jpg")
-
-            cmd = [
-                "ffmpeg",
-                "-y",
-                "-i",
-                stream_url,
-                "-vf",
-                "select=eq(pict_type\\,I)",  # Extract only I-frames (keyframes)
-                "-vsync",
-                "vfr",  # Variable frame rate
-                "-q:v",
-                "2",  # High quality
-            ]
-
-            if duration:
-                cmd.extend(["-t", str(duration)])
-
-            cmd.append(frame_pattern)
-
-            process = await asyncio.create_subprocess_exec(
-                *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-            )
-
-            stdout, stderr = await process.communicate()
-
-            if process.returncode != 0:
-                error_msg = stderr.decode() if stderr else "Unknown error"
-                raise FFmpegError(f"Keyframe extraction failed: {error_msg}")
-
-            # Find generated frames and estimate timestamps
-            import glob
-
-            frame_files = glob.glob(frame_pattern.replace("%05d", "*"))
-            frame_files.sort()
-
-            # Estimate timestamps (simplified approach)
-            frames_with_timestamps = []
-            for i, frame_path in enumerate(frame_files):
-                # This is a rough estimate - for precise timestamps,
-                # you'd need to parse FFmpeg output or use different approach
-                timestamp = i * 2.0  # Assume keyframes every 2 seconds
-                frames_with_timestamps.append((frame_path, timestamp))
-
-            logger.info(f"Extracted {len(frames_with_timestamps)} keyframes")
-            return frames_with_timestamps
-
-        except Exception as e:
-            logger.error(f"Keyframe extraction error: {e}")
-            raise FFmpegError(f"Keyframe extraction failed: {e}")
-
-    async def stream_frames_realtime(
-        self,
-        stream_url: str,
-        frame_callback: callable,
-        max_duration: Optional[float] = None,
-    ) -> None:
-        """Stream frames in real-time with callback processing."""
-        try:
-            if await self.pyav_processor.open_stream(stream_url):
-                start_time = asyncio.get_event_loop().time()
-
-                async for frame, timestamp in self.pyav_processor.read_frames():
-                    # Check duration limit
-                    if (
-                        max_duration
-                        and (asyncio.get_event_loop().time() - start_time)
-                        > max_duration
-                    ):
-                        break
-
-                    # Extract frame data
-                    frame_data = await self.pyav_processor.extract_frame_data(frame)
-
-                    # Call the callback with frame info
-                    await frame_callback(
-                        {
-                            "data": frame_data,
-                            "timestamp": timestamp,
-                            "width": frame.width,
-                            "height": frame.height,
-                            "format": "rgb24",
-                        }
-                    )
-
-                self.pyav_processor.close()
-            else:
-                raise FFmpegError("Failed to open stream with PyAV")
-
-        except Exception as e:
-            logger.error(f"Real-time frame streaming error: {e}")
-            raise FFmpegError(f"Real-time frame streaming failed: {e}")
-
-
 def get_ffmpeg_version() -> str:
     """Get FFmpeg version information."""
     try:
@@ -771,7 +664,7 @@ def get_ffmpeg_version() -> str:
             ["ffmpeg", "-version"], capture_output=True, text=True, timeout=10
         )
         if result.returncode == 0:
-            lines = result.stdout.split("\\n")
+            lines = result.stdout.split("\n")
             for line in lines:
                 if line.startswith("ffmpeg version"):
                     return line.split(" ")[2]

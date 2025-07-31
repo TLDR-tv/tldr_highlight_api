@@ -13,11 +13,7 @@ from src.domain.repositories.highlight_agent_config_repository import (
     HighlightAgentConfigRepository,
 )
 from src.domain.services.stream_processing_service import StreamProcessingService
-from src.domain.value_objects.processing_options import (
-    ProcessingOptions,
-    DetectionStrategy,
-    FusionStrategy,
-)
+from src.domain.value_objects.processing_options import ProcessingOptions
 from src.domain.services.highlight_detection_service import (
     HighlightDetectionService,
     DetectionResult,
@@ -178,35 +174,38 @@ class StreamProcessingUseCase(UseCase[StreamStartRequest, StreamStartResult]):
             if request.processing_options:
                 processing_options = ProcessingOptions(
                     dimension_set_id=request.processing_options.get("dimension_set_id"),
-                    type_registry_id=request.processing_options.get("type_registry_id"),
-                    detection_strategy=DetectionStrategy(
-                        request.processing_options.get("detection_strategy", "ai_only")
-                    ),
-                    fusion_strategy=FusionStrategy(
-                        request.processing_options.get("fusion_strategy", "weighted")
-                    ),
-                    enabled_modalities=set(
-                        request.processing_options.get(
-                            "enabled_modalities", ["video", "audio", "text"]
-                        )
-                    ),
-                    modality_weights=request.processing_options.get(
-                        "modality_weights", {"video": 0.4, "audio": 0.3, "text": 0.3}
-                    ),
                     min_highlight_duration=request.processing_options.get(
                         "min_highlight_duration", 10.0
                     ),
                     max_highlight_duration=request.processing_options.get(
                         "max_highlight_duration", 300.0
                     ),
+                    typical_highlight_duration=request.processing_options.get(
+                        "typical_highlight_duration", 60.0
+                    ),
                     min_confidence_threshold=request.processing_options.get(
-                        "min_confidence_threshold", 0.65
+                        "min_confidence_threshold", 0.5
                     ),
                     target_confidence_threshold=request.processing_options.get(
-                        "target_confidence_threshold", 0.75
+                        "target_confidence_threshold", 0.7
                     ),
                     exceptional_threshold=request.processing_options.get(
                         "exceptional_threshold", 0.85
+                    ),
+                    enable_scene_detection=request.processing_options.get(
+                        "enable_scene_detection", True
+                    ),
+                    enable_silence_detection=request.processing_options.get(
+                        "enable_silence_detection", True
+                    ),
+                    enable_motion_detection=request.processing_options.get(
+                        "enable_motion_detection", True
+                    ),
+                    generate_thumbnails=request.processing_options.get(
+                        "generate_thumbnails", True
+                    ),
+                    generate_previews=request.processing_options.get(
+                        "generate_previews", True
                     ),
                 )
 

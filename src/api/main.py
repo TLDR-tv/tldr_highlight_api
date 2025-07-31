@@ -22,6 +22,7 @@ from src.api.middleware import (
 )
 from src.api.routers import (
     auth_router,
+    content_router,
     health_router,
     highlights_router,
     streams_router,
@@ -121,6 +122,7 @@ def create_app() -> FastAPI:
             {"name": "batches", "description": "Batch video processing operations"},
             {"name": "highlights", "description": "Highlight access and management"},
             {"name": "webhooks", "description": "Webhook configuration and management"},
+            {"name": "content", "description": "Secure content delivery via signed URLs"},
         ],
     )
 
@@ -149,9 +151,10 @@ def create_app() -> FastAPI:
                 }
             }
 
-            # Apply security to all endpoints except health
+            # Apply security to all endpoints except health and content
             for path, path_item in openapi_schema["paths"].items():
-                if not path.startswith("/health"):
+                # Skip security for health and content endpoints
+                if not path.startswith("/health") and not path.startswith(f"{settings.api_v1_prefix}/content"):
                     for method, operation in path_item.items():
                         if method.lower() in ["get", "post", "put", "delete", "patch"]:
                             operation.setdefault("security", []).append(
@@ -225,6 +228,13 @@ def create_app() -> FastAPI:
         webhook_receiver_router,
         prefix=f"{settings.api_v1_prefix}/webhooks",
         tags=["webhooks"],
+    )
+    
+    # Content delivery router - no authentication required for signed URLs
+    app.include_router(
+        content_router,
+        prefix=f"{settings.api_v1_prefix}/content",
+        tags=["content"],
     )
 
     @app.get("/", include_in_schema=False)

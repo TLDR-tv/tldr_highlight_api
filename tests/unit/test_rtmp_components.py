@@ -34,7 +34,6 @@ from src.infrastructure.streaming.flv_parser import (  # noqa: E402
 )
 from src.infrastructure.media.ffmpeg_integration import (  # noqa: E402
     FFmpegProcessor,
-    VideoFrameExtractor,
     TranscodeOptions,
     VideoCodec,
     AudioCodec,
@@ -474,16 +473,6 @@ class TestFFmpegIntegration:
         # For now, just test the structure
         assert True  # Placeholder
 
-    def test_video_frame_extractor_initialization(self):
-        """Test video frame extractor initialization."""
-        extractor = VideoFrameExtractor()
-        assert extractor.ffmpeg_processor is not None
-        assert extractor.pyav_processor is not None
-
-    def test_video_frame_extractor_with_hardware_acceleration(self):
-        """Test video frame extractor with hardware acceleration."""
-        extractor = VideoFrameExtractor(use_hardware_acceleration=True)
-        assert extractor.ffmpeg_processor.hardware_acceleration is True
 
 
 class TestRTMPIntegration:

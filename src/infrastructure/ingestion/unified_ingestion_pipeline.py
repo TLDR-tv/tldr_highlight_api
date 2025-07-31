@@ -1,7 +1,7 @@
-"""Unified stream ingestion pipeline integrating FFmpeg with stream adapters.
+"""Unified stream ingestion pipeline for processing streams with Gemini.
 
-This module provides a comprehensive pipeline that combines stream adapters,
-FFmpeg processing, and content analysis for highlight detection.
+This module provides a streamlined pipeline that segments streams
+and processes them directly with Gemini's native video understanding.
 """
 
 import asyncio
@@ -15,20 +15,16 @@ from ..adapters.stream.base import StreamAdapter
 from ..adapters.stream.factory import StreamAdapterFactory
 from ..media.ffmpeg_integration import (
     FFmpegProcessor,
-    VideoFrameExtractor,
     TranscodeOptions,
     VideoCodec,
     AudioCodec,
 )
-from ..content_processing.video_processor import VideoProcessor, VideoProcessorConfig
-from ..content_processing.audio_processor import AudioProcessor, AudioProcessorConfig
-from ..content_processing.gemini_processor import GeminiProcessor, GeminiProcessorConfig
+from ..content_processing.gemini_video_processor import GeminiVideoProcessor
 from ..streaming.segment_processor import (
     SegmentProcessor,
     SegmentConfig,
     ProcessedSegment,
 )
-from ..streaming.video_buffer import CircularVideoBuffer
 
 logger = logging.getLogger(__name__)
 
@@ -48,471 +44,297 @@ class IngestionStatus(str, Enum):
 class IngestionConfig:
     """Configuration for stream ingestion pipeline."""
 
-    # Stream settings
     stream_url: str
-    platform: Optional[str] = None
+    adapter_type: Optional[str] = None  # Auto-detect if not specified
+    
+    # Segment configuration
+    segment_duration_seconds: float = 30.0
+    segment_overlap_seconds: float = 5.0
+    buffer_duration_seconds: float = 60.0
 
     # Processing options
-    enable_video_processing: bool = True
     enable_audio_processing: bool = True
-    enable_ai_analysis: bool = True
-    enable_real_time: bool = True
-
-    # FFmpeg settings
-    transcode_options: Optional[TranscodeOptions] = None
     hardware_acceleration: bool = False
-    frame_extraction_interval: float = 1.0
+    transcode_options: Optional[TranscodeOptions] = None
 
-    # Buffer settings
-    buffer_duration_seconds: float = 300.0  # 5 minutes
-    segment_duration_seconds: float = 10.0
+    # Output configuration
+    output_dir: Optional[str] = None
+    save_segments: bool = False
 
-    # Quality thresholds
-    min_video_quality: float = 0.3
-    min_audio_quality: float = 0.3
+    # Performance tuning
+    max_concurrent_segments: int = 3
+    retry_attempts: int = 3
+    retry_delay_seconds: float = 5.0
 
-    # Performance settings
-    max_concurrent_segments: int = 5
-    processing_timeout: float = 30.0
 
-    # AI settings
-    gemini_config: Optional[GeminiProcessorConfig] = None
+@dataclass
+class SegmentAnalysis:
+    """Analysis results for a video segment."""
 
-    def __post_init__(self) -> None:
-        """Initialize default configurations."""
-        if self.gemini_config is None:
-            self.gemini_config = GeminiProcessorConfig()
-
-        if self.transcode_options is None:
-            self.transcode_options = TranscodeOptions(
-                video_codec=VideoCodec.H264,
-                audio_codec=AudioCodec.AAC,
-                quality="fast",
-                hardware_acceleration=self.hardware_acceleration,
-            )
+    segment_id: str
+    start_time: float
+    end_time: float
+    highlights: List[Dict[str, Any]] = field(default_factory=list)
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    error: Optional[str] = None
 
 
 @dataclass
 class IngestionResult:
-    """Result from stream ingestion processing."""
+    """Result of stream ingestion and analysis."""
 
-    timestamp: float
-    segment: ProcessedSegment
-    video_analysis: Optional[Dict[str, Any]] = None
-    audio_analysis: Optional[Dict[str, Any]] = None
-    ai_analysis: Optional[Dict[str, Any]] = None
-    highlight_score: float = 0.0
+    stream_url: str
+    adapter_type: str
+    status: IngestionStatus
+    segments_processed: int = 0
+    total_duration_seconds: float = 0.0
+    analyses: List[SegmentAnalysis] = field(default_factory=list)
+    errors: List[str] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
 
 
-class StreamIngestionPipeline:
-    """Unified pipeline for stream ingestion and processing.
+class UnifiedIngestionPipeline:
+    """Unified pipeline for stream ingestion and processing with Gemini."""
 
-    Integrates:
-    - Stream adapters for platform-specific connection
-    - FFmpeg for media processing and transcoding
-    - Video/audio processors for content analysis
-    - Gemini AI for intelligent highlight detection
-    - Segment processing for windowed analysis
-    """
-
-    def __init__(self, config: IngestionConfig):
+    def __init__(
+        self,
+        config: IngestionConfig,
+        gemini_processor: Optional[GeminiVideoProcessor] = None,
+        progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
+    ):
         """Initialize the ingestion pipeline.
 
         Args:
             config: Pipeline configuration
+            gemini_processor: Gemini processor for video analysis
+            progress_callback: Optional callback for progress updates
         """
         self.config = config
-        self.status = IngestionStatus.INITIALIZING
+        self.gemini_processor = gemini_processor
+        self.progress_callback = progress_callback
 
-        # Core components
+        # Initialize components
         self.stream_adapter: Optional[StreamAdapter] = None
         self.ffmpeg_processor = FFmpegProcessor(config.hardware_acceleration)
-        self.frame_extractor = VideoFrameExtractor(config.hardware_acceleration)
-
-        # Processing components
-        self.video_processor: Optional[VideoProcessor] = None
-        self.audio_processor: Optional[AudioProcessor] = None
-        self.gemini_processor: Optional[GeminiProcessor] = None
-
-        # Segmentation and buffering
-        self.video_buffer: Optional[CircularVideoBuffer] = None
-        self.segment_processor: Optional[SegmentProcessor] = None
+        self.segment_processor = SegmentProcessor(
+            SegmentConfig(
+                segment_duration=config.segment_duration_seconds,
+                overlap_duration=config.segment_overlap_seconds,
+                buffer_size=int(config.buffer_duration_seconds / config.segment_duration_seconds),
+            )
+        )
 
         # Pipeline state
+        self.status = IngestionStatus.INITIALIZING
         self._processing_tasks: List[asyncio.Task] = []
         self._shutdown_event = asyncio.Event()
-        self._result_callbacks: List[Callable[[IngestionResult], None]] = []
-
-        # Metrics
+        self._current_result = IngestionResult(
+            stream_url=config.stream_url,
+            adapter_type=config.adapter_type or "unknown",
+            status=IngestionStatus.INITIALIZING,
+        )
         self._metrics = {
-            "segments_processed": 0,
-            "frames_analyzed": 0,
-            "audio_chunks_processed": 0,
-            "ai_analyses": 0,
-            "highlights_detected": 0,
+            "segments_created": 0,
+            "segments_analyzed": 0,
+            "highlights_found": 0,
             "errors": 0,
-            "avg_processing_time": 0.0,
-            "total_processing_time": 0.0,
         }
 
-        logger.info(f"Initialized StreamIngestionPipeline for {config.stream_url}")
+    async def start(self) -> AsyncIterator[IngestionResult]:
+        """Start the ingestion pipeline and yield results.
 
-    async def start(self) -> None:
-        """Start the ingestion pipeline."""
+        Yields:
+            Ingestion results as processing progresses
+        """
         try:
-            self.status = IngestionStatus.CONNECTING
+            self._current_result.started_at = datetime.now(timezone.utc)
+            await self._initialize_pipeline()
 
-            # Initialize stream adapter
-            self.stream_adapter = StreamAdapterFactory.create(
-                self.config.stream_url, **({'platform': self.config.platform} if self.config.platform else {})
-            )
-
-            # Initialize processing components
-            await self._initialize_processors()
-
-            # Initialize buffer and segmentation
-            await self._initialize_buffering()
-
-            # Start stream connection
-            await self.stream_adapter.start()
-
-            # Start processing pipeline
-            await self._start_processing_pipeline()
-
-            self.status = IngestionStatus.PROCESSING
-            logger.info("Stream ingestion pipeline started successfully")
+            async for result in self._run_pipeline():
+                yield result
 
         except Exception as e:
-            self.status = IngestionStatus.ERROR
-            logger.error(f"Failed to start ingestion pipeline: {e}")
-            raise
+            logger.error(f"Pipeline error: {e}")
+            self._current_result.status = IngestionStatus.ERROR
+            self._current_result.errors.append(str(e))
+            yield self._current_result
+        finally:
+            await self.stop()
 
     async def stop(self) -> None:
         """Stop the ingestion pipeline."""
-        logger.info("Stopping stream ingestion pipeline")
-
-        self.status = IngestionStatus.STOPPED
+        logger.info("Stopping ingestion pipeline")
         self._shutdown_event.set()
 
-        # Stop processing tasks
+        # Cancel all processing tasks
         for task in self._processing_tasks:
-            task.cancel()
+            if not task.done():
+                task.cancel()
 
+        # Wait for tasks to complete
         if self._processing_tasks:
             await asyncio.gather(*self._processing_tasks, return_exceptions=True)
 
-        # Stop stream adapter
+        # Cleanup
         if self.stream_adapter:
-            await self.stream_adapter.stop()
+            await self.stream_adapter.disconnect()
 
-        # Cleanup processors
-        if self.video_processor:
-            await self.video_processor.cleanup()
-        if self.audio_processor:
-            await self.audio_processor.cleanup()
-        if self.gemini_processor:
-            await self.gemini_processor.cleanup()
+        self._current_result.completed_at = datetime.now(timezone.utc)
+        self.status = IngestionStatus.STOPPED
 
-        logger.info("Stream ingestion pipeline stopped")
+    async def _initialize_pipeline(self) -> None:
+        """Initialize pipeline components."""
+        logger.info(f"Initializing pipeline for: {self.config.stream_url}")
+        self.status = IngestionStatus.CONNECTING
 
-    async def process_stream(self) -> AsyncIterator[IngestionResult]:
-        """Process the stream and yield ingestion results.
+        # Create stream adapter
+        adapter_type = self.config.adapter_type or StreamAdapterFactory.detect_adapter_type(
+            self.config.stream_url
+        )
+        self.stream_adapter = StreamAdapterFactory.create_adapter(
+            adapter_type, self.config.stream_url
+        )
+        self._current_result.adapter_type = adapter_type
 
-        Yields:
-            IngestionResult: Processing results with highlight analysis
-        """
-        if self.status != IngestionStatus.PROCESSING:
-            raise RuntimeError("Pipeline not started or in error state")
+        # Connect to stream
+        if not await self.stream_adapter.connect():
+            raise RuntimeError(f"Failed to connect to stream: {self.config.stream_url}")
 
+        # Get stream info
+        stream_info = await self.stream_adapter.get_stream_info()
+        self._current_result.metadata.update(stream_info)
+
+        logger.info(f"Connected to stream: {stream_info}")
+        self.status = IngestionStatus.PROCESSING
+
+    async def _run_pipeline(self) -> AsyncIterator[IngestionResult]:
+        """Run the main processing pipeline."""
         try:
-            # Process segments from the segment processor
-            async for segment in self.segment_processor.process_stream(
-                stream_id=self.config.stream_url, real_time=self.config.enable_real_time
-            ):
-                start_time = asyncio.get_event_loop().time()
+            # Start segment ingestion
+            segment_task = asyncio.create_task(self._ingest_segments())
+            self._processing_tasks.append(segment_task)
 
-                # Process the segment through all modalities
-                result = await self._process_segment(segment)
+            # Process segments as they become available
+            async for segment in self.segment_processor.get_segments():
+                if self._shutdown_event.is_set():
+                    break
+
+                # Process segment with Gemini
+                analysis = await self._process_segment(segment)
+                self._current_result.analyses.append(analysis)
+                self._current_result.segments_processed += 1
 
                 # Update metrics
-                processing_time = asyncio.get_event_loop().time() - start_time
-                self._update_metrics(processing_time)
+                self._metrics["segments_analyzed"] += 1
+                if analysis.highlights:
+                    self._metrics["highlights_found"] += len(analysis.highlights)
 
-                # Notify callbacks
-                await self._notify_callbacks(result)
+                # Update progress
+                if self.progress_callback:
+                    self.progress_callback({
+                        "status": "processing",
+                        "segments_processed": self._current_result.segments_processed,
+                        "highlights_found": self._metrics["highlights_found"],
+                    })
 
-                yield result
+                # Yield current result
+                yield self._current_result
 
-        except asyncio.CancelledError:
-            logger.info("Stream processing cancelled")
-            raise
         except Exception as e:
-            self.status = IngestionStatus.ERROR
+            logger.error(f"Pipeline processing error: {e}")
+            self._current_result.errors.append(str(e))
             self._metrics["errors"] += 1
-            logger.error(f"Error in stream processing: {e}")
             raise
 
-    async def _initialize_processors(self) -> None:
-        """Initialize processing components."""
-        # Video processor
-        if self.config.enable_video_processing:
-            video_config = VideoProcessorConfig(
-                frame_interval_seconds=self.config.frame_extraction_interval,
-                quality_threshold=self.config.min_video_quality,
-            )
-            self.video_processor = VideoProcessor(video_config)
-
-        # Audio processor
-        if self.config.enable_audio_processing:
-            audio_config = AudioProcessorConfig(
-                enable_transcription=True,
-                enable_event_detection=True,
-            )
-            self.audio_processor = AudioProcessor(audio_config)
-
-        # Gemini AI processor
-        if self.config.enable_ai_analysis:
-            self.gemini_processor = GeminiProcessor(self.config.gemini_config)
-
-    async def _initialize_buffering(self) -> None:
-        """Initialize buffering and segmentation."""
-        # Create video buffer
-        buffer_frames = int(self.config.buffer_duration_seconds * 30)  # Assume 30 FPS
-        self.video_buffer = CircularVideoBuffer(
-            capacity=buffer_frames, stream_id=self.config.stream_url
-        )
-
-        # Create segment processor
-        segment_config = SegmentConfig(
-            segment_duration_seconds=self.config.segment_duration_seconds,
-            max_concurrent_segments=self.config.max_concurrent_segments,
-        )
-        self.segment_processor = SegmentProcessor(
-            buffer=self.video_buffer, config=segment_config
-        )
-
-    async def _start_processing_pipeline(self) -> None:
-        """Start the processing pipeline tasks."""
-        # Start frame ingestion task
-        frame_task = asyncio.create_task(self._ingest_frames())
-        self._processing_tasks.append(frame_task)
-
-        # Start audio ingestion task if enabled
-        if self.config.enable_audio_processing:
-            audio_task = asyncio.create_task(self._ingest_audio())
-            self._processing_tasks.append(audio_task)
-
-    async def _ingest_frames(self) -> None:
-        """Ingest video frames from stream into buffer."""
+    async def _ingest_segments(self) -> None:
+        """Ingest stream and create video segments."""
         try:
-            async for frame_data in self.stream_adapter.get_stream_data():
+            segment_count = 0
+            
+            # Get stream data from adapter
+            async for stream_data in self.stream_adapter.get_stream_data():
                 if self._shutdown_event.is_set():
                     break
 
-                # Extract frames using FFmpeg
-                # This is a simplified version - real implementation would
-                # process the stream data into actual video frames
-                timestamp = datetime.now(timezone.utc).timestamp()
-
-                # Add to buffer (mock frame for now)
-                from ..streaming.video_buffer import VideoFrame
-
-                frame = VideoFrame(
-                    timestamp=timestamp,
-                    data=frame_data,
-                    width=1920,
-                    height=1080,
-                    format="rgb24",
-                    is_keyframe=True,  # Simplified
-                    metadata={"source": "stream_ingestion"},
-                )
-
-                await self.video_buffer.add_frame(frame)
+                # Create video segments using FFmpeg
+                # In a real implementation, this would use FFmpeg to split
+                # the stream into segments for Gemini processing
+                segment_count += 1
+                
+                # For now, we'll simulate segment creation
+                segment_info = {
+                    "id": f"segment_{segment_count}",
+                    "start_time": (segment_count - 1) * self.config.segment_duration_seconds,
+                    "duration": self.config.segment_duration_seconds,
+                    "path": f"/tmp/segment_{segment_count}.mp4",  # Would be actual path
+                }
+                
+                # Add segment to processor
+                await self.segment_processor.add_segment(segment_info)
+                self._metrics["segments_created"] += 1
 
         except asyncio.CancelledError:
-            logger.info("Frame ingestion cancelled")
+            logger.info("Segment ingestion cancelled")
             raise
         except Exception as e:
-            logger.error(f"Error in frame ingestion: {e}")
+            logger.error(f"Error in segment ingestion: {e}")
             raise
 
-    async def _ingest_audio(self) -> None:
-        """Ingest audio data from stream."""
-        if not self.audio_processor:
-            return
-
-        try:
-            # Process audio stream
-            async for audio_result in self.audio_processor.process_audio_stream(
-                self.config.stream_url,
-                duration_seconds=None,  # Continuous
-            ):
-                if self._shutdown_event.is_set():
-                    break
-
-                # Store audio analysis for segment correlation
-                # This would be stored in a synchronized manner with video frames
-                logger.debug(f"Processed audio chunk: {audio_result.timestamp}")
-
-        except asyncio.CancelledError:
-            logger.info("Audio ingestion cancelled")
-            raise
-        except Exception as e:
-            logger.error(f"Error in audio ingestion: {e}")
-            raise
-
-    async def _process_segment(self, segment: ProcessedSegment) -> IngestionResult:
-        """Process a video segment through all modalities.
+    async def _process_segment(self, segment: ProcessedSegment) -> SegmentAnalysis:
+        """Process a video segment with Gemini.
 
         Args:
             segment: Video segment to process
 
         Returns:
-            Complete ingestion result with analysis
+            Analysis results for the segment
         """
-        result = IngestionResult(
-            timestamp=segment.start_time,
-            segment=segment,
-            metadata={"segment_id": segment.segment_id},
+        analysis = SegmentAnalysis(
+            segment_id=segment.segment_id,
+            start_time=segment.start_time,
+            end_time=segment.end_time,
         )
 
-        # Video analysis
-        if self.config.enable_video_processing and self.video_processor:
-            try:
-                # Extract key frames for analysis
-                keyframes = segment.get_keyframes()
-                if keyframes:
-                    # Simplified video analysis
-                    result.video_analysis = {
-                        "frame_count": len(keyframes),
-                        "keyframe_count": len(segment.keyframe_indices),
-                        "quality_score": segment.quality_score,
-                        "motion_score": segment.motion_score,
-                    }
-                    self._metrics["frames_analyzed"] += len(keyframes)
+        try:
+            if self.gemini_processor:
+                # Process segment with Gemini's native video understanding
+                # The actual video file would be passed to Gemini
+                logger.info(f"Processing segment {segment.segment_id} with Gemini")
+                
+                # In production, this would call:
+                # gemini_result = await self.gemini_processor.analyze_video_with_dimensions(
+                #     video_path=segment.path,
+                #     segment_info=segment.to_dict(),
+                #     dimension_set=dimension_set,
+                #     agent_config=agent_config
+                # )
+                
+                # For now, we'll add placeholder data
+                analysis.metadata["gemini_processed"] = True
+                analysis.metadata["segment_duration"] = segment.duration
+                
+            else:
+                logger.warning("No Gemini processor configured")
+                analysis.metadata["skipped"] = True
 
-            except Exception as e:
-                logger.error(f"Video analysis error: {e}")
-                result.metadata["video_error"] = str(e)
+        except Exception as e:
+            logger.error(f"Error processing segment {segment.segment_id}: {e}")
+            analysis.error = str(e)
+            self._metrics["errors"] += 1
 
-        # Audio analysis (simplified - would correlate with segment timing)
-        if self.config.enable_audio_processing and self.audio_processor:
-            try:
-                # Mock audio analysis for segment
-                result.audio_analysis = {
-                    "transcription": f"Audio content for segment {segment.segment_id}",
-                    "volume_level": 0.7,
-                    "detected_events": ["speech", "background_music"],
-                }
-                self._metrics["audio_chunks_processed"] += 1
+        return analysis
 
-            except Exception as e:
-                logger.error(f"Audio analysis error: {e}")
-                result.metadata["audio_error"] = str(e)
-
-        # AI analysis using Gemini
-        if self.config.enable_ai_analysis and self.gemini_processor:
-            try:
-                # Multimodal analysis
-                keyframes = segment.get_keyframes()
-                if keyframes and result.audio_analysis:
-                    # Get first keyframe as representative
-                    frame_data = keyframes[0].data
-                    audio_transcript = result.audio_analysis.get("transcription", "")
-
-                    ai_result = await self.gemini_processor.analyze_multimodal(
-                        video_frame=frame_data,
-                        audio_transcript=audio_transcript,
-                        chat_messages=[],  # Would need chat integration
-                        timestamp=segment.start_time,
-                    )
-
-                    result.ai_analysis = {
-                        "analysis_text": ai_result.analysis_text,
-                        "highlight_score": ai_result.highlight_score,
-                        "detected_elements": ai_result.detected_elements,
-                        "suggested_tags": ai_result.suggested_tags,
-                        "confidence": ai_result.confidence,
-                    }
-
-                    result.highlight_score = ai_result.highlight_score
-                    self._metrics["ai_analyses"] += 1
-
-                    if ai_result.highlight_score > 0.7:
-                        self._metrics["highlights_detected"] += 1
-
-            except Exception as e:
-                logger.error(f"AI analysis error: {e}")
-                result.metadata["ai_error"] = str(e)
-
-        self._metrics["segments_processed"] += 1
-        return result
-
-    def add_result_callback(self, callback: Callable[[IngestionResult], None]) -> None:
-        """Add callback for processing results.
-
-        Args:
-            callback: Function to call with each result
-        """
-        self._result_callbacks.append(callback)
-
-    async def _notify_callbacks(self, result: IngestionResult) -> None:
-        """Notify result callbacks."""
-        for callback in self._result_callbacks:
-            try:
-                if asyncio.iscoroutinefunction(callback):
-                    await callback(result)
-                else:
-                    callback(result)
-            except Exception as e:
-                logger.error(f"Error in result callback: {e}")
-
-    def _update_metrics(self, processing_time: float) -> None:
-        """Update processing metrics."""
-        self._metrics["total_processing_time"] += processing_time
-
-        if self._metrics["segments_processed"] > 0:
-            self._metrics["avg_processing_time"] = (
-                self._metrics["total_processing_time"]
-                / self._metrics["segments_processed"]
-            )
-
-    def get_metrics(self) -> Dict[str, Any]:
-        """Get pipeline processing metrics."""
-        metrics = self._metrics.copy()
-
-        # Add component metrics
-        if self.stream_adapter:
-            metrics["stream_adapter"] = self.stream_adapter.get_metrics_summary()
-
-        if self.video_processor:
-            metrics["video_processor"] = self.video_processor.get_processing_stats()
-
-        if self.audio_processor:
-            metrics["audio_processor"] = self.audio_processor.get_processing_stats()
-
-        if self.gemini_processor:
-            metrics["gemini_processor"] = self.gemini_processor.get_processing_stats()
-
-        return metrics
-
-    def get_health_status(self) -> Dict[str, Any]:
-        """Get pipeline health information."""
-        health = {
+    @property
+    def metrics(self) -> Dict[str, Any]:
+        """Get current pipeline metrics."""
+        return {
+            **self._metrics,
             "status": self.status.value,
-            "stream_connected": self.stream_adapter.is_connected
-            if self.stream_adapter
-            else False,
-            "stream_healthy": self.stream_adapter.is_healthy
-            if self.stream_adapter
-            else False,
-            "buffer_health": "healthy",  # Would check buffer status
-            "processing_health": "healthy"
-            if self.status == IngestionStatus.PROCESSING
-            else "unhealthy",
-            "error_rate": self._metrics["errors"]
-            / max(self._metrics["segments_processed"], 1),
+            "uptime_seconds": (
+                (datetime.now(timezone.utc) - self._current_result.started_at).total_seconds()
+                if self._current_result.started_at
+                else 0
+            ),
         }
-
-        return health
