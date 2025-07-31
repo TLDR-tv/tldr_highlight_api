@@ -30,11 +30,19 @@ class StreamStatus(str, Enum):
 
 
 class StreamPlatform(str, Enum):
-    """Supported streaming platforms."""
+    """Supported streaming platforms/protocols."""
 
-    RTMP = "rtmp"
-    RTMPS = "rtmps"
-    CUSTOM = "custom"
+    RTMP = "rtmp"          # RTMP streams
+    RTMPS = "rtmps"        # Secure RTMP
+    HLS = "hls"            # HTTP Live Streaming (m3u8)
+    DASH = "dash"          # MPEG-DASH
+    HTTP = "http"          # Direct HTTP/HTTPS streams
+    FILE = "file"          # Local files
+    UDP = "udp"            # UDP streams
+    RTP = "rtp"            # RTP streams
+    RTSP = "rtsp"          # RTSP streams
+    SRT = "srt"            # SRT protocol
+    CUSTOM = "custom"      # Any other FFmpeg-supported format
 
 
 class Stream(Base, TimestampMixin):

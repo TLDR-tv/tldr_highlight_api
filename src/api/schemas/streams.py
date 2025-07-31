@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field, HttpUrl, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 from src.infrastructure.persistence.models.stream import StreamPlatform, StreamStatus
 
@@ -74,26 +74,58 @@ class StreamOptions(BaseModel):
 class StreamCreate(BaseModel):
     """Request schema for creating a new stream."""
 
-    source_url: HttpUrl = Field(description="URL of the livestream to process")
-    platform: StreamPlatform = Field(description="Streaming platform type")
+    source_url: str = Field(description="URL of the stream to process (any FFmpeg-supported format)")
+    platform: Optional[StreamPlatform] = Field(default=None, description="Streaming platform type (auto-detected if not provided)")
     options: StreamOptions = Field(
         default_factory=StreamOptions, description="Processing configuration options"
     )
 
     class Config:
         json_schema_extra = {
-            "example": {
-                "source_url": "rtmp://live.example.com/stream/live_stream_key",
-                "platform": "rtmp",
-                "options": {
-                    "highlight_threshold": 0.85,
-                    "max_highlights": 15,
-                    "min_duration": 10,
-                    "max_duration": 45,
-                    "enable_chat_analysis": True,
-                    "output_quality": "1080p",
+            "examples": [
+                {
+                    "summary": "RTMP Stream",
+                    "value": {
+                        "source_url": "rtmp://live.example.com/stream/live_stream_key",
+                        "options": {
+                            "highlight_threshold": 0.85,
+                            "max_highlights": 15,
+                            "min_duration": 10,
+                            "max_duration": 45,
+                            "output_quality": "1080p",
+                        },
+                    }
                 },
-            }
+                {
+                    "summary": "HLS Stream",
+                    "value": {
+                        "source_url": "https://example.com/live/stream.m3u8",
+                        "options": {
+                            "highlight_threshold": 0.8,
+                            "max_highlights": 20,
+                        },
+                    }
+                },
+                {
+                    "summary": "YouTube Live",
+                    "value": {
+                        "source_url": "https://www.youtube.com/watch?v=LIVE_VIDEO_ID",
+                        "options": {
+                            "highlight_threshold": 0.75,
+                        },
+                    }
+                },
+                {
+                    "summary": "Local Video File",
+                    "value": {
+                        "source_url": "/path/to/video.mp4",
+                        "options": {
+                            "highlight_threshold": 0.9,
+                            "max_highlights": 10,
+                        },
+                    }
+                },
+            ]
         }
 
 

@@ -18,6 +18,7 @@ from .base import (
 )
 from .factory import StreamAdapterFactory, get_stream_adapter
 from .rtmp import RTMPStreamAdapter
+from .ffmpeg import FFmpegStreamAdapter
 
 __all__ = [
     # Base protocol and types
@@ -38,4 +39,5 @@ __all__ = [
     "get_stream_adapter",
     # Implementations
     "RTMPStreamAdapter",
+    "FFmpegStreamAdapter",
 ]

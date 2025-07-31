@@ -131,9 +131,10 @@ This is a standalone enterprise B2B API service that provides AI-powered highlig
 ### Core Components
 
 1. **Stream Processing Pipeline**
-   - Real-time processing of livestreams (Twitch, YouTube, RTMP)
+   - Universal stream processing using FFmpeg (supports any format FFmpeg can handle)
+   - Real-time processing of livestreams: RTMP, HLS, DASH, HTTP streams, local files, etc.
    - Independent implementation optimized for enterprise needs
-   - Multi-modal analysis: video frames, audio transcription, chat sentiment
+   - Multi-modal analysis: video frames, audio transcription
 
 2. **Flexible AI-Powered Analysis**
    - **Customizable Dimensions**: Clients define their own scoring dimensions (e.g., action_intensity, educational_value, humor)

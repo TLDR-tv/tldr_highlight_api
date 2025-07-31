@@ -518,17 +518,40 @@ class StreamProcessingService(BaseDomainService):
         )
 
     def _detect_platform(self, url: str) -> StreamPlatform:
-        """Detect streaming platform from URL."""
+        """Detect streaming platform/protocol from URL.
+        
+        Supports any format that FFmpeg can ingest.
+        """
         url_lower = url.lower()
 
-        if "twitch.tv" in url_lower:
-            return StreamPlatform.TWITCH
-        elif "youtube.com" in url_lower or "youtu.be" in url_lower:
-            return StreamPlatform.YOUTUBE
-        elif "rtmp://" in url_lower:
+        # Check URL scheme/protocol
+        if url_lower.startswith("rtmp://"):
             return StreamPlatform.RTMP
+        elif url_lower.startswith("rtmps://"):
+            return StreamPlatform.RTMPS
+        elif url_lower.startswith("rtsp://"):
+            return StreamPlatform.RTSP
+        elif url_lower.startswith("rtp://"):
+            return StreamPlatform.RTP
+        elif url_lower.startswith("udp://"):
+            return StreamPlatform.UDP
+        elif url_lower.startswith("srt://"):
+            return StreamPlatform.SRT
+        elif url_lower.startswith("file://") or url_lower.startswith("/") or (len(url_lower) > 1 and url_lower[1] == ":"):
+            # Local file paths
+            return StreamPlatform.FILE
+        elif url_lower.endswith(".m3u8") or "#ext-x-" in url_lower:
+            # HLS playlist
+            return StreamPlatform.HLS
+        elif url_lower.endswith(".mpd") or "dash" in url_lower:
+            # DASH manifest
+            return StreamPlatform.DASH
+        elif url_lower.startswith("http://") or url_lower.startswith("https://"):
+            # Generic HTTP stream (could be HLS, DASH, or direct stream)
+            return StreamPlatform.HTTP
         else:
-            return StreamPlatform.OTHER
+            # Anything else FFmpeg might support
+            return StreamPlatform.CUSTOM
 
     def _is_valid_transition(
         self, from_status: StreamStatus, to_status: StreamStatus

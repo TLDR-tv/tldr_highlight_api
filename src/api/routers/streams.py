@@ -85,9 +85,9 @@ async def create_stream(
     # Convert API request to use case request
     request = StreamStartRequest(
         user_id=current_user.id,
-        url=str(stream_data.source_url),
-        title=f"Stream from {stream_data.platform.value}",
-        platform=stream_data.platform.value,
+        url=stream_data.source_url,
+        title="Stream processing job",
+        platform=stream_data.platform.value if stream_data.platform else None,
         processing_options={
             "confidence_threshold": stream_data.options.highlight_threshold,
             "min_highlight_duration": float(stream_data.options.min_duration),
@@ -120,7 +120,7 @@ async def create_stream(
         return StreamResponse(
             id=result.stream_id,
             source_url=result.stream_url,
-            platform=stream_data.platform,
+            platform=StreamPlatform(result.stream_platform),
             status=StreamStatus(result.stream_status),
             options=stream_data.options.model_dump(),
             user_id=current_user.id,

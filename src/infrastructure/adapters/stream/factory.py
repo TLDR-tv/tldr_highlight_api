@@ -12,6 +12,7 @@ from aiohttp import ClientSession
 
 from .base import StreamAdapter
 from .rtmp import RTMPStreamAdapter
+from .ffmpeg import FFmpegStreamAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +24,7 @@ class StreamAdapterFactory:
     _adapters: Dict[str, Type[StreamAdapter]] = {
         "rtmp": RTMPStreamAdapter,
         "rtmps": RTMPStreamAdapter,
+        "ffmpeg": FFmpegStreamAdapter,  # Generic adapter for any format
     }
 
     @classmethod
@@ -88,12 +90,9 @@ class StreamAdapterFactory:
         if scheme in ["rtmp", "rtmps"]:
             return scheme
 
-        # For now, we only support RTMP/RTMPS protocols
-        raise ValueError(
-            f"Unsupported URL scheme: {scheme}. "
-            f"Currently only RTMP/RTMPS streams are supported. "
-            f"URL: {url}"
-        )
+        # For any other URL, use the generic FFmpeg adapter
+        # which supports all formats that FFmpeg can handle
+        return "ffmpeg"
 
     @classmethod
     def get_supported_platforms(cls) -> list[str]:

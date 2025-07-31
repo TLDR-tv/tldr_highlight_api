@@ -51,6 +51,7 @@ class StreamStartResult(UseCaseResult):
     stream_id: Optional[int] = None
     stream_url: Optional[str] = None
     stream_status: Optional[str] = None
+    stream_platform: Optional[str] = None
 
 
 @dataclass
@@ -272,6 +273,7 @@ class StreamProcessingUseCase(UseCase[StreamStartRequest, StreamStartResult]):
                 stream_id=stream.id,
                 stream_url=stream.url.value,
                 stream_status=stream.status.value,
+                stream_platform=stream.platform.value,
                 message="Stream processing started successfully",
             )
 

@@ -31,7 +31,7 @@ Welcome to the comprehensive documentation for the TL;DR Highlight API - an ente
 - [**Multi-Modal Analysis**](./ai/multi-modal.md) - Video, audio, and chat processing
 
 ### Infrastructure
-- [**Streaming Infrastructure**](./infrastructure/streaming.md) - RTMP, HLS, and platform integrations
+- [**Streaming Infrastructure**](./infrastructure/streaming.md) - Universal stream support via FFmpeg
 - [**Asynchronous Processing**](./infrastructure/async-processing.md) - Celery tasks and workflows
 - [**Caching & Storage**](./infrastructure/storage.md) - Redis caching and S3 storage
 - [**Observability**](./infrastructure/observability.md) - Monitoring, metrics, and logging
@@ -69,7 +69,7 @@ Welcome to the comprehensive documentation for the TL;DR Highlight API - an ente
 - **Real-Time Processing**: Live stream ingestion with low-latency processing
 - **Comprehensive Monitoring**: Full observability with Logfire integration
 - **Scalable Infrastructure**: Async processing with Celery and Redis
-- **Multi-Platform Support**: Twitch, YouTube, RTMP, and custom integrations
+- **Universal Stream Support**: Any format FFmpeg can handle (RTMP, HLS, HTTP, local files, etc.)
 
 ## 🏗️ Architecture Highlights
 
