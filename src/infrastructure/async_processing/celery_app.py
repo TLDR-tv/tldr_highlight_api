@@ -14,7 +14,7 @@ from celery.schedules import crontab
 from celery.signals import after_setup_logger, worker_process_init, worker_shutdown
 from kombu import Queue, Exchange
 
-from src.core.config import get_settings
+from src.infrastructure.config import get_settings
 
 
 # Get settings instance
@@ -26,8 +26,8 @@ celery_app = Celery(
     broker=settings.celery_broker_url,
     backend=settings.celery_result_backend,
     include=[
-        "src.services.async_processing.tasks",
-        "src.services.async_processing.workflow",
+        "src.infrastructure.async_processing.tasks",
+        "src.infrastructure.async_processing.workflow",
     ],
 )
 
@@ -79,36 +79,36 @@ class CeleryConfig:
     # Priority queues for different customer tiers
     task_routes = {
         # Stream processing tasks
-        "src.services.async_processing.tasks.start_stream_processing": {
+        "src.infrastructure.async_processing.tasks.start_stream_processing": {
             "queue": "stream_processing",
             "routing_key": "stream.start",
         },
-        "src.services.async_processing.tasks.ingest_stream_data": {
+        "src.infrastructure.async_processing.tasks.ingest_stream_data": {
             "queue": "stream_ingestion",
             "routing_key": "stream.ingest",
         },
-        "src.services.async_processing.tasks.process_multimodal_content": {
+        "src.infrastructure.async_processing.tasks.process_multimodal_content": {
             "queue": "content_processing",
             "routing_key": "content.process",
         },
-        "src.services.async_processing.tasks.detect_highlights": {
+        "src.infrastructure.async_processing.tasks.detect_highlights": {
             "queue": "ai_processing",
             "routing_key": "ai.detect",
         },
-        "src.services.async_processing.tasks.finalize_highlights": {
+        "src.infrastructure.async_processing.tasks.finalize_highlights": {
             "queue": "finalization",
             "routing_key": "finalize.highlights",
         },
-        "src.services.async_processing.tasks.notify_completion": {
+        "src.infrastructure.async_processing.tasks.notify_completion": {
             "queue": "notifications",
             "routing_key": "notify.completion",
         },
         # Maintenance tasks
-        "src.services.async_processing.tasks.cleanup_job_resources": {
+        "src.infrastructure.async_processing.tasks.cleanup_job_resources": {
             "queue": "maintenance",
             "routing_key": "maintenance.cleanup",
         },
-        "src.services.async_processing.tasks.health_check_task": {
+        "src.infrastructure.async_processing.tasks.health_check_task": {
             "queue": "health",
             "routing_key": "health.check",
         },
@@ -159,17 +159,17 @@ class CeleryConfig:
     # Beat schedule for periodic tasks
     beat_schedule = {
         "cleanup-expired-jobs": {
-            "task": "src.services.async_processing.tasks.cleanup_job_resources",
+            "task": "src.infrastructure.async_processing.tasks.cleanup_job_resources",
             "schedule": crontab(minute=0, hour="*/2"),  # Every 2 hours
             "options": {"queue": "maintenance"},
         },
         "health-check": {
-            "task": "src.services.async_processing.tasks.health_check_task",
+            "task": "src.infrastructure.async_processing.tasks.health_check_task",
             "schedule": crontab(minute="*/5"),  # Every 5 minutes
             "options": {"queue": "health"},
         },
         "process-dead-letter-queue": {
-            "task": "src.services.async_processing.tasks.process_dead_letter_queue",
+            "task": "src.infrastructure.async_processing.tasks.process_dead_letter_queue",
             "schedule": crontab(minute="*/15"),  # Every 15 minutes
             "options": {"queue": "maintenance"},
         },
@@ -185,17 +185,17 @@ class CeleryConfig:
 
     # Custom task annotations for different task types
     task_annotations = {
-        "src.services.async_processing.tasks.detect_highlights": {
+        "src.infrastructure.async_processing.tasks.detect_highlights": {
             "rate_limit": "10/m",  # Rate limit AI tasks
             "time_limit": 1800,  # 30 minutes for AI processing
             "soft_time_limit": 1680,  # 28 minutes soft limit
         },
-        "src.services.async_processing.tasks.ingest_stream_data": {
+        "src.infrastructure.async_processing.tasks.ingest_stream_data": {
             "rate_limit": "50/m",  # Higher rate for ingestion
             "time_limit": 3600,  # 1 hour for stream ingestion
             "soft_time_limit": 3300,  # 55 minutes soft limit
         },
-        "src.services.async_processing.tasks.notify_completion": {
+        "src.infrastructure.async_processing.tasks.notify_completion": {
             "rate_limit": "100/m",  # High rate for notifications
             "retry_policy": {
                 "max_retries": 5,
@@ -239,8 +239,8 @@ def setup_loggers(logger, *args, **kwargs):
 def init_worker(**kwargs):
     """Initialize worker process resources."""
     import structlog
-    from src.core.database import init_db
-    from src.core.cache import init_cache
+    from src.infrastructure.database import init_db
+    from src.infrastructure.cache import cache as init_cache
 
     logger = structlog.get_logger(__name__)
     logger.info("Initializing Celery worker process", worker_pid=os.getpid())

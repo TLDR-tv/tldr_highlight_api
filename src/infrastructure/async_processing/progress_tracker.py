@@ -14,8 +14,8 @@ from typing import Any, Dict, List, Optional
 import structlog
 from sqlalchemy import update
 
-from src.core.cache import get_redis_client
-from src.core.database import get_db_session
+from src.infrastructure.cache import get_redis_client
+from src.infrastructure.database import get_db_session
 from src.infrastructure.persistence.models.stream import Stream
 
 

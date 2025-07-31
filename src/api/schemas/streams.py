@@ -83,8 +83,8 @@ class StreamCreate(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "source_url": "https://www.twitch.tv/example_stream",
-                "platform": "twitch",
+                "source_url": "rtmp://live.example.com/stream/live_stream_key",
+                "platform": "rtmp",
                 "options": {
                     "highlight_threshold": 0.85,
                     "max_highlights": 15,
@@ -139,8 +139,8 @@ class StreamResponse(BaseModel):
         json_schema_extra = {
             "example": {
                 "id": 123,
-                "source_url": "https://www.twitch.tv/example_stream",
-                "platform": "twitch",
+                "source_url": "rtmp://live.example.com/stream/live_stream_key",
+                "platform": "rtmp",
                 "status": "processing",
                 "options": {"highlight_threshold": 0.85, "max_highlights": 15},
                 "user_id": 456,
@@ -194,8 +194,8 @@ class StreamListResponse(PaginatedResponse):
                 "items": [
                     {
                         "id": 123,
-                        "source_url": "https://www.twitch.tv/example_stream",
-                        "platform": "twitch",
+                        "source_url": "rtmp://live.example.com/stream/live_stream_key",
+                        "platform": "rtmp",
                         "status": "completed",
                         "user_id": 456,
                         "is_active": False,

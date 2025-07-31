@@ -9,7 +9,7 @@ from typing import Callable
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from src.core.config import settings
+from src.infrastructure.config import settings
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):

@@ -12,7 +12,7 @@ from enum import Enum
 from typing import AsyncIterator, Dict, List, Optional, Any, Callable
 
 from ..adapters.stream.base import StreamAdapter
-from ..adapters.stream.factory import get_stream_adapter
+from ..adapters.stream.factory import StreamAdapterFactory
 from ..media.ffmpeg_integration import (
     FFmpegProcessor,
     VideoFrameExtractor,
@@ -164,8 +164,8 @@ class StreamIngestionPipeline:
             self.status = IngestionStatus.CONNECTING
 
             # Initialize stream adapter
-            self.stream_adapter = await get_stream_adapter(
-                self.config.stream_url, platform=self.config.platform
+            self.stream_adapter = StreamAdapterFactory.create(
+                self.config.stream_url, **({'platform': self.config.platform} if self.config.platform else {})
             )
 
             # Initialize processing components

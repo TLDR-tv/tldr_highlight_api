@@ -4,7 +4,7 @@ from datetime import datetime, timezone, timedelta
 from typing import List
 
 import jwt
-from src.core.config import settings
+from src.infrastructure.config import settings
 
 
 def create_access_token(user_id: int, email: str, scopes: List[str]) -> str:

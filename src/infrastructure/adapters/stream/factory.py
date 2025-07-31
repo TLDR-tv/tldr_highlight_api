@@ -11,9 +11,6 @@ from urllib.parse import urlparse
 from aiohttp import ClientSession
 
 from .base import StreamAdapter
-
-# from .twitch import TwitchStreamAdapter  # Removed for simplification
-# from .youtube import YouTubeStreamAdapter  # Removed for simplification
 from .rtmp import RTMPStreamAdapter
 
 logger = logging.getLogger(__name__)
@@ -22,10 +19,8 @@ logger = logging.getLogger(__name__)
 class StreamAdapterFactory:
     """Factory for creating stream adapters based on URL or platform."""
 
-    # Registry of adapter implementations (simplified)
+    # Registry of adapter implementations
     _adapters: Dict[str, Type[StreamAdapter]] = {
-        # "twitch": TwitchStreamAdapter,  # Removed for simplification
-        # "youtube": YouTubeStreamAdapter,  # Removed for simplification
         "rtmp": RTMPStreamAdapter,
         "rtmps": RTMPStreamAdapter,
     }
@@ -86,14 +81,6 @@ class StreamAdapterFactory:
         Raises:
             ValueError: If platform cannot be detected
         """
-        url_lower = url.lower()
-
-        # Check common platforms
-        if "twitch.tv" in url_lower:
-            return "twitch"
-        elif "youtube.com" in url_lower or "youtu.be" in url_lower:
-            return "youtube"
-
         # Check URL scheme for protocol-based adapters
         parsed = urlparse(url)
         scheme = parsed.scheme.lower()
@@ -101,16 +88,12 @@ class StreamAdapterFactory:
         if scheme in ["rtmp", "rtmps"]:
             return scheme
 
-        # Default detection based on scheme
-        if scheme in ["http", "https"]:
-            # Could be HLS or other HTTP-based streaming
-            # Would need more sophisticated detection
-            raise ValueError(
-                f"Cannot detect platform from HTTP(S) URL: {url}. "
-                "Please specify platform explicitly."
-            )
-
-        raise ValueError(f"Cannot detect platform from URL: {url}")
+        # For now, we only support RTMP/RTMPS protocols
+        raise ValueError(
+            f"Unsupported URL scheme: {scheme}. "
+            f"Currently only RTMP/RTMPS streams are supported. "
+            f"URL: {url}"
+        )
 
     @classmethod
     def get_supported_platforms(cls) -> list[str]:

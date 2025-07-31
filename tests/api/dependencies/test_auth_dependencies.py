@@ -26,7 +26,7 @@ from src.api.dependencies.auth import (
 )
 from src.models.user import User
 from src.models.api_key import APIKey
-from src.core.config import get_settings
+from src.infrastructure.config import get_settings
 
 settings = get_settings()
 

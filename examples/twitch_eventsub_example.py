@@ -20,7 +20,7 @@ from src.services.stream_adapters.twitch import TwitchAdapter
 from src.services.chat_adapters.twitch_eventsub import TwitchEventSubAdapter
 from src.services.chat_adapters.stream_sync import StreamChatSynchronizer
 from src.services.chat_adapters.base import ChatEventType
-from src.core.config import get_settings
+from src.infrastructure.config import get_settings
 
 
 # Configure logging

@@ -15,11 +15,20 @@ import structlog
 from celery import Task
 import logfire
 
-from src.core.database import get_db_session
+from src.infrastructure.database import get_db_session
 from src.infrastructure.persistence.models.stream import Stream, StreamStatus
 from src.infrastructure.async_processing.celery_app import celery_app
 from src.infrastructure.media.clip_generator import ClipGenerator
 from src.infrastructure.media.thumbnail_generator import ThumbnailGenerator
+from src.infrastructure.media.ffmpeg_integration import (
+    FFmpegProcessor,
+    VideoFrameExtractor,
+    FFmpegProbe,
+    TranscodeOptions,
+    VideoCodec,
+    AudioCodec,
+    ContainerFormat,
+)
 from src.infrastructure.content_processing.gemini import GeminiCaptionGenerator
 from src.infrastructure.storage.s3_storage import S3Storage
 from src.domain.services.b2b_stream_agent import B2BStreamAgent
@@ -767,121 +776,120 @@ def detect_highlights_with_ai(
                             },
                         )
 
-                # Stop the agent
-                with logfire.span("stop_b2b_agent"):
-                    loop.run_until_complete(b2b_agent.stop())
-                    logfire.info("B2B agent stopped successfully", stream_id=stream_id)
+                    # Stop the agent
+                    with logfire.span("stop_b2b_agent"):
+                        loop.run_until_complete(b2b_agent.stop())
+                        logfire.info("B2B agent stopped successfully", stream_id=stream_id)
 
-                # Update stream status to completed
-                with logfire.span("update_stream_completed"):
-                    stream.status = StreamStatus.COMPLETED
-                    stream.completed_at = datetime.now(timezone.utc)
-                    db.commit()
+                    # Update stream status to completed
+                    with logfire.span("update_stream_completed"):
+                        stream.status = StreamStatus.COMPLETED
+                        stream.completed_at = datetime.now(timezone.utc)
+                        db.commit()
 
-                    # Track completion metrics
-                    metrics.increment_highlights_detected(
-                        count=len(all_highlights),
-                        platform=stream.platform,
-                        organization_id=str(stream.organization_id),
-                        detection_method="b2b_agent",
+                        # Track completion metrics
+                        metrics.increment_highlights_detected(
+                            count=len(all_highlights),
+                            platform=stream.platform,
+                            organization_id=str(stream.organization_id),
+                            detection_method="b2b_agent",
+                        )
+
+                        metrics.increment_stream_completed(
+                            platform=stream.platform,
+                            organization_id=str(stream.organization_id),
+                            stream_type="live",
+                            success=True,
+                        )
+
+                    # Clean up Gemini files if processor was used
+                    if gemini_processor:
+                        with logfire.span("cleanup_gemini_files"):
+                            try:
+                                loop.run_until_complete(
+                                    gemini_processor.cleanup_all_files()
+                                )
+                                logfire.info("Cleaned up all Gemini uploaded files")
+                            except Exception as cleanup_error:
+                                logger.error(
+                                    f"Failed to cleanup Gemini files: {cleanup_error}"
+                                )
+
+                    # Clean up temporary files
+                    with logfire.span("cleanup_temp_files"):
+                        temp_dir = ingestion_data.get("temp_dir")
+                        if temp_dir and os.path.exists(temp_dir):
+                            import shutil
+
+                            shutil.rmtree(temp_dir)
+                            logfire.info("Cleaned up temporary files", temp_dir=temp_dir)
+
+                    # Final progress update
+                    self.progress_tracker.update_progress(
+                        stream_id=stream_id,
+                        progress_percentage=100,
+                        status="completed",
+                        event_type=ProgressEvent.COMPLETED,
+                        details={
+                            "task": "ai_highlight_detection_complete",
+                            "total_highlights": len(all_highlights),
+                            "agent_metrics": b2b_agent.get_performance_metrics(),
+                        },
+                )
+
+                    # Send completion webhook
+                    asyncio.create_task(
+                        self.webhook_dispatcher.dispatch_webhook(
+                            stream_id=stream_id,
+                            event=WebhookEvent.PROCESSING_COMPLETE,
+                            data={
+                                "stream_id": stream_id,
+                                "status": "completed",
+                                "highlights_count": len(all_highlights),
+                                "agent_metrics": b2b_agent.get_performance_metrics(),
+                                "timestamp": datetime.now(timezone.utc).isoformat(),
+                            },
+                        )
                     )
 
-                    metrics.increment_stream_completed(
-                        platform=stream.platform,
+                    # Track successful task completion
+                    metrics.increment_task_executed(
+                        task_name="detect_highlights_with_ai",
                         organization_id=str(stream.organization_id),
-                        stream_type="live",
                         success=True,
                     )
 
-                # Clean up Gemini files if processor was used
-                if gemini_processor:
-                    with logfire.span("cleanup_gemini_files"):
-                        try:
-                            loop.run_until_complete(
-                                gemini_processor.cleanup_all_files()
-                            )
-                            logfire.info("Cleaned up all Gemini uploaded files")
-                        except Exception as cleanup_error:
-                            logger.error(
-                                f"Failed to cleanup Gemini files: {cleanup_error}"
-                            )
-
-                # Clean up temporary files
-                with logfire.span("cleanup_temp_files"):
-                    temp_dir = ingestion_data.get("temp_dir")
-                    if temp_dir and os.path.exists(temp_dir):
-                        import shutil
-
-                        shutil.rmtree(temp_dir)
-                        logfire.info("Cleaned up temporary files", temp_dir=temp_dir)
-
-                # Final progress update
-                self.progress_tracker.update_progress(
-                    stream_id=stream_id,
-                    progress_percentage=100,
-                    status="completed",
-                    event_type=ProgressEvent.COMPLETED,
-                    details={
-                        "task": "ai_highlight_detection_complete",
-                        "total_highlights": len(all_highlights),
-                        "agent_metrics": b2b_agent.get_performance_metrics(),
-                    },
-                )
-
-                # Send completion webhook
-                asyncio.create_task(
-                    self.webhook_dispatcher.dispatch_webhook(
-                        stream_id=stream_id,
-                        event=WebhookEvent.PROCESSING_COMPLETE,
-                        data={
-                            "stream_id": stream_id,
-                            "status": "completed",
-                            "highlights_count": len(all_highlights),
-                            "agent_metrics": b2b_agent.get_performance_metrics(),
-                            "timestamp": datetime.now(timezone.utc).isoformat(),
-                        },
+                    # Calculate total processing time
+                    task_duration = (
+                        datetime.now(timezone.utc) - datetime.now(timezone.utc)
+                    ).total_seconds()
+                    metrics.record_task_duration(
+                        duration_seconds=task_duration,
+                        task_name="detect_highlights_with_ai",
+                        organization_id=str(stream.organization_id),
                     )
-                )
 
-                # Track successful task completion
-                metrics.increment_task_executed(
-                    task_name="detect_highlights_with_ai",
-                    organization_id=str(stream.organization_id),
-                    success=True,
-                )
+                    result = {
+                        "stream_id": stream_id,
+                        "status": "completed",
+                        "highlights_created": len(all_highlights),
+                        "agent_config_used": agent_config.name,
+                        "agent_metrics": b2b_agent.get_performance_metrics(),
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    }
 
-                # Calculate total processing time
-                task_duration = (
-                    datetime.now(timezone.utc) - datetime.now(timezone.utc)
-                ).total_seconds()
-                metrics.record_task_duration(
-                    duration_seconds=task_duration,
-                    task_name="detect_highlights_with_ai",
-                    organization_id=str(stream.organization_id),
-                )
+                    logfire.info(
+                        "AI highlight detection completed successfully",
+                        stream_id=stream_id,
+                        highlights_created=len(all_highlights),
+                        platform=stream.platform,
+                        organization_id=stream.organization_id,
+                        agent_config=agent_config.name,
+                    )
 
-                result = {
-                    "stream_id": stream_id,
-                    "status": "completed",
-                    "highlights_created": len(all_highlights),
-                    "agent_config_used": agent_config.name,
-                    "agent_metrics": b2b_agent.get_performance_metrics(),
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                }
-
-                logfire.info(
-                    "AI highlight detection completed successfully",
-                    stream_id=stream_id,
-                    highlights_created=len(all_highlights),
-                    platform=stream.platform,
-                    organization_id=stream.organization_id,
-                    agent_config=agent_config.name,
-                )
-
-                return result
-
-            finally:
-                loop.close()
+                    return result
+                finally:
+                    loop.close()
 
     except Exception as exc:
         logfire.error(

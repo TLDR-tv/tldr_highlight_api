@@ -32,9 +32,8 @@ class StreamStatus(str, Enum):
 class StreamPlatform(str, Enum):
     """Supported streaming platforms."""
 
-    TWITCH = "twitch"
-    YOUTUBE = "youtube"
     RTMP = "rtmp"
+    RTMPS = "rtmps"
     CUSTOM = "custom"
 
 

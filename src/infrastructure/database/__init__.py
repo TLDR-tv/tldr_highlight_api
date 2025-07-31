@@ -13,6 +13,9 @@ from .connection import (
     close_db,
 )
 
+# Alias for backwards compatibility
+get_db_session = get_sync_session
+
 __all__ = [
     "get_async_session",
     "get_sync_session",
@@ -20,4 +23,5 @@ __all__ = [
     "get_db_context",
     "init_db",
     "close_db",
+    "get_db_session",
 ]

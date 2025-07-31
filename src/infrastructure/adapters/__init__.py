@@ -1,7 +1,6 @@
 """Infrastructure adapters for external system integration.
 
-This module provides adapters for integrating with external systems
-like streaming platforms and chat services as infrastructure concerns.
+This module provides adapters for integrating with external streaming platforms.
 """
 
 from .stream import (
@@ -18,50 +17,26 @@ from .stream import (
     StreamOfflineError,
     StreamAdapterFactory,
     get_stream_adapter,
-    TwitchStreamAdapter,
-    YouTubeStreamAdapter,
     RTMPStreamAdapter,
-)
-from .chat import (
-    ChatAdapter,
-    ChatMessage,
-    ChatUser,
-    ChatMessageType,
-    ChatConnection,
-    SentimentAnalyzer,
-    SentimentResult,
-    ChatAdapterError,
-    TwitchChatAdapter,
-    YouTubeChatAdapter,
 )
 
 __all__ = [
-    # Stream adapters
+    # Base protocol and types
     "StreamAdapter",
     "StreamConnection",
     "StreamMetadata",
     "ConnectionStatus",
     "StreamHealth",
+    # Exceptions
     "StreamAdapterError",
     "ConnectionError",
     "AuthenticationError",
     "RateLimitError",
     "StreamNotFoundError",
     "StreamOfflineError",
+    # Factory
     "StreamAdapterFactory",
     "get_stream_adapter",
-    "TwitchStreamAdapter",
-    "YouTubeStreamAdapter",
+    # Implementations
     "RTMPStreamAdapter",
-    # Chat adapters
-    "ChatAdapter",
-    "ChatMessage",
-    "ChatUser",
-    "ChatMessageType",
-    "ChatConnection",
-    "SentimentAnalyzer",
-    "SentimentResult",
-    "ChatAdapterError",
-    "TwitchChatAdapter",
-    "YouTubeChatAdapter",
 ]

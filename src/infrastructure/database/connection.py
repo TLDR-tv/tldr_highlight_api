@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.orm import Session, sessionmaker
 
-from src.core.config import settings
+from src.infrastructure.config import settings
 
 logger = logging.getLogger(__name__)
 

@@ -384,7 +384,7 @@ def setup_exception_handlers(app: FastAPI) -> None:
     # Store settings in app state for access in handlers
     app.state.settings = (
         app.extra.get("settings")
-        or __import__("src.core.config", fromlist=["settings"]).settings
+        or __import__("src.infrastructure.config", fromlist=["settings"]).settings
     )
 
     # Custom exception handlers

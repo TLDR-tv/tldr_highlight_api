@@ -8,13 +8,10 @@ from typing import List, Dict, Any, Optional
 
 from src.domain.services.base import BaseDomainService
 from src.domain.entities.highlight import Highlight
-from src.domain.entities.highlight_type_registry import HighlightTypeRegistry
 from src.domain.value_objects.confidence_score import ConfidenceScore
-from src.domain.value_objects.duration import Duration
 from src.domain.value_objects.timestamp import Timestamp
 from src.domain.value_objects.processing_options import (
     ProcessingOptions,
-    FusionStrategy,
 )
 from src.domain.repositories.highlight_repository import HighlightRepository
 from src.domain.repositories.stream_repository import StreamRepository
@@ -22,7 +19,7 @@ from src.domain.repositories.dimension_set_repository import DimensionSetReposit
 from src.domain.repositories.highlight_type_registry_repository import (
     HighlightTypeRegistryRepository,
 )
-from src.domain.exceptions import EntityNotFoundError, BusinessRuleViolation
+from src.domain.exceptions import EntityNotFoundError
 
 
 class DetectionResult:

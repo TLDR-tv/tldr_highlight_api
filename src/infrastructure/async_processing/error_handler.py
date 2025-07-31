@@ -23,8 +23,8 @@ from tenacity import (
     after_log,
 )
 
-from src.core.cache import get_redis_client
-from src.core.config import get_settings
+from src.infrastructure.cache import get_redis_client
+from src.infrastructure.config import get_settings
 
 
 logger = structlog.get_logger(__name__)

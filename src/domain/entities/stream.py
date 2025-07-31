@@ -24,9 +24,8 @@ class StreamStatus(Enum):
 class StreamPlatform(Enum):
     """Supported streaming platforms."""
 
-    TWITCH = "twitch"
-    YOUTUBE = "youtube"
     RTMP = "rtmp"
+    RTMPS = "rtmps"
     CUSTOM = "custom"
 
 

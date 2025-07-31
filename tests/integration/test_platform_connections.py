@@ -11,7 +11,7 @@ import os
 import pytest
 import aiohttp
 
-from src.core.config import get_settings
+from src.infrastructure.config import get_settings
 from src.services.stream_adapters.factory import StreamAdapterFactory
 from src.services.stream_adapters.twitch import TwitchAdapter
 from src.services.stream_adapters.youtube import YouTubeAdapter

@@ -14,7 +14,7 @@ from typing import Any, Dict, Optional
 import bcrypt
 from jose import jwt, JWTError
 
-from src.core.config import settings
+from src.infrastructure.config import settings
 
 
 def generate_api_key(length: int = 32) -> str:

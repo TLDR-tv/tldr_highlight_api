@@ -13,7 +13,7 @@ from typing import Any, Dict, List
 import structlog
 from celery import Task
 
-from src.core.database import get_db_session
+from src.infrastructure.database import get_db_session
 from src.infrastructure.persistence.models.stream import Stream, StreamStatus
 from src.infrastructure.persistence.models.highlight import Highlight
 from src.infrastructure.async_processing.celery_app import celery_app
@@ -929,7 +929,7 @@ def health_check_task(self) -> Dict[str, Any]:
         # Check Redis connectivity
         redis_healthy = True
         try:
-            from src.core.cache import get_redis_client
+            from src.infrastructure.cache import get_redis_client
 
             redis_client = get_redis_client()
             redis_client.ping()

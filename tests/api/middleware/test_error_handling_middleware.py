@@ -6,7 +6,7 @@ from fastapi import Request, Response
 from fastapi.responses import JSONResponse
 
 from src.api.middleware.error_handling import ErrorHandlingMiddleware
-from src.core.config import settings
+from src.infrastructure.config import settings
 
 
 @pytest.mark.asyncio

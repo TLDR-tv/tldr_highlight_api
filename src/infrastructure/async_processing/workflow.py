@@ -15,8 +15,8 @@ from celery import chain, chord, group, signature
 from celery.canvas import Signature
 from celery.result import AsyncResult
 
-from src.core.cache import get_redis_client
-from src.core.database import get_db_session
+from src.infrastructure.cache import get_redis_client
+from src.infrastructure.database import get_db_session
 from src.infrastructure.persistence.models.stream import Stream, StreamStatus
 from src.infrastructure.async_processing.celery_app import celery_app, get_task_options
 from src.infrastructure.async_processing.job_manager import JobManager, JobPriority

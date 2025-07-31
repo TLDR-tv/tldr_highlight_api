@@ -17,9 +17,9 @@ from typing import Any, Dict
 import httpx
 import structlog
 
-from src.core.cache import get_redis_client
-from src.core.config import get_settings
-from src.core.database import get_db_session
+from src.infrastructure.cache import get_redis_client
+from src.infrastructure.config import get_settings
+from src.infrastructure.database import get_db_session
 from src.infrastructure.persistence.models.webhook import Webhook
 from src.infrastructure.persistence.models.stream import Stream
 from src.infrastructure.persistence.models.user import User

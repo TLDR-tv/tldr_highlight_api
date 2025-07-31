@@ -14,8 +14,8 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.schemas.common import HealthCheckResponse, StatusResponse
-from src.core.cache import cache
-from src.core.config import settings
+from src.infrastructure.cache import cache
+from src.infrastructure.config import settings
 from src.infrastructure.database import get_db
 from src.services.storage import storage_service
 
