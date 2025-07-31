@@ -29,6 +29,9 @@ from src.infrastructure.persistence.repositories.webhook_event_repository import
 from src.infrastructure.persistence.repositories.usage_record_repository import (
     UsageRecordRepository,
 )
+from src.infrastructure.persistence.repositories.organization_key_repository import (
+    OrganizationKeyRepository,
+)
 from src.infrastructure.persistence.repositories.dimension_set_repository import (
     DimensionSetRepository,
 )
@@ -108,3 +111,10 @@ async def get_highlight_type_registry_repository(
 ) -> HighlightTypeRegistryRepository:
     """Get highlight type registry repository instance."""
     return HighlightTypeRegistryRepository(db)
+
+
+async def get_organization_key_repository(
+    db: AsyncSession = Depends(get_db_session),
+) -> OrganizationKeyRepository:
+    """Get organization key repository instance."""
+    return OrganizationKeyRepository(db)

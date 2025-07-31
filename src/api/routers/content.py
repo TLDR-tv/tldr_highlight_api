@@ -4,17 +4,17 @@ This module provides endpoints for secure content access via signed URLs,
 particularly for external streamers who are not managed users in the system.
 """
 
-from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status, Request
 from fastapi.responses import RedirectResponse, JSONResponse
 
-from src.api.dependencies.use_cases import get_highlight_management_use_case
-from src.application.use_cases.highlight_management import HighlightManagementUseCase
-from src.application.use_cases.base import ResultStatus
-from src.infrastructure.security.url_signer import url_signer
+from src.infrastructure.security.url_signer import URLSigner
 from src.domain.repositories.highlight_repository import HighlightRepository
 from src.domain.repositories.stream_repository import StreamRepository
-from src.api.dependencies.repositories import get_highlight_repository, get_stream_repository
+from src.api.dependencies.repositories import (
+    get_highlight_repository,
+    get_stream_repository,
+)
+from src.api.dependencies.security import get_url_signer
 
 router = APIRouter()
 
@@ -30,6 +30,7 @@ async def access_content(
     request: Request,
     highlight_repo: HighlightRepository = Depends(get_highlight_repository),
     stream_repo: StreamRepository = Depends(get_stream_repository),
+    url_signer: URLSigner = Depends(get_url_signer),
 ):
     """Access highlight content via signed URL.
 
@@ -48,8 +49,10 @@ async def access_content(
         Redirect to the actual content or error response
     """
     # Verify token
-    is_valid, payload, error = url_signer.verify_token(
-        token, required_claims={"highlight_id": highlight_id}
+    is_valid, payload, error = await url_signer.verify_token(
+        token,
+        required_claims={"highlight_id": highlight_id},
+        verify_ip=request.client.host if request.client else None,
     )
 
     if not is_valid:
@@ -92,10 +95,12 @@ async def access_content(
 async def list_stream_highlights(
     stream_id: int,
     token: str,
+    request: Request,
     page: int = Query(1, ge=1, description="Page number"),
     per_page: int = Query(20, ge=1, le=100, description="Items per page"),
     highlight_repo: HighlightRepository = Depends(get_highlight_repository),
     stream_repo: StreamRepository = Depends(get_stream_repository),
+    url_signer: URLSigner = Depends(get_url_signer),
 ):
     """List highlights for a stream via signed URL.
 
@@ -114,8 +119,10 @@ async def list_stream_highlights(
         List of highlights for the stream
     """
     # Verify token
-    is_valid, payload, error = url_signer.verify_token(
-        token, required_claims={"stream_id": stream_id}
+    is_valid, payload, error = await url_signer.verify_token(
+        token,
+        required_claims={"stream_id": stream_id},
+        verify_ip=request.client.host if request.client else None,
     )
 
     if not is_valid:
@@ -136,7 +143,7 @@ async def list_stream_highlights(
     result = await highlight_repo.get_by_stream_with_pagination(
         stream_id=stream_id, limit=per_page, offset=offset
     )
-    
+
     # Extract highlights and pagination info
     highlights = result["highlights"]
     pagination = result["pagination"]
@@ -155,7 +162,7 @@ async def list_stream_highlights(
                 "created_at": h.created_at.isoformat() if h.created_at else None,
                 # Generate content access URL for each highlight
                 "content_url": url_signer.generate_signed_url(
-                    base_url=str(request.base_url).rstrip('/'),
+                    base_url=str(request.base_url).rstrip("/"),
                     highlight_id=h.id,
                     stream_id=stream_id,
                     org_id=payload.get("org_id"),

@@ -47,6 +47,10 @@ from src.application.use_cases.organization_management import (
 from src.application.use_cases.highlight_management import HighlightManagementUseCase
 from src.application.use_cases.webhook_configuration import WebhookConfigurationUseCase
 
+# Import security dependencies
+from src.infrastructure.security.url_signer import URLSigner
+from .security import get_url_signer
+
 from .repositories import (
     get_user_repository,
     get_api_key_repository,
@@ -171,10 +175,14 @@ async def get_highlight_management_use_case(
     highlight_repo: HighlightRepository = Depends(get_highlight_repository),
     stream_repo: StreamRepository = Depends(get_stream_repository),
     user_repo: UserRepository = Depends(get_user_repository),
+    url_signer: URLSigner = Depends(get_url_signer),
 ) -> HighlightManagementUseCase:
     """Get highlight management use case instance."""
     return HighlightManagementUseCase(
-        highlight_repo=highlight_repo, stream_repo=stream_repo, user_repo=user_repo
+        highlight_repo=highlight_repo,
+        stream_repo=stream_repo,
+        user_repo=user_repo,
+        url_signer=url_signer,
     )
 
 

@@ -11,6 +11,7 @@ from src.domain.entities.highlight_type_registry import (
 from src.domain.repositories.highlight_repository import HighlightRepository
 from src.domain.repositories.stream_repository import StreamRepository
 from src.domain.repositories.user_repository import UserRepository
+from src.infrastructure.security.url_signer import URLSigner
 
 
 @dataclass
@@ -110,6 +111,7 @@ class HighlightManagementUseCase(UseCase[GetHighlightRequest, GetHighlightResult
         highlight_repo: HighlightRepository,
         stream_repo: StreamRepository,
         user_repo: UserRepository,
+        url_signer: URLSigner,
     ):
         """Initialize highlight management use case.
 
@@ -117,10 +119,12 @@ class HighlightManagementUseCase(UseCase[GetHighlightRequest, GetHighlightResult
             highlight_repo: Repository for highlight operations
             stream_repo: Repository for stream operations
             user_repo: Repository for user operations
+            url_signer: URL signer for generating signed URLs
         """
         self.highlight_repo = highlight_repo
         self.stream_repo = stream_repo
         self.user_repo = user_repo
+        self.url_signer = url_signer
 
     async def get_highlight(self, request: GetHighlightRequest) -> GetHighlightResult:
         """Get a specific highlight.
@@ -352,28 +356,32 @@ class HighlightManagementUseCase(UseCase[GetHighlightRequest, GetHighlightResult
             user = await self.user_repo.get(request.user_id)
             if not user or not user.organization_id:
                 return ExportHighlightResult(
-                    status=ResultStatus.FAILURE, 
-                    errors=["User or organization not found"]
+                    status=ResultStatus.FAILURE,
+                    errors=["User or organization not found"],
                 )
 
             # Generate signed download URL
-            from src.infrastructure.security.url_signer import url_signer
             from src.infrastructure.config import settings
+            from src.domain.services.url_signer_interface import TokenScope
             from datetime import datetime, timedelta
 
             # Determine expiration time based on request or default
             expiry_hours = 1  # Default 1 hour
             if request.format == "embed":
                 expiry_hours = 24  # 24 hours for embeds
-            
-            # Generate the signed URL
-            download_url = url_signer.generate_signed_url(
+
+            # Generate the signed URL using async method
+            download_url = await self.url_signer.generate_highlight_url(
                 base_url=settings.api_base_url,
                 highlight_id=highlight.id,
                 stream_id=stream.id,
-                org_id=user.organization_id,
+                organization_id=user.organization_id,
+                scope=TokenScope.DOWNLOAD,
                 expiry_hours=expiry_hours,
-                additional_claims={"format": request.format, "quality": request.quality}
+                additional_claims={
+                    "format": request.format,
+                    "quality": request.quality,
+                },
             )
 
             # Calculate expiration time
