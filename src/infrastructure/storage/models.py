@@ -16,7 +16,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import UUID, ARRAY
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 from .database import Base
@@ -40,14 +40,13 @@ class OrganizationModel(Base):
     total_processing_seconds = Column(Float, default=0.0, nullable=False)
 
     # Custom configuration
-    wake_words = Column(ARRAY(String), default=list, nullable=False)
     webhook_url = Column(String(500), nullable=True)
     webhook_secret = Column(String(255), nullable=True)
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False
     )
 
     # Relationships
@@ -83,11 +82,11 @@ class UserModel(Base):
     hashed_password = Column(String(255), nullable=False)
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False
     )
-    last_login_at = Column(DateTime, nullable=True)
+    last_login_at = Column(DateTime(timezone=True), nullable=True)
 
     # Relationships
     organization = relationship("OrganizationModel", back_populates="users")
@@ -119,8 +118,8 @@ class StreamModel(Base):
     platform_user_id = Column(String(255), nullable=True)
 
     # Processing info
-    started_at = Column(DateTime, nullable=True)
-    completed_at = Column(DateTime, nullable=True)
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
     duration_seconds = Column(Float, default=0.0, nullable=False)
     segments_processed = Column(Integer, default=0, nullable=False)
     highlights_generated = Column(Integer, default=0, nullable=False)
@@ -130,9 +129,9 @@ class StreamModel(Base):
     retry_count = Column(Integer, default=0, nullable=False)
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False
     )
 
     # Relationships
@@ -166,7 +165,7 @@ class HighlightModel(Base):
     # Content
     title = Column(String(500), nullable=False)
     description = Column(Text, nullable=True)
-    tags = Column(ARRAY(String), default=list, nullable=False)
+    tags = Column(JSON, default=list, nullable=False)  # Use JSON for SQLite compatibility
 
     # Scoring (stored as JSON for flexibility)
     dimension_scores = Column(JSON, default=dict, nullable=False)
@@ -182,9 +181,9 @@ class HighlightModel(Base):
     wake_word_detected = Column(String(255), nullable=True)
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False
     )
 
     # Relationships
@@ -211,23 +210,23 @@ class APIKeyModel(Base):
     prefix = Column(String(50), unique=True, nullable=False, index=True)
 
     # Permissions
-    scopes = Column(ARRAY(String), default=list, nullable=False)
+    scopes = Column(JSON, default=list, nullable=False)  # Use JSON for SQLite compatibility
 
     # Usage tracking
-    last_used_at = Column(DateTime, nullable=True)
+    last_used_at = Column(DateTime(timezone=True), nullable=True)
     usage_count = Column(Integer, default=0, nullable=False)
 
     # Lifecycle
     is_active = Column(Boolean, default=True, nullable=False)
-    expires_at = Column(DateTime, nullable=True)
-    revoked_at = Column(DateTime, nullable=True)
+    expires_at = Column(DateTime(timezone=True), nullable=True)
+    revoked_at = Column(DateTime(timezone=True), nullable=True)
 
     # Metadata
     created_by_user_id = Column(UUID(as_uuid=True), nullable=True)
     description = Column(Text, nullable=True)
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
 
     # Relationships
     organization = relationship("OrganizationModel", back_populates="api_keys")
@@ -257,12 +256,12 @@ class WakeWordModel(Base):
 
     # Usage tracking
     trigger_count = Column(Integer, default=0, nullable=False)
-    last_triggered_at = Column(DateTime, nullable=True)
+    last_triggered_at = Column(DateTime(timezone=True), nullable=True)
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False
     )
 
     # Relationships
@@ -298,7 +297,7 @@ class UsageRecordModel(Base):
     usage_metadata = Column("metadata", JSON, default=dict, nullable=False)
 
     # Timestamp
-    recorded_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    recorded_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False, index=True)
 
     __table_args__ = (
         Index("idx_usage_org_time", "organization_id", "recorded_at"),

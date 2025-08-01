@@ -1,7 +1,7 @@
 """Organization management service."""
 
 import secrets
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 import structlog
@@ -136,7 +136,7 @@ class OrganizationService:
         if is_active is not None:
             org.is_active = is_active
         
-        org.updated_at = datetime.utcnow()
+        org.updated_at = datetime.now(timezone.utc)
         updated_org = await self.organization_repository.update(org)
         
         logger.info(
@@ -211,7 +211,7 @@ class OrganizationService:
         # Generate new secret
         new_secret = secrets.token_urlsafe(32)
         org.webhook_secret = new_secret
-        org.updated_at = datetime.utcnow()
+        org.updated_at = datetime.now(timezone.utc)
         
         await self.organization_repository.update(org)
         
@@ -239,8 +239,12 @@ class OrganizationService:
         if not org:
             raise ValueError("Organization not found")
         
+        # Check if wake word already exists
+        if wake_word.lower().strip() in org.wake_words:
+            raise ValueError(f"Wake word '{wake_word}' already exists")
+        
         org.add_wake_word(wake_word)
-        org.updated_at = datetime.utcnow()
+        org.updated_at = datetime.now(timezone.utc)
         
         updated_org = await self.organization_repository.update(org)
         
@@ -270,7 +274,7 @@ class OrganizationService:
             raise ValueError("Organization not found")
         
         org.remove_wake_word(wake_word)
-        org.updated_at = datetime.utcnow()
+        org.updated_at = datetime.now(timezone.utc)
         
         updated_org = await self.organization_repository.update(org)
         
@@ -305,7 +309,7 @@ class OrganizationService:
             highlights=highlights_count,
             seconds=processing_seconds,
         )
-        org.updated_at = datetime.utcnow()
+        org.updated_at = datetime.now(timezone.utc)
         
         await self.organization_repository.update(org)
         

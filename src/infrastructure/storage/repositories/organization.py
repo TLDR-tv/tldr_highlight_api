@@ -26,7 +26,6 @@ class OrganizationRepository:
             total_streams_processed=entity.total_streams_processed,
             total_highlights_generated=entity.total_highlights_generated,
             total_processing_seconds=entity.total_processing_seconds,
-            wake_words=list(entity.wake_words),
             webhook_url=entity.webhook_url,
             webhook_secret=entity.webhook_secret,
             created_at=entity.created_at,
@@ -34,14 +33,37 @@ class OrganizationRepository:
         )
 
         self.session.add(model)
+        
+        # Add wake words as separate entities
+        from ..models import WakeWordModel
+        for word in entity.wake_words:
+            wake_word = WakeWordModel(
+                organization_id=entity.id,
+                word=word,
+                is_active=True,
+            )
+            self.session.add(wake_word)
+        
         await self.session.commit()
         await self.session.refresh(model)
 
         return self._to_entity(model)
 
+    # Alias for compatibility with tests
+    async def create(self, entity: Organization) -> Organization:
+        """Create new organization (alias for add)."""
+        return await self.add(entity)
+
     async def get(self, id: UUID) -> Optional[Organization]:
         """Get organization by ID."""
-        model = await self.session.get(OrganizationModel, id)
+        from sqlalchemy.orm import selectinload
+        
+        result = await self.session.execute(
+            select(OrganizationModel)
+            .where(OrganizationModel.id == id)
+            .options(selectinload(OrganizationModel.wake_word_configs))
+        )
+        model = result.scalar_one_or_none()
         return self._to_entity(model) if model else None
 
     async def get_by_slug(self, slug: str) -> Optional[Organization]:
@@ -60,7 +82,17 @@ class OrganizationRepository:
 
     async def update(self, entity: Organization) -> Organization:
         """Update existing organization."""
-        model = await self.session.get(OrganizationModel, entity.id)
+        from sqlalchemy.orm import selectinload
+        from ..models import WakeWordModel
+        
+        # Load organization with wake words eagerly
+        result = await self.session.execute(
+            select(OrganizationModel)
+            .where(OrganizationModel.id == entity.id)
+            .options(selectinload(OrganizationModel.wake_word_configs))
+        )
+        model = result.scalar_one_or_none()
+        
         if not model:
             raise ValueError(f"Organization {entity.id} not found")
 
@@ -71,10 +103,28 @@ class OrganizationRepository:
         model.total_streams_processed = entity.total_streams_processed
         model.total_highlights_generated = entity.total_highlights_generated
         model.total_processing_seconds = entity.total_processing_seconds
-        model.wake_words = list(entity.wake_words)
         model.webhook_url = entity.webhook_url
         model.webhook_secret = entity.webhook_secret
         model.updated_at = entity.updated_at
+
+        # Update wake words - only add/remove changed ones
+        existing_words = {ww.word for ww in model.wake_word_configs if ww.is_active}
+        new_words = entity.wake_words
+        
+        # Remove words that are no longer in the set
+        for ww in model.wake_word_configs[:]:  # Use slice to avoid modifying during iteration
+            if ww.word not in new_words:
+                model.wake_word_configs.remove(ww)
+        
+        # Add new words that don't exist
+        for word in new_words:
+            if word not in existing_words:
+                wake_word = WakeWordModel(
+                    organization_id=entity.id,
+                    word=word,
+                    is_active=True,
+                )
+                model.wake_word_configs.append(wake_word)
 
         await self.session.commit()
         await self.session.refresh(model)
@@ -103,6 +153,12 @@ class OrganizationRepository:
 
     def _to_entity(self, model: OrganizationModel) -> Organization:
         """Convert model to entity."""
+        # Extract wake words from relationship
+        wake_words = set()
+        # Only access wake_word_configs if it's already loaded
+        if 'wake_word_configs' in model.__dict__:
+            wake_words = {ww.word for ww in model.wake_word_configs if ww.is_active}
+        
         return Organization(
             id=model.id,
             name=model.name,
@@ -113,7 +169,7 @@ class OrganizationRepository:
             total_streams_processed=model.total_streams_processed,
             total_highlights_generated=model.total_highlights_generated,
             total_processing_seconds=model.total_processing_seconds,
-            wake_words=set(model.wake_words) if model.wake_words else set(),
+            wake_words=wake_words,
             webhook_url=model.webhook_url,
             webhook_secret=model.webhook_secret,
         )

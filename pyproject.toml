@@ -49,6 +49,8 @@ dev = [
     "factory-boy>=3.3.0",
     "faker>=33.0.0",
     "moto[s3]>=5.0.0",
+    "testcontainers[postgres]>=4.0.0",
+    "greenlet>=3.0.0",
 ]
 
 [tool.pytest.ini_options]
@@ -61,11 +63,13 @@ addopts = [
     "-ra",
     "--strict-markers",
     "--strict-config",
+    "--asyncio-mode=auto",
 ]
 markers = [
     "integration: marks tests as integration tests (require external services)",
     "slow: marks tests as slow running",
 ]
+asyncio_mode = "auto"
 
 [tool.mypy]
 python_version = "3.13"

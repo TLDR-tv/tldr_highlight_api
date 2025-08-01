@@ -1,7 +1,7 @@
 """Stream domain model - represents a livestream or video being processed."""
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional
 from uuid import UUID, uuid4
@@ -81,18 +81,18 @@ class Stream:
     def start_processing(self) -> None:
         """Mark stream as processing."""
         self.status = StreamStatus.PROCESSING
-        self.started_at = datetime.utcnow()
+        self.started_at = datetime.now(timezone.utc)
 
     def mark_completed(self) -> None:
         """Mark stream as completed."""
         self.status = StreamStatus.COMPLETED
-        self.completed_at = datetime.utcnow()
+        self.completed_at = datetime.now(timezone.utc)
 
     def mark_failed(self, error: str) -> None:
         """Mark stream as failed with error message."""
         self.status = StreamStatus.FAILED
         self.error_message = error
-        self.completed_at = datetime.utcnow()
+        self.completed_at = datetime.now(timezone.utc)
         self.retry_count += 1
 
     def increment_segment_count(self) -> None:

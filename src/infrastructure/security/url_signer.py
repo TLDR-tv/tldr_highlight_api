@@ -1,6 +1,6 @@
 """URL signing service using JWT for secure content delivery."""
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Any, Literal
 from uuid import UUID
 import jwt
@@ -50,7 +50,7 @@ class JWTURLSigner:
         - exp: expiration timestamp
         - iat: issued at timestamp
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         claims = {
             "sub": str(organization_id),

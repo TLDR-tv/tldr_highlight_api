@@ -1,6 +1,6 @@
 """User management service."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 import structlog
@@ -202,7 +202,7 @@ class UserService:
                     raise ValueError("Email already in use")
                 user.email = email
         
-        user.updated_at = datetime.utcnow()
+        user.updated_at = datetime.now(timezone.utc)
         updated_user = await self.user_repository.update(user)
         
         logger.info("User profile updated", user_id=str(user_id))
@@ -240,7 +240,7 @@ class UserService:
         
         # Hash and update password
         user.hashed_password = self.password_service.hash_password(new_password)
-        user.updated_at = datetime.utcnow()
+        user.updated_at = datetime.now(timezone.utc)
         await self.user_repository.update(user)
         
         logger.info("User password changed", user_id=str(user_id))
@@ -305,7 +305,7 @@ class UserService:
         
         # Update password
         user.hashed_password = self.password_service.hash_password(new_password)
-        user.updated_at = datetime.utcnow()
+        user.updated_at = datetime.now(timezone.utc)
         await self.user_repository.update(user)
         
         logger.info("Password reset completed", user_id=str(user_id))
@@ -364,7 +364,7 @@ class UserService:
         
         # Update role
         user.role = role
-        user.updated_at = datetime.utcnow()
+        user.updated_at = datetime.now(timezone.utc)
         updated_user = await self.user_repository.update(user)
         
         logger.info(
@@ -409,7 +409,7 @@ class UserService:
         
         # Deactivate user
         user.is_active = False
-        user.updated_at = datetime.utcnow()
+        user.updated_at = datetime.now(timezone.utc)
         await self.user_repository.update(user)
         
         logger.info(

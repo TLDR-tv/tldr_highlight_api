@@ -1,7 +1,7 @@
 """User domain model - represents platform employees."""
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional
 from uuid import UUID, uuid4
@@ -48,7 +48,7 @@ class User:
 
     def record_login(self) -> None:
         """Update last login timestamp."""
-        self.last_login_at = datetime.utcnow()
+        self.last_login_at = datetime.now(timezone.utc)
 
     def __str__(self) -> str:
         """String representation."""

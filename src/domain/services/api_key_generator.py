@@ -2,7 +2,7 @@
 
 import secrets
 import string
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Tuple
 from uuid import UUID, uuid4
 
@@ -62,5 +62,5 @@ class APIKeyGenerator:
             key=key,
             prefix=prefix,
             scopes=scopes,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
         )

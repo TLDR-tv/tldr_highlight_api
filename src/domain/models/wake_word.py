@@ -1,7 +1,7 @@
 """Wake word domain model - triggers for clip generation."""
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID, uuid4
 
@@ -43,13 +43,13 @@ class WakeWord:
         if not self.last_triggered_at:
             return True
 
-        time_since_last = (datetime.utcnow() - self.last_triggered_at).total_seconds()
+        time_since_last = (datetime.now(timezone.utc) - self.last_triggered_at).total_seconds()
         return time_since_last >= self.cooldown_seconds
 
     def record_trigger(self) -> None:
         """Record that the wake word was triggered."""
         self.trigger_count += 1
-        self.last_triggered_at = datetime.utcnow()
+        self.last_triggered_at = datetime.now(timezone.utc)
 
     def matches(self, text: str) -> bool:
         """Check if text contains this wake word."""

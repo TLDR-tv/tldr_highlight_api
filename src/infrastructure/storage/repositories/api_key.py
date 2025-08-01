@@ -41,6 +41,11 @@ class APIKeyRepository:
 
         return self._to_entity(model)
 
+    # Alias for compatibility with tests
+    async def create(self, entity: APIKey) -> APIKey:
+        """Create new API key (alias for add)."""
+        return await self.add(entity)
+
     async def get(self, id: UUID) -> Optional[APIKey]:
         """Get API key by ID."""
         model = await self.session.get(APIKeyModel, id)

@@ -1,7 +1,7 @@
 """API key domain model - secure access tokens."""
 
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from uuid import UUID, uuid4
 import secrets
@@ -63,7 +63,7 @@ class APIKey:
         """Check if key has expired."""
         if not self.expires_at:
             return False
-        return datetime.utcnow() > self.expires_at
+        return datetime.now(timezone.utc) > self.expires_at
 
     @property
     def is_valid(self) -> bool:
@@ -76,17 +76,17 @@ class APIKey:
 
     def record_usage(self) -> None:
         """Record that the key was used."""
-        self.last_used_at = datetime.utcnow()
+        self.last_used_at = datetime.now(timezone.utc)
         self.usage_count += 1
 
     def revoke(self) -> None:
         """Revoke the API key."""
         self.is_active = False
-        self.revoked_at = datetime.utcnow()
+        self.revoked_at = datetime.now(timezone.utc)
 
     def set_expiration(self, days: int) -> None:
         """Set key to expire after specified days."""
-        self.expires_at = datetime.utcnow() + timedelta(days=days)
+        self.expires_at = datetime.now(timezone.utc) + timedelta(days=days)
 
 
 # Common scopes

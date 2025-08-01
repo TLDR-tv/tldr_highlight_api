@@ -37,6 +37,11 @@ class UserRepository:
 
         return self._to_entity(model)
 
+    # Alias for compatibility with tests
+    async def create(self, entity: User) -> User:
+        """Create new user (alias for add)."""
+        return await self.add(entity)
+
     async def get(self, id: UUID) -> Optional[User]:
         """Get user by ID."""
         model = await self.session.get(UserModel, id)

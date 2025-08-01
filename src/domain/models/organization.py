@@ -1,7 +1,7 @@
 """Organization domain model - represents B2B customers."""
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID, uuid4
 
@@ -14,8 +14,8 @@ class Organization:
     name: str = ""
     slug: str = ""  # URL-friendly identifier
     is_active: bool = True
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Usage tracking (for future billing)
     total_streams_processed: int = 0
