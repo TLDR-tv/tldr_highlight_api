@@ -1,6 +1,7 @@
 """FastAPI dependency injection."""
 
 from typing import AsyncGenerator, Optional, Annotated
+from uuid import UUID
 from fastapi import Depends, HTTPException, status, Header
 from sqlalchemy.ext.asyncio import AsyncSession
 from contextvars import ContextVar
@@ -171,25 +172,76 @@ def require_scope(required_scope: str):
     return check_scope
 
 
+# JWT authentication dependencies
+async def get_jwt_service(settings: Settings = Depends(get_settings_dep)) -> JWTURLSigner:
+    """Get JWT service for user authentication."""
+    from ..infrastructure.security.jwt_service import JWTService
+    return JWTService(settings)
+
+
 # User authentication (for web interface)
 async def get_current_user(
-    # This would typically check JWT token from cookie or header
-    # For now, returning None
+    authorization: Annotated[Optional[str], Header()] = None,
+    jwt_service = Depends(get_jwt_service),
     user_repository: UserRepository = Depends(get_user_repository),
 ) -> Optional[User]:
-    """Get current authenticated user."""
-    # TODO: Implement JWT-based user authentication
+    """Get current authenticated user from JWT token."""
+    if not authorization:
+        return None
+    
+    # Extract token from "Bearer <token>"
+    try:
+        scheme, token = authorization.split()
+        if scheme.lower() != "bearer":
+            return None
+    except ValueError:
+        return None
+    
+    # Verify token
+    token_payload = jwt_service.verify_access_token(token)
+    if not token_payload:
+        return None
+    
+    # Get user
+    user_id = UUID(token_payload.sub)
+    user = await user_repository.get(user_id)
+    
+    # Set in context
+    if user and user.is_active:
+        current_user.set(user)
+        return user
+    
     return None
 
 
-async def require_admin_user(user: Optional[User] = Depends(get_current_user)) -> User:
-    """Require authenticated admin user."""
+async def require_user(user: Optional[User] = Depends(get_current_user)) -> User:
+    """Require authenticated user."""
     if not user:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required",
+            headers={"WWW-Authenticate": "Bearer"},
         )
+    return user
+
+
+async def require_admin_user(user: User = Depends(require_user)) -> User:
+    """Require authenticated admin user."""
     if not user.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required"
+        )
+    return user
+
+
+async def require_org_member(
+    org_id: UUID,
+    user: User = Depends(require_user),
+) -> User:
+    """Require user to be member of specific organization."""
+    if user.organization_id != org_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied",
         )
     return user

@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from structlog import get_logger
 
-from .routes import auth, streams, highlights, organizations, webhooks, health
+from .routes import auth, users, streams, highlights, organizations, webhooks, health
 from .middleware.logging import LoggingMiddleware
 from ..infrastructure.config import get_settings
 
@@ -36,6 +36,7 @@ def create_app() -> FastAPI:
     # Routes
     app.include_router(health.router, tags=["health"])
     app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
+    app.include_router(users.router, prefix="/api/v1/users", tags=["users"])
     app.include_router(
         organizations.router, prefix="/api/v1/organizations", tags=["organizations"]
     )
