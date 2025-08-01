@@ -14,7 +14,7 @@ from typing import List, Dict, Any, Optional
 from ..media.ffmpeg_segmenter import SegmentInfo
 from ...domain.entities.video_segment import VideoSegment
 from ...domain.entities.detected_highlight import DetectedHighlight
-from ...domain.services.highlight_analysis_service import HighlightAnalysisService
+from ...domain.services.highlight_analyzer import HighlightAnalyzer
 from ...domain.entities.dimension_set_aggregate import DimensionSetAggregate
 from ...domain.entities.highlight_agent_config import HighlightAgentConfig
 
@@ -61,7 +61,7 @@ class StreamProcessor:
     def __init__(
         self,
         config: StreamProcessorConfig,
-        highlight_service: HighlightAnalysisService,
+        highlight_service: HighlightAnalyzer,
         stream_id: int
     ):
         """Initialize the stream processor.

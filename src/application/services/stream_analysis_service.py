@@ -13,7 +13,7 @@ from ...domain.entities.video_segment import VideoSegment
 from ...domain.entities.dimension_set_aggregate import DimensionSetAggregate
 from ...domain.entities.highlight_agent_config import HighlightAgentConfig
 from ...domain.entities.detected_highlight import DetectedHighlight
-from ...domain.services.highlight_analysis_service import HighlightAnalysisService
+from ...domain.services.highlight_analyzer import HighlightAnalyzer
 from ...domain.repositories.stream_repository import StreamRepository
 from ...domain.repositories.highlight_repository import HighlightRepository
 from ...infrastructure.ingestion.stream_segmenter import StreamSegmenter, SegmentInfo
@@ -25,14 +25,14 @@ class StreamAnalysisService:
     
     This service acts as the coordinator between:
     - Infrastructure layer (StreamSegmenter for FFmpeg operations)
-    - Domain layer (HighlightAnalysisService for business logic)
+    - Domain layer (HighlightAnalyzer for business logic)
     - Repositories for persistence
     """
     
     def __init__(
         self,
         segmenter: StreamSegmenter,
-        highlight_service: HighlightAnalysisService,
+        highlight_service: HighlightAnalyzer,
         stream_repo: StreamRepository,
         highlight_repo: HighlightRepository
     ):

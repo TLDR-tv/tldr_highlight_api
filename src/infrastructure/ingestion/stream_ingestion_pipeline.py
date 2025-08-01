@@ -107,7 +107,7 @@ class StreamIngestionPipeline:
         )
         
         # Initialize domain services
-        from ...domain.services.highlight_analysis_service import HighlightAnalysisService
+        from ...domain.services.highlight_analyzer import HighlightAnalyzer
         from ..ai_adapters.gemini_analyzer import GeminiAIAnalyzer
         
         # Create AI analyzer adapter
@@ -117,7 +117,7 @@ class StreamIngestionPipeline:
         )
         
         # Create domain highlight analysis service
-        highlight_service = HighlightAnalysisService(
+        highlight_service = HighlightAnalyzer(
             ai_analyzer=ai_analyzer,
             processing_options=None  # Use defaults
         )
