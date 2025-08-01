@@ -756,9 +756,6 @@ def detect_highlights_with_ai(
                                                 video_path=clip_path,
                                                 output_dir=ingestion_data["temp_dir"],
                                             )
-                                            caption = await caption_generator.generate_caption(
-                                                video_path=clip_path
-                                            )
 
                                             # Upload to S3
                                             clip_url = await s3_storage.upload_file(
@@ -773,7 +770,6 @@ def detect_highlights_with_ai(
                                             # Update highlight with URLs and caption
                                             highlight.video_url = clip_url
                                             highlight.thumbnail_url = thumbnail_url
-                                            highlight.caption = caption
 
                                             all_highlights.append(highlight)
                                             segment_highlights.append(highlight)

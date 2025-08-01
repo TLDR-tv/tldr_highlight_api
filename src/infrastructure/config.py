@@ -118,15 +118,10 @@ class CeleryConfig(BaseModel):
 class ExternalAPIsConfig(BaseModel):
     """External API keys configuration."""
 
-    openai_api_key: SecretStr = Field(default="", description="OpenAI API key")
+    # Only Gemini is actually used in the codebase
     google_gemini_api_key: SecretStr = Field(
         default="", description="Google Gemini API key"
     )
-    twitch_client_id: str = Field(default="", description="Twitch client ID")
-    twitch_client_secret: SecretStr = Field(
-        default="", description="Twitch client secret"
-    )
-    youtube_api_key: SecretStr = Field(default="", description="YouTube API key")
 
 
 class GeminiConfig(BaseModel):
@@ -236,22 +231,6 @@ class FeatureFlagsConfig(BaseModel):
 
     enable_webhooks: bool = Field(
         default=True, description="Enable webhook functionality"
-    )
-    enable_batch_processing: bool = Field(
-        default=True, description="Enable batch processing"
-    )
-    enable_real_time_processing: bool = Field(
-        default=True, description="Enable real-time stream processing"
-    )
-    use_gemini_for_video: bool = Field(
-        default=True,
-        env="USE_GEMINI_FOR_VIDEO",
-        description="Use Gemini for video analysis (always True)",
-    )
-    gemini_fallback_enabled: bool = Field(
-        default=False,
-        env="GEMINI_FALLBACK_ENABLED",
-        description="Enable fallback when Gemini fails",
     )
 
 

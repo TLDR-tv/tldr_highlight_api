@@ -16,11 +16,8 @@ class HighlightFilters(BaseModel):
     stream_id: Optional[int] = Field(
         default=None, description="Filter by specific stream ID"
     )
-    batch_id: Optional[int] = Field(
-        default=None, description="Filter by specific batch ID"
-    )
     source_type: Optional[SourceType] = Field(
-        default=None, description="Filter by source type (stream, batch)"
+        default=None, description="Filter by source type (stream)"
     )
 
     # Content filters
@@ -99,7 +96,7 @@ class HighlightSearch(BaseModel):
         default=False, description="Include highlights with confidence < 0.7"
     )
     group_by_source: bool = Field(
-        default=False, description="Group results by source stream/batch"
+        default=False, description="Group results by source stream"
     )
 
     class Config:
@@ -150,7 +147,6 @@ class HighlightResponse(BaseModel):
 
     id: int = Field(description="Unique highlight identifier")
     stream_id: Optional[int] = Field(description="Source stream ID")
-    batch_id: Optional[int] = Field(description="Source batch ID")
     title: str = Field(description="Highlight title")
     description: Optional[str] = Field(description="Highlight description")
     video_url: str = Field(description="URL to highlight video")
@@ -163,7 +159,7 @@ class HighlightResponse(BaseModel):
     created_at: datetime = Field(description="Creation timestamp")
 
     # Computed fields
-    source_type: str = Field(description="Source type (stream/batch)")
+    source_type: str = Field(description="Source type (stream)")
     is_high_confidence: bool = Field(description="Whether confidence > 0.8")
     download_url: Optional[str] = Field(
         default=None, description="Presigned download URL (if requested)"
@@ -175,7 +171,6 @@ class HighlightResponse(BaseModel):
             "example": {
                 "id": 12345,
                 "stream_id": 123,
-                "batch_id": None,
                 "title": "Epic Gaming Moment",
                 "description": "Player makes incredible comeback",
                 "video_url": "https://storage.example.com/highlights/12345.mp4",

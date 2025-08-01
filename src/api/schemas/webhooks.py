@@ -33,11 +33,7 @@ class WebhookCreate(BaseModel):
             "stream.started",
             "stream.completed",
             "stream.failed",
-            "batch.started",
-            "batch.completed",
-            "batch.failed",
             "highlight.created",
-            "highlight.batch_ready",
             "*",  # Subscribe to all events
         }
 
@@ -96,11 +92,7 @@ class WebhookUpdate(BaseModel):
             "stream.started",
             "stream.completed",
             "stream.failed",
-            "batch.started",
-            "batch.completed",
-            "batch.failed",
             "highlight.created",
-            "highlight.batch_ready",
             "*",
         }
 
@@ -115,7 +107,7 @@ class WebhookUpdate(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "events": ["stream.completed", "batch.completed", "highlight.created"],
+                "events": ["stream.completed", "highlight.created"],
                 "active": True,
             }
         }
@@ -137,11 +129,7 @@ class WebhookTest(BaseModel):
             "stream.started",
             "stream.completed",
             "stream.failed",
-            "batch.started",
-            "batch.completed",
-            "batch.failed",
             "highlight.created",
-            "highlight.batch_ready",
         }
 
         if v not in valid_events:

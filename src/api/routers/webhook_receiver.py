@@ -77,7 +77,7 @@ async def receive_stream_webhook(
 
             # For stream started events, validate the payload
             if event_type == WebhookEventType.STREAM_STARTED.value:
-                webhook_event = StreamStartedWebhookEvent(
+                StreamStartedWebhookEvent(
                     event_id=payload.get(
                         "event_id", f"webhook_{datetime.utcnow().timestamp()}"
                     ),

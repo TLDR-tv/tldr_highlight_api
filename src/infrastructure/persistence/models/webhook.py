@@ -21,11 +21,7 @@ class WebhookEvent(str):
     STREAM_STARTED = "stream.started"
     STREAM_COMPLETED = "stream.completed"
     STREAM_FAILED = "stream.failed"
-    BATCH_STARTED = "batch.started"
-    BATCH_COMPLETED = "batch.completed"
-    BATCH_FAILED = "batch.failed"
     HIGHLIGHT_CREATED = "highlight.created"
-    HIGHLIGHT_BATCH_READY = "highlight.batch_ready"
 
 
 class Webhook(Base, TimestampMixin):

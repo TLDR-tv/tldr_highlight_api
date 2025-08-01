@@ -140,7 +140,6 @@ class OrganizationUsageStats(BaseModel):
         description="Usage statistics for the current month",
         example={
             "streams_processed": 45,
-            "batch_videos_processed": 230,
             "total_api_calls": 1250,
             "storage_used_gb": 15,
         },

@@ -102,7 +102,6 @@ class SourceType(str, Enum):
     """Source type for highlights."""
 
     STREAM = "stream"
-    BATCH = "batch"
 
     def __str__(self) -> str:
         return self.value

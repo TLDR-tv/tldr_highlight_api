@@ -334,7 +334,6 @@ truly noteworthy moments.
             dimension_scores = {}
             for dim_id, score_value in highlight.dimension_scores.items():
                 if dim_id in dimension_set.dimensions:
-                    dimension_def = dimension_set.dimensions[dim_id]
                     dimension_scores[dim_id] = DimensionScore(
                         dimension_id=dim_id,
                         value=float(score_value),

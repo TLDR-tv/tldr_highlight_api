@@ -119,7 +119,6 @@ def create_app() -> FastAPI:
             },
             {"name": "auth", "description": "Authentication and API key management"},
             {"name": "streams", "description": "Livestream processing and management"},
-            {"name": "batches", "description": "Batch video processing operations"},
             {"name": "highlights", "description": "Highlight access and management"},
             {"name": "webhooks", "description": "Webhook configuration and management"},
             {

@@ -20,7 +20,6 @@ class UsageRecordType(str):
     """Types of usage records for billing."""
 
     STREAM_PROCESSED = "stream_processed"
-    BATCH_VIDEO_PROCESSED = "batch_video_processed"
     HIGHLIGHT_GENERATED = "highlight_generated"
     API_CALL = "api_call"
     STORAGE_USED = "storage_used"

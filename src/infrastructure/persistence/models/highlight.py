@@ -1,7 +1,7 @@
 """Highlight model for extracted video highlights.
 
 This module defines the Highlight model which represents
-extracted highlights from streams or batch videos.
+extracted highlights from streams.
 """
 
 from datetime import datetime
@@ -13,7 +13,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.infrastructure.persistence.models.base import Base
 
 if TYPE_CHECKING:
-    from src.infrastructure.persistence.models.batch import Batch
     from src.infrastructure.persistence.models.stream import Stream
 
 
@@ -25,8 +24,7 @@ class Highlight(Base):
 
     Attributes:
         id: Unique identifier for the highlight
-        stream_id: Foreign key to the stream (if from stream)
-        batch_id: Foreign key to the batch (if from batch)
+        stream_id: Foreign key to the stream
         title: Title of the highlight
         description: Description of the highlight
         video_url: URL to the highlight video clip
@@ -45,18 +43,11 @@ class Highlight(Base):
         primary_key=True, comment="Unique identifier for the highlight"
     )
 
-    stream_id: Mapped[Optional[int]] = mapped_column(
+    stream_id: Mapped[int] = mapped_column(
         ForeignKey("streams.id", ondelete="CASCADE"),
-        nullable=True,
+        nullable=False,
         index=True,
-        comment="Foreign key to the stream (if from stream)",
-    )
-
-    batch_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("batches.id", ondelete="CASCADE"),
-        nullable=True,
-        index=True,
-        comment="Foreign key to the batch (if from batch)",
+        comment="Foreign key to the stream",
     )
 
     title: Mapped[str] = mapped_column(
@@ -161,22 +152,15 @@ class Highlight(Base):
         "Stream", back_populates="highlights", lazy="joined"
     )
 
-    batch: Mapped[Optional["Batch"]] = relationship(
-        "Batch", back_populates="highlights", lazy="joined"
-    )
 
     @property
     def source_type(self) -> str:
         """Get the source type of the highlight.
 
         Returns:
-            str: Either 'stream' or 'batch'
+            str: Always 'stream'
         """
-        if self.stream_id:
-            return "stream"
-        elif self.batch_id:
-            return "batch"
-        return "unknown"
+        return "stream"
 
     def is_high_confidence(self, threshold: float = 0.8) -> bool:
         """Check if this is a high confidence highlight.
