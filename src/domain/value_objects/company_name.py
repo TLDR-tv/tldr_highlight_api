@@ -26,30 +26,42 @@ class CompanyName:
 
     def __post_init__(self) -> None:
         """Validate company name after initialization."""
-        # Strip and normalize whitespace
-        normalized = " ".join(self.value.strip().split())
+        # Validate without mutation
+        normalized = self._normalize(self.value)
+        self._validate(normalized)
 
-        if not normalized:
+    @classmethod
+    def create(cls, value: str) -> "CompanyName":
+        """Factory method to create a normalized CompanyName."""
+        normalized = cls._normalize(value)
+        cls._validate(normalized)
+        return cls(normalized)
+
+    @staticmethod
+    def _normalize(value: str) -> str:
+        """Normalize whitespace in company name."""
+        return " ".join(value.strip().split())
+
+    @classmethod
+    def _validate(cls, value: str) -> None:
+        """Validate company name."""
+        if not value:
             raise InvalidValueError("Company name cannot be empty")
 
-        if len(normalized) < self.MIN_LENGTH:
+        if len(value) < cls.MIN_LENGTH:
             raise InvalidValueError(
-                f"Company name must be at least {self.MIN_LENGTH} characters long"
+                f"Company name must be at least {cls.MIN_LENGTH} characters long"
             )
 
-        if len(normalized) > self.MAX_LENGTH:
+        if len(value) > cls.MAX_LENGTH:
             raise InvalidValueError(
-                f"Company name cannot exceed {self.MAX_LENGTH} characters"
+                f"Company name cannot exceed {cls.MAX_LENGTH} characters"
             )
 
-        if self.INVALID_PATTERN.search(normalized):
+        if cls.INVALID_PATTERN.search(value):
             raise InvalidValueError(
-                f"Company name contains invalid characters: {self.value}"
+                f"Company name contains invalid characters: {value}"
             )
-
-        # Update value with normalized version
-        if normalized != self.value:
-            object.__setattr__(self, "value", normalized)
 
     @property
     def slug(self) -> str:

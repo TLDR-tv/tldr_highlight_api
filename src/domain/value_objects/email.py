@@ -1,8 +1,7 @@
 """Email value object."""
 
 from dataclasses import dataclass
-import re
-from typing import ClassVar
+from email.utils import parseaddr
 
 from src.domain.exceptions import InvalidValueError
 
@@ -12,27 +11,55 @@ class Email:
     """Value object representing an email address.
 
     This is an immutable value object that ensures email addresses
-    are valid according to a basic pattern.
+    are valid according to basic validation rules using stdlib.
     """
 
     value: str
-
-    # Email validation pattern
-    _PATTERN: ClassVar[re.Pattern] = re.compile(
-        r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
-    )
 
     def __post_init__(self) -> None:
         """Validate email format after initialization."""
         if not self._is_valid_email(self.value):
             raise InvalidValueError(f"Invalid email format: {self.value}")
 
-    @classmethod
-    def _is_valid_email(cls, email: str) -> bool:
-        """Check if email matches the validation pattern."""
+    @staticmethod
+    def _is_valid_email(email: str) -> bool:
+        """Check if email has valid format using stdlib."""
         if not email or not isinstance(email, str):
             return False
-        return bool(cls._PATTERN.match(email.strip()))
+        
+        # Basic validation using parseaddr
+        parsed = parseaddr(email.strip())
+        
+        # parseaddr returns ('', '') for invalid emails
+        if not parsed[1]:
+            return False
+            
+        # Check for @ symbol
+        if '@' not in parsed[1]:
+            return False
+            
+        # Check basic structure
+        local, domain = parsed[1].rsplit('@', 1)
+        
+        # Validate local part
+        if not local or len(local) > 64:
+            return False
+            
+        # Validate domain
+        if not domain or '.' not in domain:
+            return False
+            
+        # Check domain parts
+        domain_parts = domain.split('.')
+        if len(domain_parts) < 2:
+            return False
+            
+        # Each part should have at least one character
+        for part in domain_parts:
+            if not part or len(part) > 63:
+                return False
+                
+        return True
 
     @property
     def domain(self) -> str:

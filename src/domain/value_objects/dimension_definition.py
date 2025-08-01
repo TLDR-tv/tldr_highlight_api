@@ -40,7 +40,6 @@ class DimensionDefinition:
     """
 
     # Core identification
-    id: str  # Unique identifier (e.g., "skill_execution", "humor_level")
     name: str  # Human-readable name
     description: str  # Detailed description for AI and humans
 
@@ -70,11 +69,9 @@ class DimensionDefinition:
 
     def __post_init__(self) -> None:
         """Validate dimension definition."""
-        # Validate ID format
-        if not self.id or not self.id.replace("_", "").isalnum():
-            raise InvalidValueError(
-                f"Dimension ID must be alphanumeric with underscores, got '{self.id}'"
-            )
+        # Validate name
+        if not self.name or not self.name.strip():
+            raise InvalidValueError("Dimension name cannot be empty")
 
         # Validate weight
         if not 0.0 <= self.default_weight <= 1.0:
@@ -154,7 +151,6 @@ class DimensionDefinition:
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
-            "id": self.id,
             "name": self.name,
             "description": self.description,
             "dimension_type": self.dimension_type.value,
@@ -175,7 +171,6 @@ class DimensionDefinition:
     def from_dict(cls, data: Dict[str, Any]) -> "DimensionDefinition":
         """Create from dictionary."""
         return cls(
-            id=data["id"],
             name=data["name"],
             description=data["description"],
             dimension_type=DimensionType(data.get("dimension_type", "numeric")),
@@ -198,11 +193,10 @@ class DimensionDefinition:
 
     @classmethod
     def create_skill_dimension(
-        cls, id: str, name: str, description: str, skill_prompt: str = ""
+        cls, name: str, description: str, skill_prompt: str = ""
     ) -> "DimensionDefinition":
         """Create a skill/performance-based dimension."""
         return cls(
-            id=id,
             name=name,
             description=description,
             dimension_type=DimensionType.NUMERIC,
@@ -225,11 +219,10 @@ class DimensionDefinition:
 
     @classmethod
     def create_emotional_dimension(
-        cls, id: str, name: str, description: str, emotion_prompt: str = ""
+        cls, name: str, description: str, emotion_prompt: str = ""
     ) -> "DimensionDefinition":
         """Create an emotion/reaction-based dimension."""
         return cls(
-            id=id,
             name=name,
             description=description,
             dimension_type=DimensionType.NUMERIC,
@@ -247,11 +240,10 @@ class DimensionDefinition:
 
     @classmethod
     def create_contextual_dimension(
-        cls, id: str, name: str, description: str, context_prompt: str = ""
+        cls, name: str, description: str, context_prompt: str = ""
     ) -> "DimensionDefinition":
         """Create a context/situation-based dimension."""
         return cls(
-            id=id,
             name=name,
             description=description,
             dimension_type=DimensionType.NUMERIC,
@@ -269,11 +261,10 @@ class DimensionDefinition:
 
     @classmethod
     def create_binary_dimension(
-        cls, id: str, name: str, description: str, detection_prompt: str = ""
+        cls, name: str, description: str, detection_prompt: str = ""
     ) -> "DimensionDefinition":
         """Create a binary (yes/no) dimension."""
         return cls(
-            id=id,
             name=name,
             description=description,
             dimension_type=DimensionType.BINARY,
