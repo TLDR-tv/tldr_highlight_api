@@ -37,7 +37,10 @@ from src.domain.services.webhook_delivery_service import WebhookDeliveryService
 from src.domain.services.usage_tracking_service import UsageTrackingService
 
 # Import use cases
-from src.application.use_cases.authentication import AuthenticationUseCase
+from src.application.use_cases.user_registration import UserRegistrationUseCase
+from src.application.use_cases.user_login import UserLoginUseCase
+from src.application.use_cases.api_key_validation import APIKeyValidationUseCase
+from src.application.use_cases.api_key_management import APIKeyManagementUseCase
 from src.application.use_cases.stream_processing import StreamProcessingUseCase
 from src.application.use_cases.webhook_processing import WebhookProcessingUseCase
 from src.application.use_cases.user_management import UserManagementUseCase
@@ -50,6 +53,8 @@ from src.application.use_cases.webhook_configuration import WebhookConfiguration
 # Import security dependencies
 from src.infrastructure.security.url_signer import URLSigner
 from .security import get_url_signer
+from .security_services import get_password_hashing_service, get_api_key_hashing_service
+from src.domain.services.security_services import PasswordHashingService, APIKeyHashingService
 
 from .repositories import (
     get_user_repository,
@@ -73,20 +78,69 @@ from .services import (
 # Use Case Dependencies
 
 
-async def get_authentication_use_case(
+async def get_user_registration_use_case(
     user_repo: UserRepository = Depends(get_user_repository),
     api_key_repo: APIKeyRepository = Depends(get_api_key_repository),
     org_repo: OrganizationRepository = Depends(get_organization_repository),
     org_service: OrganizationManagementService = Depends(
         get_organization_management_service
     ),
-) -> AuthenticationUseCase:
-    """Get authentication use case instance."""
-    return AuthenticationUseCase(
+    password_service: PasswordHashingService = Depends(get_password_hashing_service),
+    api_key_service: APIKeyHashingService = Depends(get_api_key_hashing_service),
+) -> UserRegistrationUseCase:
+    """Get user registration use case instance."""
+    return UserRegistrationUseCase(
         user_repo=user_repo,
         api_key_repo=api_key_repo,
         org_repo=org_repo,
         org_service=org_service,
+        password_service=password_service,
+        api_key_service=api_key_service,
+    )
+
+
+async def get_user_login_use_case(
+    user_repo: UserRepository = Depends(get_user_repository),
+    api_key_repo: APIKeyRepository = Depends(get_api_key_repository),
+    org_repo: OrganizationRepository = Depends(get_organization_repository),
+    password_service: PasswordHashingService = Depends(get_password_hashing_service),
+    api_key_service: APIKeyHashingService = Depends(get_api_key_hashing_service),
+) -> UserLoginUseCase:
+    """Get user login use case instance."""
+    return UserLoginUseCase(
+        user_repo=user_repo,
+        api_key_repo=api_key_repo,
+        org_repo=org_repo,
+        password_service=password_service,
+        api_key_service=api_key_service,
+    )
+
+
+async def get_api_key_validation_use_case(
+    api_key_repo: APIKeyRepository = Depends(get_api_key_repository),
+    org_repo: OrganizationRepository = Depends(get_organization_repository),
+    api_key_service: APIKeyHashingService = Depends(get_api_key_hashing_service),
+) -> APIKeyValidationUseCase:
+    """Get API key validation use case instance."""
+    return APIKeyValidationUseCase(
+        api_key_repo=api_key_repo,
+        org_repo=org_repo,
+        api_key_service=api_key_service,
+    )
+
+
+async def get_api_key_management_use_case(
+    api_key_repo: APIKeyRepository = Depends(get_api_key_repository),
+    user_repo: UserRepository = Depends(get_user_repository),
+    org_repo: OrganizationRepository = Depends(get_organization_repository),
+    api_key_service: APIKeyHashingService = Depends(get_api_key_hashing_service),
+) -> APIKeyManagementUseCase:
+    """Get API key management use case instance."""
+    return APIKeyManagementUseCase(
+        api_key_repo=api_key_repo,
+        user_repo=user_repo,
+        org_repo=org_repo,
+        api_key_service=api_key_service,
     )
 
 

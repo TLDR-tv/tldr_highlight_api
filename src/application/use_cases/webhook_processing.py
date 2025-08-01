@@ -184,9 +184,8 @@ class WebhookProcessingUseCase(UseCase[ProcessWebhookRequest, ProcessWebhookResu
             or request.headers.get("signature")
         )
 
-        timestamp = (
-            request.headers.get("x-webhook-timestamp")
-            or request.headers.get("timestamp")
+        timestamp = request.headers.get("x-webhook-timestamp") or request.headers.get(
+            "timestamp"
         )
 
         if not signature:
@@ -276,7 +275,7 @@ class WebhookProcessingUseCase(UseCase[ProcessWebhookRequest, ProcessWebhookResu
         stream_request = StreamStartRequest(
             user_id=user_id,
             url=stream_event.stream_url,
-            title=stream_event.metadata.title or f"Stream from webhook",
+            title=stream_event.metadata.title or "Stream from webhook",
             platform="custom",  # All webhook streams are treated as custom
             processing_options={
                 "webhook_event_id": webhook_event.id,

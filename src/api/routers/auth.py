@@ -3,7 +3,7 @@
 This module provides endpoints for API key management and authentication.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 
 from src.api.schemas.common import COMMON_RESPONSES, StatusResponse
@@ -16,9 +16,16 @@ from src.api.schemas.auth import (
 )
 from src.api.schemas.users import UserRegistrationRequest, UserRegistrationResponse
 from src.api.mappers.auth_mapper import RegisterMapper, LoginMapper, APIKeyMapper
-from src.api.dependencies import get_authentication_use_case, CurrentUser
+from src.api.dependencies import (
+    get_user_registration_use_case,
+    get_user_login_use_case,
+    get_api_key_management_use_case,
+    CurrentUser,
+)
 from src.infrastructure.security import create_access_token
-from src.application.use_cases.authentication import AuthenticationUseCase
+from src.application.use_cases.user_registration import UserRegistrationUseCase
+from src.application.use_cases.user_login import UserLoginUseCase
+from src.application.use_cases.api_key_management import APIKeyManagementUseCase
 from src.domain.exceptions import (
     DuplicateEntityError,
     EntityNotFoundError,
@@ -43,7 +50,7 @@ async def auth_status() -> StatusResponse:
         StatusResponse: Authentication service status
     """
     return StatusResponse(
-        status="Authentication service operational", timestamp=datetime.utcnow()
+        status="Authentication service operational", timestamp=datetime.now(timezone.utc)
     )
 
 
@@ -57,7 +64,7 @@ async def auth_status() -> StatusResponse:
 )
 async def register(
     request: UserRegistrationRequest,
-    auth_use_case: AuthenticationUseCase = Depends(get_authentication_use_case),
+    registration_use_case: UserRegistrationUseCase = Depends(get_user_registration_use_case),
 ) -> UserRegistrationResponse:
     """Register a new user.
 
@@ -69,7 +76,7 @@ async def register(
         domain_request = mapper.to_domain(request)
 
         # Execute use case
-        result = await auth_use_case.register(domain_request)
+        result = await registration_use_case.execute(domain_request)
 
         if not result.is_success:
             raise HTTPException(
@@ -95,7 +102,7 @@ async def register(
             id=result.user_id,
             email=request.email,
             company_name=request.company_name,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
             access_token=access_token,
             token_type="bearer",
             expires_in=3600,
@@ -118,7 +125,7 @@ async def register(
 )
 async def login(
     request: LoginRequestDTO,
-    auth_use_case: AuthenticationUseCase = Depends(get_authentication_use_case),
+    login_use_case: UserLoginUseCase = Depends(get_user_login_use_case),
 ) -> LoginResponse:
     """Authenticate user and return access token."""
     try:
@@ -127,7 +134,7 @@ async def login(
         domain_request = login_mapper.to_domain(request)
 
         # Execute use case
-        result = await auth_use_case.login(domain_request)
+        result = await login_use_case.execute(domain_request)
 
         if not result.is_success:
             raise HTTPException(
@@ -166,7 +173,7 @@ async def login(
 async def create_api_key(
     request: APIKeyCreate,
     current_user: CurrentUser,
-    auth_use_case: AuthenticationUseCase = Depends(get_authentication_use_case),
+    api_key_use_case: APIKeyManagementUseCase = Depends(get_api_key_management_use_case),
 ) -> APIKeyCreateResponse:
     """Create a new API key.
 
@@ -178,12 +185,14 @@ async def create_api_key(
         domain_scopes = api_key_mapper.to_domain_scopes(request.scopes)
 
         # Create API key
-        result = await auth_use_case.create_api_key(
+        from src.application.use_cases.api_key_management import CreateAPIKeyRequest
+        create_request = CreateAPIKeyRequest(
             user_id=current_user.id,
             name=request.name,
             scopes=domain_scopes,
             expires_at=request.expires_at,
         )
+        result = await api_key_use_case.create_api_key(create_request)
 
         if not result.is_success:
             raise HTTPException(
@@ -219,11 +228,11 @@ async def create_api_key(
 )
 async def list_api_keys(
     current_user: CurrentUser,
-    auth_use_case: AuthenticationUseCase = Depends(get_authentication_use_case),
+    api_key_use_case: APIKeyManagementUseCase = Depends(get_api_key_management_use_case),
 ) -> APIKeyListResponse:
     """List API keys for the authenticated user."""
     # Get API keys from use case
-    result = await auth_use_case.list_api_keys(current_user.id)
+    result = await api_key_use_case.list_api_keys(current_user.id)
 
     if not result.is_success:
         raise HTTPException(
@@ -248,14 +257,14 @@ async def list_api_keys(
 async def revoke_api_key(
     key_id: int,
     current_user: CurrentUser,
-    auth_use_case: AuthenticationUseCase = Depends(get_authentication_use_case),
+    api_key_use_case: APIKeyManagementUseCase = Depends(get_api_key_management_use_case),
 ) -> None:
     """Revoke an API key.
 
     The key will be deactivated and can no longer be used.
     """
     try:
-        result = await auth_use_case.revoke_api_key(
+        result = await api_key_use_case.revoke_api_key(
             user_id=current_user.id, api_key_id=key_id
         )
 
@@ -284,7 +293,7 @@ async def rotate_api_key(
     key_id: int,
     current_user: CurrentUser,
     background_tasks: BackgroundTasks,
-    auth_use_case: AuthenticationUseCase = Depends(get_authentication_use_case),
+    api_key_use_case: APIKeyManagementUseCase = Depends(get_api_key_management_use_case),
 ) -> APIKeyCreateResponse:
     """Rotate an API key.
 
@@ -292,7 +301,7 @@ async def rotate_api_key(
     The old key remains valid for a grace period.
     """
     try:
-        result = await auth_use_case.rotate_api_key(
+        result = await api_key_use_case.rotate_api_key(
             user_id=current_user.id, api_key_id=key_id
         )
 
