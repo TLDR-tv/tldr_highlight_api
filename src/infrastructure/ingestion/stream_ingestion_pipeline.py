@@ -1,18 +1,19 @@
-"""Stream ingestion pipeline using FFmpeg segmentation.
+"""Stream ingestion pipeline that orchestrates segmentation and processing.
 
-This module provides a streamlined pipeline that uses FFmpeg's segment muxer
-for efficient and reliable stream processing.
+This module combines the StreamSegmenter and StreamProcessor to provide
+a complete stream analysis pipeline.
 """
 
 import asyncio
 import logging
 import tempfile
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import AsyncIterator, Dict, List, Optional, Any, Callable
+from typing import AsyncIterator, Dict, Optional, Any, Callable, List
 
-from ..media.ffmpeg_segmenter import FFmpegSegmenter, SegmentConfig, SegmentInfo
+from .stream_segmenter import StreamSegmenter, StreamSegmenterConfig
+from .stream_processor import StreamProcessor, StreamProcessorConfig, ProcessingResult
 from ..content_processing.gemini_video_processor import GeminiVideoProcessor
 from ...domain.entities.dimension_set_aggregate import DimensionSetAggregate
 from ...domain.entities.highlight_agent_config import HighlightAgentConfig
@@ -30,7 +31,8 @@ class StreamIngestionConfig:
     
     # Segmentation settings
     segment_duration: int = 30  # seconds
-    segment_overlap: int = 5   # seconds for overlap processing
+    segment_format: str = "mp4"
+    force_keyframe_interval: int = 2
     
     # Processing settings
     enable_audio_processing: bool = True
@@ -39,32 +41,19 @@ class StreamIngestionConfig:
     
     # Output settings
     temp_dir: Optional[Path] = None
-    keep_processed_segments: bool = False
+    segment_retention_count: int = 10
     
-    # Retry settings
+    # Connection settings
     retry_attempts: int = 3
     retry_delay: float = 5.0
-
-
-@dataclass
-class ProcessingResult:
-    """Result from processing a segment."""
-    
-    segment_index: int
-    segment_path: Path
-    start_time: float
-    end_time: float
-    highlights: List[Dict[str, Any]] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    error: Optional[str] = None
-    processing_time: float = 0.0
+    reconnect_on_error: bool = True
 
 
 class StreamIngestionPipeline:
-    """Stream ingestion pipeline using FFmpeg's segment muxer.
+    """Orchestrates stream segmentation and processing.
     
-    This pipeline uses FFmpeg's built-in segmentation capabilities for
-    robust and efficient stream processing.
+    This pipeline combines StreamSegmenter for ingesting and segmenting streams
+    with StreamProcessor for analyzing segments and detecting highlights.
     """
     
     def __init__(
@@ -85,9 +74,6 @@ class StreamIngestionPipeline:
             progress_callback: Optional callback for progress updates
         """
         self.config = config
-        self.gemini_processor = gemini_processor
-        self.dimension_set = dimension_set
-        self.agent_config = agent_config
         self.progress_callback = progress_callback
         
         # Set up temp directory
@@ -98,40 +84,48 @@ class StreamIngestionPipeline:
             self._temp_dir_obj = tempfile.TemporaryDirectory()
             self.temp_dir = Path(self._temp_dir_obj.name)
         
-        # Create segment output directory
-        self.segment_dir = self.temp_dir / f"stream_{config.stream_id}"
-        self.segment_dir.mkdir(parents=True, exist_ok=True)
-        
         # Initialize segmenter
-        segment_config = SegmentConfig(
+        segmenter_config = StreamSegmenterConfig(
+            stream_url=config.stream_url,
+            stream_id=config.stream_id,
+            output_dir=self.temp_dir,
             segment_duration=config.segment_duration,
-            force_keyframe_every=2,  # Force keyframe every 2 seconds
-            video_codec="copy",      # Don't re-encode
-            audio_codec="copy",
-            delete_threshold=10 if config.delete_segments_after_processing else None
+            segment_format=config.segment_format,
+            force_keyframe_interval=config.force_keyframe_interval,
+            delete_old_segments=config.delete_segments_after_processing,
+            segment_retention_count=config.segment_retention_count,
+            retry_attempts=config.retry_attempts,
+            retry_delay=config.retry_delay,
+            reconnect_on_error=config.reconnect_on_error
         )
         
-        self.segmenter = FFmpegSegmenter(
-            output_dir=self.segment_dir,
-            config=segment_config,
+        self.segmenter = StreamSegmenter(
+            config=segmenter_config,
             segment_callback=self._on_segment_created
         )
         
-        # Processing state
-        self._processing_semaphore = asyncio.Semaphore(config.max_concurrent_processing)
-        self._processing_tasks: List[asyncio.Task] = []
-        self._results: List[ProcessingResult] = []
+        # Initialize processor
+        processor_config = StreamProcessorConfig(
+            enable_audio_processing=config.enable_audio_processing,
+            max_concurrent_processing=config.max_concurrent_processing,
+            delete_after_processing=config.delete_segments_after_processing
+        )
+        
+        self.processor = StreamProcessor(
+            config=processor_config,
+            gemini_processor=gemini_processor,
+            dimension_set=dimension_set,
+            agent_config=agent_config
+        )
+        
+        # Pipeline state
         self._shutdown = False
+        self._processing_tasks: List[asyncio.Task] = []
         
         # Statistics
         self.stats = {
-            "segments_created": 0,
-            "segments_processed": 0,
-            "highlights_found": 0,
-            "processing_errors": 0,
-            "total_processing_time": 0.0,
-            "start_time": None,
-            "end_time": None
+            "pipeline_started": None,
+            "pipeline_stopped": None
         }
         
         logger.info(f"Initialized StreamIngestionPipeline for stream {config.stream_id}")
@@ -139,39 +133,46 @@ class StreamIngestionPipeline:
     async def start(self) -> AsyncIterator[ProcessingResult]:
         """Start the ingestion pipeline and yield results."""
         try:
-            self.stats["start_time"] = datetime.now(timezone.utc)
-            logger.info(f"Starting ingestion for stream: {self.config.stream_url}")
+            self.stats["pipeline_started"] = datetime.now(timezone.utc)
+            logger.info(f"Starting ingestion pipeline for stream: {self.config.stream_url}")
             
-            # Start FFmpeg segmentation
-            await self.segmenter.start(self.config.stream_url)
+            # Start stream segmentation
+            await self.segmenter.start()
             
             # Process segments as they arrive
             async for segment in self.segmenter.get_segments():
                 if self._shutdown:
                     break
                 
-                # Process segment in background
-                task = asyncio.create_task(self._process_segment_wrapper(segment))
+                # Create processing task
+                task = await self.processor.process_segment_async(segment)
                 self._processing_tasks.append(task)
                 
-                # Clean up completed tasks
-                self._processing_tasks = [t for t in self._processing_tasks if not t.done()]
+                # Clean up completed tasks and yield results
+                completed_tasks = []
+                for task in self._processing_tasks:
+                    if task.done():
+                        completed_tasks.append(task)
+                        try:
+                            result = await task
+                            if result:
+                                yield result
+                                self._notify_progress(result)
+                        except Exception as e:
+                            logger.error(f"Error getting task result: {e}")
                 
-                # Yield any completed results
-                for task in [t for t in self._processing_tasks if t.done()]:
-                    try:
-                        result = await task
-                        if result:
-                            yield result
-                    except Exception as e:
-                        logger.error(f"Error getting task result: {e}")
+                # Remove completed tasks
+                for task in completed_tasks:
+                    self._processing_tasks.remove(task)
             
             # Wait for remaining tasks
             if self._processing_tasks:
+                logger.info(f"Waiting for {len(self._processing_tasks)} remaining tasks")
                 results = await asyncio.gather(*self._processing_tasks, return_exceptions=True)
                 for result in results:
                     if isinstance(result, ProcessingResult):
                         yield result
+                        self._notify_progress(result)
                         
         except Exception as e:
             logger.error(f"Pipeline error: {e}")
@@ -183,18 +184,13 @@ class StreamIngestionPipeline:
         """Stop the ingestion pipeline."""
         logger.info("Stopping ingestion pipeline")
         self._shutdown = True
-        self.stats["end_time"] = datetime.now(timezone.utc)
+        self.stats["pipeline_stopped"] = datetime.now(timezone.utc)
         
         # Stop segmenter
         await self.segmenter.stop()
         
-        # Cancel processing tasks
-        for task in self._processing_tasks:
-            if not task.done():
-                task.cancel()
-        
-        if self._processing_tasks:
-            await asyncio.gather(*self._processing_tasks, return_exceptions=True)
+        # Wait for processing to complete
+        await self.processor.wait_for_completion()
         
         # Cleanup temp directory if we created it
         if hasattr(self, '_temp_dir_obj'):
@@ -202,9 +198,8 @@ class StreamIngestionPipeline:
         
         logger.info(f"Pipeline stopped. Stats: {self.get_stats()}")
     
-    def _on_segment_created(self, segment: SegmentInfo) -> None:
+    def _on_segment_created(self, segment) -> None:
         """Callback when a new segment is created."""
-        self.stats["segments_created"] += 1
         logger.debug(f"Segment created: {segment.filename} (index: {segment.index})")
         
         if self.progress_callback:
@@ -212,130 +207,43 @@ class StreamIngestionPipeline:
                 "event": "segment_created",
                 "segment_index": segment.index,
                 "segment_file": segment.filename,
+                "duration": segment.duration,
                 "stats": self.get_stats()
             })
     
-    async def _process_segment_wrapper(self, segment: SegmentInfo) -> Optional[ProcessingResult]:
-        """Wrapper to process segment with semaphore."""
-        async with self._processing_semaphore:
-            return await self._process_segment(segment)
-    
-    async def _process_segment(self, segment: SegmentInfo) -> Optional[ProcessingResult]:
-        """Process a video segment with Gemini."""
-        start_time = datetime.now()
-        
-        result = ProcessingResult(
-            segment_index=segment.index,
-            segment_path=segment.path,
-            start_time=segment.start_time,
-            end_time=segment.end_time
-        )
-        
-        try:
-            logger.info(f"Processing segment {segment.index}: {segment.filename}")
-            
-            # Prepare segment info for Gemini
-            segment_info = {
-                "segment_id": f"segment_{segment.index}",
-                "start_time": segment.start_time,
-                "end_time": segment.end_time,
-                "duration": segment.duration,
-                "file_path": str(segment.path)
-            }
-            
-            # Process with Gemini
-            highlights = await self.gemini_processor.analyze_video_with_dimensions(
-                video_path=str(segment.path),
-                segment_info=segment_info,
-                dimension_set=self.dimension_set,
-                agent_config=self.agent_config
-            )
-            
-            # Convert highlights to dictionaries
-            result.highlights = [
-                {
-                    "start_time": h.start_time,
-                    "end_time": h.end_time,
-                    "confidence_score": h.confidence_score,
-                    "dimension_scores": h.dimension_scores,
-                    "highlight_types": h.highlight_types,
-                    "title": h.title,
-                    "description": h.description
-                }
-                for h in highlights
-            ]
-            
-            # Update statistics
-            self.stats["segments_processed"] += 1
-            self.stats["highlights_found"] += len(highlights)
-            
-            # Calculate processing time
-            processing_time = (datetime.now() - start_time).total_seconds()
-            result.processing_time = processing_time
-            self.stats["total_processing_time"] += processing_time
-            
-            logger.info(
-                f"Processed segment {segment.index}: "
-                f"found {len(highlights)} highlights in {processing_time:.2f}s"
-            )
-            
-            # Progress callback
-            if self.progress_callback:
-                self.progress_callback({
-                    "event": "segment_processed",
-                    "segment_index": segment.index,
-                    "highlights_found": len(highlights),
-                    "processing_time": processing_time,
-                    "stats": self.get_stats()
-                })
-            
-            # Delete segment if configured
-            if self.config.delete_segments_after_processing and not self.config.keep_processed_segments:
-                try:
-                    segment.path.unlink()
-                    logger.debug(f"Deleted processed segment: {segment.filename}")
-                except Exception as e:
-                    logger.error(f"Error deleting segment: {e}")
-            
-            return result
-            
-        except Exception as e:
-            logger.error(f"Error processing segment {segment.index}: {e}")
-            result.error = str(e)
-            self.stats["processing_errors"] += 1
-            
-            if self.progress_callback:
-                self.progress_callback({
-                    "event": "segment_error",
-                    "segment_index": segment.index,
-                    "error": str(e),
-                    "stats": self.get_stats()
-                })
-            
-            return result
+    def _notify_progress(self, result: ProcessingResult) -> None:
+        """Notify progress callback with processing result."""
+        if self.progress_callback:
+            event = "segment_processed" if not result.error else "segment_error"
+            self.progress_callback({
+                "event": event,
+                "segment_index": result.segment_index,
+                "highlights_found": len(result.highlights),
+                "processing_time": result.processing_time,
+                "error": result.error,
+                "stats": self.get_stats()
+            })
     
     def get_stats(self) -> Dict[str, Any]:
-        """Get current pipeline statistics."""
-        stats = self.stats.copy()
+        """Get combined pipeline statistics."""
+        # Get stats from both components
+        segmenter_stats = self.segmenter.get_stats()
+        processor_stats = self.processor.get_stats()
         
-        # Calculate derived metrics
-        if stats["segments_processed"] > 0:
-            stats["avg_processing_time"] = (
-                stats["total_processing_time"] / stats["segments_processed"]
-            )
-            stats["highlights_per_segment"] = (
-                stats["highlights_found"] / stats["segments_processed"]
-            )
-        else:
-            stats["avg_processing_time"] = 0.0
-            stats["highlights_per_segment"] = 0.0
+        # Combine stats
+        stats = {
+            "pipeline_started": self.stats["pipeline_started"],
+            "pipeline_stopped": self.stats["pipeline_stopped"],
+            **segmenter_stats,
+            **processor_stats
+        }
         
-        # Calculate uptime
-        if stats["start_time"]:
-            end_time = stats["end_time"] or datetime.now(timezone.utc)
-            stats["uptime_seconds"] = (end_time - stats["start_time"]).total_seconds()
+        # Calculate pipeline uptime
+        if stats["pipeline_started"]:
+            end_time = stats["pipeline_stopped"] or datetime.now(timezone.utc)
+            stats["pipeline_uptime_seconds"] = (end_time - stats["pipeline_started"]).total_seconds()
         else:
-            stats["uptime_seconds"] = 0.0
+            stats["pipeline_uptime_seconds"] = 0.0
         
         return stats
     
@@ -343,3 +251,8 @@ class StreamIngestionPipeline:
     def is_running(self) -> bool:
         """Check if pipeline is running."""
         return self.segmenter.is_running and not self._shutdown
+    
+    @property
+    def segment_directory(self) -> Path:
+        """Get the directory where segments are stored."""
+        return self.segmenter.segment_directory
