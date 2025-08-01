@@ -194,8 +194,9 @@ class StreamSegmenter:
             except Exception as e:
                 logger.error(f"Error in segment callback: {e}")
     
-    def get_stats(self) -> Dict[str, Any]:
-        """Get segmentation statistics."""
+    @property
+    def stats(self) -> Dict[str, Any]:
+        """Segmentation statistics."""
         duration = asyncio.get_event_loop().time() - self._start_time if self._start_time else 0
         
         return {

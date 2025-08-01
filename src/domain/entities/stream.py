@@ -5,10 +5,12 @@ from typing import Optional, List, Dict, Any
 from enum import Enum
 
 from src.domain.entities.base import AggregateRoot
+from src.domain.entities.highlight import Highlight, HighlightCandidate
 from src.domain.value_objects.url import Url
 from src.domain.value_objects.timestamp import Timestamp
 from src.domain.value_objects.duration import Duration
 from src.domain.value_objects.processing_options import ProcessingOptions
+from src.domain.value_objects.confidence_score import ConfidenceScore
 from src.domain.exceptions import (
     InvalidStateTransition,
     BusinessRuleViolation,
@@ -77,8 +79,13 @@ class Stream(AggregateRoot[int]):
     completed_at: Optional[Timestamp] = None
     error_message: Optional[str] = None
 
-    # Related entity IDs
-    highlight_ids: List[int] = field(default_factory=list)
+    # Related entities - Stream owns highlights (aggregate root)
+    highlights: List[Highlight] = field(default_factory=list)
+    highlight_ids: List[int] = field(default_factory=list)  # For backward compatibility
+    
+    # Aggregate configuration
+    dimension_set_id: Optional[int] = None
+    organization_id: Optional[int] = None
 
     # Raw platform data (for debugging/analysis)
     platform_data: Dict[str, Any] = field(default_factory=dict)
@@ -206,8 +213,12 @@ class Stream(AggregateRoot[int]):
 
         # Note: We could add a StreamCancelledEvent if needed
 
-    def add_highlight(self, highlight_id: int, confidence_score: float) -> None:
-        """Add a highlight to this stream."""
+    def create_highlight_from_candidate(self, candidate: HighlightCandidate) -> Highlight:
+        """Create a highlight from a candidate within this stream's aggregate boundary.
+        
+        This is the ONLY way highlights should be created, enforcing the aggregate
+        boundary and business rules.
+        """
         # Business rule: Can only add highlights during processing
         if self.status != StreamStatus.PROCESSING:
             raise BusinessRuleViolation(
@@ -216,25 +227,69 @@ class Stream(AggregateRoot[int]):
                 entity_id=self.id,
                 context={"status": self.status.value},
             )
-
-        # Business rule: No duplicate highlights
-        if highlight_id in self.highlight_ids:
-            return  # Idempotent operation
-
-        # Update state
-        self.highlight_ids.append(highlight_id)
+        
+        # Business rule: Validate candidate meets minimum requirements
+        if candidate.confidence < self.processing_options.min_confidence_threshold:
+            raise BusinessRuleViolation(
+                f"Highlight confidence {candidate.confidence} below minimum threshold "
+                f"{self.processing_options.min_confidence_threshold}",
+                entity_type="Stream",
+                entity_id=self.id,
+            )
+        
+        # Create highlight entity (part of Stream aggregate)
+        highlight = Highlight(
+            id=None,  # Will be assigned when persisted
+            stream_id=self.id or 0,  # Temporary until stream is persisted
+            start_time=Duration(candidate.start_time),
+            end_time=Duration(candidate.end_time),
+            confidence_score=ConfidenceScore(candidate.confidence),
+            title=candidate.description[:100],  # First 100 chars as title
+            description=candidate.description,
+            highlight_types=candidate.metadata.get("highlight_types", []),
+            tags=candidate.detected_keywords[:10],  # Top 10 keywords
+            dimension_scores=candidate.dimension_scores,
+            video_analysis=candidate.metadata.get("video_analysis", {}),
+            audio_analysis=candidate.metadata.get("audio_analysis", {}),
+            processed_by=candidate.metadata.get("processed_by", "ai_analysis"),
+            created_at=Timestamp.now(),
+            updated_at=Timestamp.now(),
+        )
+        
+        # Add to stream's highlights
+        self.highlights.append(highlight)
         self.updated_at = Timestamp.now()
-
+        
         # Raise domain event
         if self.id is not None:
             self.add_domain_event(
                 HighlightAddedToStreamEvent(
                     stream_id=self.id,
-                    highlight_id=highlight_id,
-                    confidence_score=confidence_score,
+                    highlight_id=len(self.highlights),  # Temporary ID
+                    confidence_score=candidate.confidence,
                 )
             )
+        
+        return highlight
+    
+    def add_highlight(self, highlight_id: int, confidence_score: float) -> None:
+        """Legacy method for backward compatibility.
+        
+        @deprecated Use create_highlight_from_candidate instead
+        """
+        if highlight_id not in self.highlight_ids:
+            self.highlight_ids.append(highlight_id)
 
+    @property
+    def highlight_count(self) -> int:
+        """Get total number of highlights in this stream."""
+        return len(self.highlights)
+    
+    @property
+    def high_confidence_highlights(self) -> List[Highlight]:
+        """Get only high confidence highlights."""
+        return [h for h in self.highlights if h.is_high_confidence]
+    
     @property
     def is_live(self) -> bool:
         """Check if this is a live stream (vs VOD)."""
@@ -265,7 +320,7 @@ class Stream(AggregateRoot[int]):
         """Developer-friendly string representation."""
         return (
             f"Stream(id={self.id}, platform={self.platform.value}, "
-            f"status={self.status.value}, highlights={len(self.highlight_ids)})"
+            f"status={self.status.value}, highlights={self.highlight_count})"
         )
 
     @classmethod
@@ -300,7 +355,10 @@ class Stream(AggregateRoot[int]):
             started_at=None,
             completed_at=None,
             error_message=None,
+            highlights=[],
             highlight_ids=[],
+            dimension_set_id=kwargs.get("dimension_set_id"),
+            organization_id=kwargs.get("organization_id"),
             platform_data=kwargs.get("platform_data", {}),
         )
 
@@ -347,7 +405,10 @@ class Stream(AggregateRoot[int]):
             error_message=model.error_message,
             created_at=Timestamp(model.created_at),
             updated_at=Timestamp(model.updated_at),
+            highlights=[],  # Will be loaded separately if needed
             highlight_ids=[h.id for h in model.highlights] if model.highlights else [],
+            dimension_set_id=model.dimension_set_id if hasattr(model, 'dimension_set_id') else None,
+            organization_id=model.organization_id if hasattr(model, 'organization_id') else None,
             platform_data=platform_data,
         )
 

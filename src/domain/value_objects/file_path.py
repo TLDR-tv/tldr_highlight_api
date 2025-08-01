@@ -62,6 +62,13 @@ class FilePath:
         """Get the parent directory path."""
         return str(self.path.parent)
     
+    @property
+    def size_bytes(self) -> int:
+        """Get file size in bytes."""
+        if self.exists:
+            return self.path.stat().st_size
+        return 0
+    
     def with_suffix(self, suffix: str) -> "FilePath":
         """Create a new FilePath with a different suffix.
         

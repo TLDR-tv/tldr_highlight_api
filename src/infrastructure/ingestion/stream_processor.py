@@ -269,8 +269,9 @@ class StreamProcessor:
             except Exception as e:
                 logger.error(f"Error deleting failed segment: {e}")
     
-    def get_stats(self) -> Dict[str, Any]:
-        """Get processing statistics."""
+    @property
+    def processing_stats(self) -> Dict[str, Any]:
+        """Processing statistics."""
         stats = self.stats.copy()
         
         # Calculate derived metrics

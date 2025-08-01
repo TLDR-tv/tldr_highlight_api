@@ -174,6 +174,10 @@ class Highlight(Entity[int]):
         )
 
 
+# Alias for backward compatibility
+DetectedHighlight = Highlight
+
+
 @dataclass
 class HighlightCandidate:
     """A potential highlight identified during analysis.

@@ -87,35 +87,75 @@ class VideoSegment:
     
     @property
     def duration_seconds(self) -> float:
-        """Get the duration of this segment in seconds."""
+        """Duration of this segment in seconds."""
         return self.time_range.duration_seconds
     
     @property
     def start_time(self) -> float:
-        """Get the start time in seconds."""
+        """Start time in seconds."""
         return self.time_range.start_seconds
     
     @property
     def end_time(self) -> float:
-        """Get the end time in seconds."""
+        """End time in seconds."""
         return self.time_range.end_seconds
+    
+    @property
+    def is_processing(self) -> bool:
+        """Check if segment is currently being analyzed."""
+        return self.analysis_started_at is not None and not self.is_analyzed
+    
+    @property
+    def analysis_failed(self) -> bool:
+        """Check if analysis failed."""
+        return self.is_analyzed and self.analysis_error is not None
     
     @property
     def file_exists(self) -> bool:
         """Check if the video file exists."""
-        return Path(self.file_path.value).exists()
+        return self.file_path.exists()
     
     @property
     def file_size_bytes(self) -> int:
         """Get the size of the video file in bytes."""
-        if self.file_exists:
-            return Path(self.file_path.value).stat().st_size
-        return 0
+        return self.file_path.size_bytes
+    
+    def can_be_analyzed(self) -> bool:
+        """Check if this segment can be analyzed.
+        
+        Encapsulates business rules for when a segment is ready for analysis.
+        """
+        if self.is_analyzed:
+            return False
+        
+        if not self.file_exists:
+            return False
+        
+        # Must have minimum duration (business rule)
+        if self.duration_seconds < 5.0:
+            return False
+        
+        # Must not be too large (>1GB)
+        if self.file_size_bytes > 1_000_000_000:
+            return False
+        
+        return True
     
     def start_analysis(self) -> None:
-        """Mark this segment as being analyzed."""
+        """Mark this segment as being analyzed.
+        
+        This method enforces the business rule that segments can only
+        be analyzed once and must meet certain criteria.
+        """
         if self.is_analyzed:
             raise BusinessRuleViolation("Segment has already been analyzed")
+        
+        if not self.can_be_analyzed():
+            raise BusinessRuleViolation(
+                f"Segment {self.segment_index} cannot be analyzed: "
+                f"file_exists={self.file_exists}, "
+                f"duration={self.duration_seconds}s"
+            )
         
         self.analysis_started_at = datetime.now(timezone.utc)
     
@@ -146,21 +186,21 @@ class VideoSegment:
         self.analysis_completed_at = datetime.now(timezone.utc)
         self.analysis_error = error
     
-    def get_analysis_duration_seconds(self) -> Optional[float]:
-        """Get how long the analysis took in seconds."""
+    @property
+    def analysis_duration_seconds(self) -> Optional[float]:
+        """How long the analysis took in seconds."""
         if self.analysis_started_at and self.analysis_completed_at:
             delta = self.analysis_completed_at - self.analysis_started_at
             return delta.total_seconds()
         return None
     
-    def add_metadata(self, key: str, value: Any) -> None:
-        """Add metadata to this segment.
+    def update_metadata(self, **kwargs) -> None:
+        """Update metadata with Pythonic kwargs.
         
-        Args:
-            key: Metadata key
-            value: Metadata value
+        Example:
+            segment.update_metadata(resolution="1080p", fps=60)
         """
-        self.metadata[key] = value
+        self.metadata.update(kwargs)
     
     def to_analysis_info(self) -> Dict[str, Any]:
         """Convert to dictionary format for AI analysis.
