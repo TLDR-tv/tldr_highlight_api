@@ -251,7 +251,7 @@ class FeatureFlagsConfig(BaseModel):
     gemini_fallback_enabled: bool = Field(
         default=False,
         env="GEMINI_FALLBACK_ENABLED",
-        description="Enable fallback when Gemini fails (deprecated - Gemini required)",
+        description="Enable fallback when Gemini fails",
     )
 
 
@@ -275,22 +275,6 @@ class Settings(BaseSettings):
     logfire: LogfireConfig = Field(default_factory=LogfireConfig)
     performance: PerformanceConfig = Field(default_factory=PerformanceConfig)
     features: FeatureFlagsConfig = Field(default_factory=FeatureFlagsConfig)
-
-    # Convenience properties for backward compatibility
-    @property
-    def database_url(self) -> str:
-        """Get database URL for backward compatibility."""
-        return self.database.url
-
-    @property
-    def redis_url(self) -> str:
-        """Get Redis URL for backward compatibility."""
-        return self.redis.url
-
-    @property
-    def gemini_api_key(self) -> str:
-        """Get Gemini API key for backward compatibility."""
-        return self.gemini.api_key
 
     @property
     def is_production(self) -> bool:

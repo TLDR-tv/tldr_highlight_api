@@ -562,7 +562,7 @@ def detect_highlights_with_ai(
             dimension_set = None
             from src.infrastructure.config import settings
 
-            if hasattr(settings, "gemini_api_key") and settings.gemini_api_key:
+            if settings.gemini.api_key:
                 with logfire.span("initialize_gemini_processor") as gemini_span:
                     from src.infrastructure.content_processing import (
                         GeminiVideoProcessor,
@@ -576,10 +576,8 @@ def detect_highlights_with_ai(
                     from src.infrastructure.database import get_async_session
 
                     gemini_processor = GeminiVideoProcessor(
-                        api_key=settings.gemini_api_key,
-                        model_name=getattr(
-                            settings, "gemini_model", "gemini-2.0-flash-exp"
-                        ),
+                        api_key=settings.gemini.api_key,
+                        model_name=settings.gemini.model,
                     )
                     gemini_span.set_attribute("gemini.enabled", True)
                     gemini_span.set_attribute(

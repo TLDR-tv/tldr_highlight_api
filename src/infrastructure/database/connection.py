@@ -40,10 +40,10 @@ class DatabaseManager:
         """Get or create async database engine."""
         if self._async_engine is None:
             self._async_engine = create_async_engine(
-                str(settings.database_url),
-                echo=settings.database_echo,
-                pool_size=settings.database_pool_size,
-                max_overflow=settings.database_max_overflow,
+                str(settings.database.url),
+                echo=settings.database.echo,
+                pool_size=settings.database.pool_size,
+                max_overflow=settings.database.max_overflow,
                 pool_pre_ping=True,  # Verify connections before using
                 pool_recycle=3600,  # Recycle connections after 1 hour
                 future=True,  # Use 2.0 style
@@ -68,15 +68,15 @@ class DatabaseManager:
         """Get or create sync database engine."""
         if self._sync_engine is None:
             # Convert async postgresql URL to sync
-            sync_url = str(settings.database_url).replace(
+            sync_url = str(settings.database.url).replace(
                 "postgresql+asyncpg://", "postgresql://"
             )
 
             self._sync_engine = create_engine(
                 sync_url,
-                echo=settings.database_echo,
-                pool_size=settings.database_pool_size,
-                max_overflow=settings.database_max_overflow,
+                echo=settings.database.echo,
+                pool_size=settings.database.pool_size,
+                max_overflow=settings.database.max_overflow,
                 pool_pre_ping=True,
                 pool_recycle=3600,
             )

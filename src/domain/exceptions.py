@@ -77,11 +77,6 @@ class ValidationErrors:
 
     errors: Dict[str, str] = field(default_factory=dict)
 
-    def add_error(self, field: str, message: str) -> None:
-        """Add a validation error (creates new instance due to frozen)."""
-        # Note: Since this is frozen, this would typically be used during construction
-        pass
-
     @property
     def field_count(self) -> int:
         """Get number of fields with errors."""
@@ -103,44 +98,17 @@ class DomainException(Exception):
         self,
         message: str,
         *,  # Force keyword-only arguments
-        context: Optional[ErrorContext] = None,
-        entity_type: Optional[str] = None,
-        entity_id: Optional[Any] = None,
-        field_name: Optional[str] = None,
-        invalid_value: Optional[Any] = None,
-        extra_context: Optional[Dict[str, Any]] = None,
+        context: ErrorContext,
     ):
         """Initialize domain exception with rich context.
 
         Args:
             message: Human-readable error message
-            context: Structured error context (preferred)
-            entity_type: Type of entity involved (legacy, will be moved to context)
-            entity_id: ID of the entity involved (legacy, will be moved to context)
-            field_name: Field that caused the error (legacy, will be moved to context)
-            invalid_value: The invalid value that was provided (legacy, will be moved to context)
-            extra_context: Additional context information (legacy, will be moved to context)
+            context: Structured error context
         """
         super().__init__(message)
         self.message = message
-
-        # Use provided ErrorContext or create one from legacy parameters
-        if context is not None:
-            self.context = context
-        else:
-            self.context = ErrorContext(
-                entity_type=entity_type,
-                entity_id=entity_id,
-                field_name=field_name,
-                invalid_value=invalid_value,
-                extra=extra_context or {},
-            )
-
-        # Legacy properties for backward compatibility
-        self.entity_type = self.context.entity_type
-        self.entity_id = self.context.entity_id
-        self.field_name = self.context.field_name
-        self.invalid_value = self.context.invalid_value
+        self.context = context
 
     def __str__(self) -> str:
         """Provide detailed string representation."""

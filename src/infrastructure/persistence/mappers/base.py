@@ -64,34 +64,3 @@ def to_domain_list(models: List[PersistenceMappable]) -> List[Entity]:
 def from_domain_list(entities: List[DomainMappable]) -> List[Base]:
     """Convert list of mappable entities to persistence models."""
     return [entity.to_model() for entity in entities]
-
-
-# Legacy mapper class for backward compatibility
-class Mapper:
-    """Legacy mapper class - use protocols and class methods instead.
-
-    This class is kept for backward compatibility but new code should
-    use the DomainMappable and PersistenceMappable protocols.
-    """
-
-    def __init__(self, to_domain_func: Callable, to_persistence_func: Callable):
-        self._to_domain_func = to_domain_func
-        self._to_persistence_func = to_persistence_func
-
-    def to_domain(self, model: PersistenceModel) -> DomainEntity:
-        """Convert persistence model to domain entity."""
-        return self._to_domain_func(model)
-
-    def to_persistence(self, entity: DomainEntity) -> PersistenceModel:
-        """Convert domain entity to persistence model."""
-        return self._to_persistence_func(entity)
-
-    def to_domain_list(self, models: list[PersistenceModel]) -> list[DomainEntity]:
-        """Convert list of persistence models to domain entities."""
-        return [self.to_domain(model) for model in models]
-
-    def to_persistence_list(
-        self, entities: list[DomainEntity]
-    ) -> list[PersistenceModel]:
-        """Convert list of domain entities to persistence models."""
-        return [self.to_persistence(entity) for entity in entities]

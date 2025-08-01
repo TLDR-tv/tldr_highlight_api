@@ -10,6 +10,7 @@ from src.domain.entities.stream import Stream, StreamPlatform, StreamStatus
 from src.domain.value_objects.url import Url
 from src.domain.value_objects.timestamp import Timestamp
 from src.domain.value_objects.processing_options import ProcessingOptions
+from src.domain.enums import ProcessingPriority
 
 
 class StreamMapper:
@@ -138,7 +139,7 @@ class StreamMapper:
             enable_scene_detection=options.enable_scene_detection,
             enable_silence_detection=getattr(options, "enable_audio_analysis", True),
             enable_motion_detection=getattr(options, "enable_scene_detection", True),
-            processing_priority="balanced",
+            processing_priority=ProcessingPriority.BALANCED,
             generate_thumbnails=getattr(options, "generate_thumbnails", True),
             generate_previews=getattr(options, "generate_previews", True),
         )
