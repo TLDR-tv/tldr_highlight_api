@@ -295,7 +295,7 @@ class UsageRecordModel(Base):
     unit = Column(String(50), nullable=False)  # "count", "seconds", "bytes"
 
     # Metadata
-    metadata = Column(JSON, default=dict, nullable=False)
+    usage_metadata = Column("metadata", JSON, default=dict, nullable=False)
 
     # Timestamp
     recorded_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)

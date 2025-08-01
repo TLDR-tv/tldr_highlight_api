@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends
 
 from ..dependencies import get_current_organization, require_scope
-from ....domain.models.api_key import APIScopes
+from ...domain.models.api_key import APIScopes
 
 router = APIRouter()
 

@@ -157,7 +157,7 @@ async def get_current_organization(
     return org
 
 
-async def require_scope(required_scope: str):
+def require_scope(required_scope: str):
     """Create a dependency that requires a specific API scope."""
 
     async def check_scope(api_key: APIKey = Depends(get_api_key)):
@@ -167,7 +167,7 @@ async def require_scope(required_scope: str):
                 detail=f"API key missing required scope: {required_scope}",
             )
         return api_key
-
+    
     return check_scope
 
 
