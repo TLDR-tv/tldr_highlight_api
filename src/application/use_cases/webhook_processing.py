@@ -16,7 +16,6 @@ from src.domain.entities.webhook_event import (
     WebhookEventStatus,
     WebhookEventType,
 )
-from src.domain.entities.stream import StreamPlatform
 from src.domain.repositories.webhook_event_repository import WebhookEventRepository
 from src.domain.repositories.user_repository import UserRepository
 from src.domain.repositories.api_key_repository import APIKeyRepository
@@ -25,9 +24,6 @@ from src.infrastructure.security.webhook_validator import (
 )
 from src.api.schemas.webhook_models import (
     StreamStartedWebhookEvent,
-    HundredMSWebhookPayload,
-    TwitchWebhookPayload,
-    WebhookPlatform,
 )
 from src.application.use_cases.stream_processing import StreamStartRequest
 
@@ -181,15 +177,16 @@ class WebhookProcessingUseCase(UseCase[ProcessWebhookRequest, ProcessWebhookResu
             # No validator configured, allow if API key is provided
             return bool(request.api_key or request.user_id)
 
-        # Extract signature and timestamp from headers
+        # Extract signature and timestamp from headers (generic approach)
         signature = (
             request.headers.get("x-webhook-signature")
             or request.headers.get("x-hub-signature-256")
-            or request.headers.get("twitch-eventsub-message-signature")
+            or request.headers.get("signature")
         )
 
-        timestamp = request.headers.get("x-webhook-timestamp") or request.headers.get(
-            "twitch-eventsub-message-timestamp"
+        timestamp = (
+            request.headers.get("x-webhook-timestamp")
+            or request.headers.get("timestamp")
         )
 
         if not signature:
@@ -206,26 +203,10 @@ class WebhookProcessingUseCase(UseCase[ProcessWebhookRequest, ProcessWebhookResu
     async def _parse_webhook_payload(
         self, request: ProcessWebhookRequest
     ) -> Optional[StreamStartedWebhookEvent]:
-        """Parse platform-specific webhook payload."""
-        platform_lower = request.platform.lower()
-
+        """Parse generic webhook payload."""
         try:
-            if platform_lower == "100ms":
-                payload = HundredMSWebhookPayload(**request.payload)
-                return payload.to_stream_started_event()
-
-            elif platform_lower == "twitch":
-                payload = TwitchWebhookPayload(**request.payload)
-                return payload.to_stream_started_event()
-
-            elif platform_lower == "custom":
-                # Direct mapping for custom webhooks
-                return StreamStartedWebhookEvent(**request.payload)
-
-            else:
-                logger.warning(f"Unknown webhook platform: {request.platform}")
-                return None
-
+            # Attempt to parse as generic StreamStartedWebhookEvent
+            return StreamStartedWebhookEvent(**request.payload)
         except Exception as e:
             logger.error(f"Error parsing webhook payload: {e}")
             return None
@@ -291,28 +272,18 @@ class WebhookProcessingUseCase(UseCase[ProcessWebhookRequest, ProcessWebhookResu
         webhook_event.mark_processing()
         await self.webhook_event_repo.save(webhook_event)
 
-        # Map platform to internal platform enum
-        platform_mapping = {
-            WebhookPlatform.TWITCH: StreamPlatform.TWITCH,
-            WebhookPlatform.YOUTUBE: StreamPlatform.YOUTUBE,
-            WebhookPlatform.HUNDREDMS: StreamPlatform.CUSTOM,
-            WebhookPlatform.CUSTOM: StreamPlatform.CUSTOM,
-        }
-
-        # Create stream processing request
+        # Create stream processing request with generic platform handling
         stream_request = StreamStartRequest(
             user_id=user_id,
             url=stream_event.stream_url,
-            title=stream_event.metadata.title or f"Stream from {stream_event.platform}",
-            platform=platform_mapping.get(
-                stream_event.platform, StreamPlatform.CUSTOM
-            ).value,
+            title=stream_event.metadata.title or f"Stream from webhook",
+            platform="custom",  # All webhook streams are treated as custom
             processing_options={
                 "webhook_event_id": webhook_event.id,
                 "platform_metadata": stream_event.metadata.dict(),
+                "original_platform": webhook_event.platform,  # Keep original platform for reference
             },
         )
 
         # Start stream processing
-
         return await self.stream_processing_use_case.start_stream(stream_request)

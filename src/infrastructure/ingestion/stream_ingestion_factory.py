@@ -1,7 +1,7 @@
 """Stream ingestion factory for automatic format detection and processing.
 
 This module provides factory methods for creating appropriate stream processors
-based on stream URLs and formats.
+based on stream URLs and formats. All streams are processed through FFmpeg.
 """
 
 import logging
@@ -23,6 +23,8 @@ class StreamIngestionFactory:
     ) -> StreamIngestionPipeline:
         """Create an ingestion pipeline for a stream URL.
 
+        All streams are processed through FFmpeg regardless of source.
+
         Args:
             stream_url: URL of the stream to process
             config_overrides: Optional configuration overrides
@@ -31,11 +33,11 @@ class StreamIngestionFactory:
         Returns:
             Configured stream ingestion pipeline
         """
-        # Detect platform from URL
-        platform = StreamIngestionFactory.detect_platform(stream_url)
+        # Detect stream type from URL for logging purposes
+        stream_type = StreamIngestionFactory.detect_stream_type(stream_url)
 
         # Create base configuration
-        config = IngestionConfig(stream_url=stream_url, platform=platform, **kwargs)
+        config = IngestionConfig(stream_url=stream_url, **kwargs)
 
         # Apply overrides
         if config_overrides:
@@ -43,170 +45,178 @@ class StreamIngestionFactory:
                 if hasattr(config, key):
                     setattr(config, key, value)
 
-        # Platform-specific optimizations
-        StreamIngestionFactory._apply_platform_optimizations(config, platform)
+        # Apply stream type optimizations
+        StreamIngestionFactory._apply_stream_type_optimizations(config, stream_type)
 
-        logger.info(f"Created ingestion pipeline for {platform} stream: {stream_url}")
+        logger.info(f"Created ingestion pipeline for {stream_type} stream: {stream_url}")
 
         return StreamIngestionPipeline(config)
 
     @staticmethod
-    def detect_platform(stream_url: str) -> Optional[str]:
-        """Detect streaming platform from URL.
+    def detect_stream_type(stream_url: str) -> str:
+        """Detect stream type from URL.
+
+        This is used only for logging and optimization hints,
+        not for platform-specific processing.
 
         Args:
             stream_url: Stream URL to analyze
 
         Returns:
-            Detected platform name or None
+            Detected stream type
         """
         parsed = urlparse(stream_url)
-        domain = parsed.netloc.lower()
+        scheme = parsed.scheme.lower()
+        path = parsed.path.lower()
 
-        # Platform detection patterns
-        if "twitch.tv" in domain:
-            return "twitch"
-        elif "youtube.com" in domain or "youtu.be" in domain:
-            return "youtube"
-        elif "rtmp://" in stream_url.lower():
+        # Detect by protocol
+        if scheme in ["rtmp", "rtmps"]:
             return "rtmp"
-        elif ".m3u8" in stream_url.lower() or "hls" in stream_url.lower():
+        elif ".m3u8" in path or "hls" in path:
             return "hls"
-        elif stream_url.startswith("http"):
-            return "http"
-
-        return None
+        elif ".mpd" in path or "dash" in path:
+            return "dash"
+        elif scheme in ["http", "https"]:
+            # Check file extensions
+            if any(ext in path for ext in [".mp4", ".webm", ".mov", ".avi"]):
+                return "video_file"
+            else:
+                return "http_stream"
+        elif scheme == "file":
+            return "local_file"
+        else:
+            return "unknown"
 
     @staticmethod
-    def _apply_platform_optimizations(
-        config: IngestionConfig, platform: Optional[str]
+    def _apply_stream_type_optimizations(
+        config: IngestionConfig, stream_type: str
     ) -> None:
-        """Apply platform-specific optimizations.
+        """Apply stream type-specific optimizations.
+
+        These are generic optimizations based on stream type,
+        not platform-specific settings.
 
         Args:
             config: Configuration to optimize
-            platform: Detected platform
+            stream_type: Detected stream type
         """
-        if platform == "twitch":
-            # Twitch-specific optimizations
-            config.frame_extraction_interval = 0.5  # Higher frequency for gaming
-            config.segment_duration_seconds = 8.0  # Shorter segments for action
+        if stream_type == "rtmp":
+            # RTMP streams often benefit from real-time processing
             config.enable_real_time = True
-
-        elif platform == "youtube":
-            # YouTube-specific optimizations
-            config.frame_extraction_interval = 1.0
-            config.segment_duration_seconds = 12.0
-            config.hardware_acceleration = True  # YouTube often has high quality
-
-        elif platform == "rtmp":
-            # RTMP-specific optimizations
-            config.frame_extraction_interval = 0.33  # 3 FPS for low latency
-            config.segment_duration_seconds = 6.0
-            config.enable_real_time = True
-            config.buffer_duration_seconds = 120.0  # Smaller buffer
-
-        elif platform in ["hls", "http"]:
-            # HLS/HTTP stream optimizations
-            config.frame_extraction_interval = 1.0
             config.segment_duration_seconds = 10.0
-            config.buffer_duration_seconds = 180.0
+            config.frame_extraction_interval = 0.5
 
-    @staticmethod
-    def create_for_gaming(
-        stream_url: str, api_key: Optional[str] = None, **kwargs
+        elif stream_type == "hls":
+            # HLS streams have their own segmentation
+            config.segment_duration_seconds = 12.0
+            config.frame_extraction_interval = 1.0
+            config.hardware_acceleration = True
+
+        elif stream_type == "dash":
+            # DASH streams similar to HLS
+            config.segment_duration_seconds = 12.0
+            config.frame_extraction_interval = 1.0
+            config.hardware_acceleration = True
+
+        elif stream_type == "video_file":
+            # Video files can be processed more aggressively
+            config.enable_real_time = False
+            config.segment_duration_seconds = 15.0
+            config.frame_extraction_interval = 1.0
+            config.hardware_acceleration = True
+
+        elif stream_type == "local_file":
+            # Local files have no network constraints
+            config.enable_real_time = False
+            config.segment_duration_seconds = 20.0
+            config.frame_extraction_interval = 0.5
+            config.hardware_acceleration = True
+
+        # Log optimizations applied
+        logger.debug(
+            f"Applied {stream_type} optimizations: "
+            f"real_time={config.enable_real_time}, "
+            f"segment_duration={config.segment_duration_seconds}s, "
+            f"frame_interval={config.frame_extraction_interval}s"
+        )
+
+    @classmethod
+    def create_for_gaming_content(
+        cls, stream_url: str, **kwargs
     ) -> StreamIngestionPipeline:
         """Create pipeline optimized for gaming content.
 
+        Gaming content typically has:
+        - Fast motion and scene changes
+        - Important UI elements
+        - Quick actions that matter
+
         Args:
-            stream_url: Gaming stream URL
-            api_key: Gemini API key
+            stream_url: URL of the gaming stream
             **kwargs: Additional configuration
 
         Returns:
-            Gaming-optimized pipeline
+            Pipeline optimized for gaming content
         """
         config_overrides = {
-            "frame_extraction_interval": 0.33,  # 3 FPS for action detection
-            "segment_duration_seconds": 6.0,  # Short segments for highlights
+            "frame_extraction_interval": 0.5,  # Higher frequency for fast action
+            "segment_duration_seconds": 8.0,  # Shorter segments
             "enable_real_time": True,
-            "min_video_quality": 0.4,  # Accept lower quality for action
+            "processing_priority": "low_latency",
         }
 
-        if api_key:
-            gemini_config = GeminiProcessorConfig(
-                api_key=api_key,
-                model_name="gemini-2.0-flash-001",
-                temperature=0.3,  # Lower temperature for consistent gaming analysis
-            )
-            config_overrides["gemini_config"] = gemini_config
+        return cls.create_pipeline(stream_url, config_overrides, **kwargs)
 
-        config_overrides.update(kwargs)
-
-        return StreamIngestionFactory.create_pipeline(stream_url, config_overrides)
-
-    @staticmethod
-    def create_for_educational(
-        stream_url: str, api_key: Optional[str] = None, **kwargs
+    @classmethod
+    def create_for_educational_content(
+        cls, stream_url: str, **kwargs
     ) -> StreamIngestionPipeline:
         """Create pipeline optimized for educational content.
 
+        Educational content typically has:
+        - Slower pace with important visual information
+        - Text and diagrams that need to be readable
+        - Longer segments of related content
+
         Args:
-            stream_url: Educational stream URL
-            api_key: Gemini API key
+            stream_url: URL of the educational stream
             **kwargs: Additional configuration
 
         Returns:
-            Education-optimized pipeline
+            Pipeline optimized for educational content
         """
         config_overrides = {
-            "frame_extraction_interval": 2.0,  # Lower frequency for educational content
-            "segment_duration_seconds": 15.0,  # Longer segments for concepts
-            "enable_real_time": True,
-            "min_video_quality": 0.6,  # Higher quality for text/diagrams
+            "frame_extraction_interval": 2.0,  # Lower frequency
+            "segment_duration_seconds": 20.0,  # Longer segments
+            "enable_real_time": False,
+            "processing_priority": "quality",
         }
 
-        if api_key:
-            gemini_config = GeminiProcessorConfig(
-                api_key=api_key,
-                model_name="gemini-2.0-flash-001",
-                temperature=0.7,  # Higher temperature for creative educational analysis
-            )
-            config_overrides["gemini_config"] = gemini_config
+        return cls.create_pipeline(stream_url, config_overrides, **kwargs)
 
-        config_overrides.update(kwargs)
-
-        return StreamIngestionFactory.create_pipeline(stream_url, config_overrides)
-
-    @staticmethod
-    def create_for_sports(
-        stream_url: str, api_key: Optional[str] = None, **kwargs
+    @classmethod
+    def create_for_sports_content(
+        cls, stream_url: str, **kwargs
     ) -> StreamIngestionPipeline:
         """Create pipeline optimized for sports content.
 
+        Sports content typically has:
+        - Bursts of high action
+        - Important moments that are brief
+        - Need for real-time processing
+
         Args:
-            stream_url: Sports stream URL
-            api_key: Gemini API key
+            stream_url: URL of the sports stream
             **kwargs: Additional configuration
 
         Returns:
-            Sports-optimized pipeline
+            Pipeline optimized for sports content
         """
         config_overrides = {
-            "frame_extraction_interval": 0.5,  # High frequency for sports action
-            "segment_duration_seconds": 10.0,  # Medium segments for plays
+            "frame_extraction_interval": 0.3,  # Very high frequency
+            "segment_duration_seconds": 5.0,  # Short segments
             "enable_real_time": True,
-            "min_video_quality": 0.5,  # Balance quality and speed
+            "processing_priority": "low_latency",
         }
 
-        if api_key:
-            gemini_config = GeminiProcessorConfig(
-                api_key=api_key,
-                model_name="gemini-2.0-flash-001",
-                temperature=0.4,  # Moderate temperature for sports analysis
-            )
-            config_overrides["gemini_config"] = gemini_config
-
-        config_overrides.update(kwargs)
-
-        return StreamIngestionFactory.create_pipeline(stream_url, config_overrides)
+        return cls.create_pipeline(stream_url, config_overrides, **kwargs)

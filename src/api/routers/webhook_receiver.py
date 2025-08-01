@@ -3,13 +3,11 @@
 from typing import Dict, Any, Optional
 import logging
 from fastapi import APIRouter, Request, Header, Depends, BackgroundTasks
-from fastapi.responses import Response as FastAPIResponse
 
 from src.api.schemas.webhook_models import (
     WebhookResponse,
-    HundredMSWebhookPayload,
-    TwitchWebhookPayload,
-    WebhookPlatform,
+    StreamStartedWebhookEvent,
+    WebhookEventType,
 )
 from src.api.dependencies.use_cases import get_webhook_processing_use_case
 from src.application.use_cases.webhook_processing import (
@@ -17,6 +15,7 @@ from src.application.use_cases.webhook_processing import (
     ProcessWebhookRequest,
 )
 from src.application.use_cases.base import ResultStatus
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -33,33 +32,66 @@ async def receive_stream_webhook(
     x_api_key: Optional[str] = Header(None),
     x_webhook_signature: Optional[str] = Header(None),
     x_webhook_timestamp: Optional[str] = Header(None),
-    x_webhook_platform: Optional[str] = Header(None),
 ) -> WebhookResponse:
     """Receive webhook for stream events (start, stop, update).
 
-    This simplified endpoint accepts webhooks for stream ingestion triggers.
+    This platform-agnostic endpoint accepts webhooks for stream ingestion triggers.
     Authentication is via API key header.
+    
+    Expected payload format:
+    {
+        "event_id": "unique-event-id",
+        "event_type": "stream.started",
+        "timestamp": "2024-01-01T00:00:00Z",
+        "stream_url": "rtmp://example.com/stream",
+        "metadata": {
+            "title": "Stream Title",
+            "description": "Stream Description",
+            "external_stream_id": "external-id",
+            "external_user_id": "user-id",
+            "external_username": "username",
+            "tags": ["tag1", "tag2"],
+            "custom_data": {}
+        }
+    }
     """
     try:
         # Get raw body and parsed JSON
         raw_body = await request.body()
         payload = await request.json()
 
-        # Determine platform
-        platform = x_webhook_platform or WebhookPlatform.CUSTOM.value
-
-        # Build headers dict
+        # Build headers dict for verification
         headers = {
             "x-webhook-signature": x_webhook_signature,
             "x-webhook-timestamp": x_webhook_timestamp,
             "x-api-key": x_api_key,
-            "x-webhook-platform": platform,
         }
         headers = {k: v for k, v in headers.items() if v is not None}
 
+        # Validate webhook event structure
+        try:
+            # Parse the webhook event
+            event_type = payload.get("event_type", WebhookEventType.STREAM_STARTED.value)
+            
+            # For stream started events, validate the payload
+            if event_type == WebhookEventType.STREAM_STARTED.value:
+                webhook_event = StreamStartedWebhookEvent(
+                    event_id=payload.get("event_id", f"webhook_{datetime.utcnow().timestamp()}"),
+                    event_type=event_type,
+                    timestamp=payload.get("timestamp", datetime.utcnow()),
+                    stream_url=payload["stream_url"],
+                    api_key=x_api_key,
+                    metadata=payload.get("metadata", {}),
+                )
+        except Exception as e:
+            return WebhookResponse(
+                success=False, 
+                message=f"Invalid webhook payload: {str(e)}"
+            )
+
         # Process webhook
         process_request = ProcessWebhookRequest(
-            platform=platform,
+            platform="custom",  # All webhooks are now platform-agnostic
             payload=payload,
             raw_payload=raw_body,
             headers=headers,
@@ -85,144 +117,6 @@ async def receive_stream_webhook(
         )
 
 
-@router.post("/receive/100ms", response_model=WebhookResponse)
-async def receive_100ms_webhook(
-    request: Request,
-    background_tasks: BackgroundTasks,
-    webhook_use_case: WebhookProcessingUseCase = Depends(
-        get_webhook_processing_use_case
-    ),
-    x_webhook_signature: Optional[str] = Header(None),
-    x_webhook_timestamp: Optional[str] = Header(None),
-) -> WebhookResponse:
-    """Receive webhook from 100ms.
-
-    This endpoint is specifically for 100ms webhooks with their event format.
-    """
-    try:
-        # Get raw body and parsed JSON
-        raw_body = await request.body()
-        payload = await request.json()
-
-        # Validate it's a 100ms webhook
-        try:
-            webhook_payload = HundredMSWebhookPayload(**payload)
-        except Exception as e:
-            return WebhookResponse(
-                success=False, message=f"Invalid 100ms webhook format: {str(e)}"
-            )
-
-        # Build headers dict
-        headers = {
-            "x-webhook-signature": x_webhook_signature,
-            "x-webhook-timestamp": x_webhook_timestamp,
-        }
-        headers = {k: v for k, v in headers.items() if v is not None}
-
-        # Process webhook
-        process_request = ProcessWebhookRequest(
-            platform=WebhookPlatform.HUNDREDMS.value,
-            payload=payload,
-            raw_payload=raw_body,
-            headers=headers,
-        )
-
-        # Process asynchronously in background
-        background_tasks.add_task(
-            _process_webhook_async, webhook_use_case, process_request
-        )
-
-        # Return immediate success
-        return WebhookResponse(
-            success=True,
-            message="100ms webhook received and queued for processing",
-            event_id=webhook_payload.id,
-        )
-
-    except Exception as e:
-        logger.error(f"Error receiving 100ms webhook: {e}")
-        return WebhookResponse(
-            success=False, message=f"Error processing 100ms webhook: {str(e)}"
-        )
-
-
-@router.post("/receive/twitch", response_model=WebhookResponse)
-async def receive_twitch_webhook(
-    request: Request,
-    background_tasks: BackgroundTasks,
-    webhook_use_case: WebhookProcessingUseCase = Depends(
-        get_webhook_processing_use_case
-    ),
-    twitch_eventsub_message_signature: Optional[str] = Header(None),
-    twitch_eventsub_message_timestamp: Optional[str] = Header(None),
-    twitch_eventsub_message_type: Optional[str] = Header(None),
-) -> WebhookResponse:
-    """Receive webhook from Twitch EventSub.
-
-    This endpoint handles Twitch EventSub webhooks including verification challenges.
-    """
-    try:
-        # Get raw body and parsed JSON
-        raw_body = await request.body()
-        payload = await request.json()
-
-        # Handle Twitch verification challenge
-        if twitch_eventsub_message_type == "webhook_callback_verification":
-            challenge = payload.get("challenge")
-            if challenge:
-                # Return plain text response for Twitch challenge
-                return FastAPIResponse(content=challenge, media_type="text/plain")
-
-        # Handle revocation notification
-        if twitch_eventsub_message_type == "revocation":
-            logger.warning(f"Twitch webhook revoked: {payload}")
-            return WebhookResponse(success=True, message="Revocation acknowledged")
-
-        # Validate it's a Twitch webhook
-        try:
-            webhook_payload = TwitchWebhookPayload(**payload)
-        except Exception as e:
-            return WebhookResponse(
-                success=False, message=f"Invalid Twitch webhook format: {str(e)}"
-            )
-
-        # Build headers dict
-        headers = {
-            "twitch-eventsub-message-signature": twitch_eventsub_message_signature,
-            "twitch-eventsub-message-timestamp": twitch_eventsub_message_timestamp,
-            "twitch-eventsub-message-type": twitch_eventsub_message_type,
-        }
-        headers = {k: v for k, v in headers.items() if v is not None}
-
-        # Process webhook
-        process_request = ProcessWebhookRequest(
-            platform=WebhookPlatform.TWITCH.value,
-            payload=payload,
-            raw_payload=raw_body,
-            headers=headers,
-        )
-
-        # Process asynchronously in background
-        background_tasks.add_task(
-            _process_webhook_async, webhook_use_case, process_request
-        )
-
-        # Return immediate success
-        return WebhookResponse(
-            success=True,
-            message="Twitch webhook received and queued for processing",
-            event_id=webhook_payload.event.get("id")
-            if isinstance(webhook_payload.event, dict)
-            else None,
-        )
-
-    except Exception as e:
-        logger.error(f"Error receiving Twitch webhook: {e}")
-        return WebhookResponse(
-            success=False, message=f"Error processing Twitch webhook: {str(e)}"
-        )
-
-
 @router.get("/receive/health")
 async def webhook_receiver_health() -> Dict[str, Any]:
     """Health check endpoint for webhook receiver service."""
@@ -231,8 +125,6 @@ async def webhook_receiver_health() -> Dict[str, Any]:
         "service": "webhook_receiver",
         "endpoints": [
             "/webhooks/receive/stream",
-            "/webhooks/receive/100ms",
-            "/webhooks/receive/twitch",
         ],
     }
 

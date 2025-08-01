@@ -24,12 +24,9 @@ from .webhooks import (
 )
 from .webhook_models import (
     WebhookEventType,
-    WebhookPlatform,
     BaseWebhookEvent,
     StreamMetadata,
     StreamStartedWebhookEvent,
-    HundredMSWebhookPayload,
-    TwitchWebhookPayload,
     WebhookResponse as WebhookProcessingResponse,
     WebhookVerificationHeaders,
 )
@@ -62,12 +59,9 @@ __all__ = [
     "WebhookTest",
     # Webhook processing schemas
     "WebhookEventType",
-    "WebhookPlatform",
     "BaseWebhookEvent",
     "StreamMetadata",
     "StreamStartedWebhookEvent",
-    "HundredMSWebhookPayload",
-    "TwitchWebhookPayload",
     "WebhookProcessingResponse",
     "WebhookVerificationHeaders",
     # Common schemas
