@@ -1,7 +1,7 @@
-"""Stream processor that handles content analysis of video segments.
+"""Stream processor that delegates to domain services for analysis.
 
-This module focuses solely on processing video segments for highlight detection,
-separated from the segmentation concerns.
+This processor properly separates infrastructure concerns
+(file handling, concurrency) from domain logic (highlight analysis).
 """
 
 import asyncio
@@ -12,10 +12,11 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional
 
 from ..media.ffmpeg_segmenter import SegmentInfo
-from ..content_processing.gemini_video_processor import GeminiVideoProcessor
+from ...domain.entities.video_segment import VideoSegment
+from ...domain.entities.detected_highlight import DetectedHighlight
+from ...domain.services.highlight_analysis_service import HighlightAnalysisService
 from ...domain.entities.dimension_set_aggregate import DimensionSetAggregate
 from ...domain.entities.highlight_agent_config import HighlightAgentConfig
-from ...domain.entities.detected_highlight import DetectedHighlight
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +40,6 @@ class StreamProcessorConfig:
     """Configuration for stream processing."""
     
     # Processing settings
-    enable_audio_processing: bool = True
     max_concurrent_processing: int = 3
     
     # File management
@@ -52,31 +52,28 @@ class StreamProcessorConfig:
 
 
 class StreamProcessor:
-    """Processes video segments for highlight detection.
+    """Stream processor that uses domain services for highlight analysis.
     
-    This class focuses solely on analyzing video segments using AI models
-    and extracting highlights based on dimension scoring.
+    This processor handles the infrastructure concerns of processing
+    video segments while delegating the actual analysis to the domain layer.
     """
     
     def __init__(
         self,
         config: StreamProcessorConfig,
-        gemini_processor: GeminiVideoProcessor,
-        dimension_set: DimensionSetAggregate,
-        agent_config: Optional[HighlightAgentConfig] = None
+        highlight_service: HighlightAnalysisService,
+        stream_id: int
     ):
         """Initialize the stream processor.
         
         Args:
             config: Processing configuration
-            gemini_processor: Gemini processor for video analysis
-            dimension_set: Dimension set for highlight detection
-            agent_config: Optional agent configuration
+            highlight_service: Domain service for highlight analysis
+            stream_id: ID of the stream being processed
         """
         self.config = config
-        self.gemini_processor = gemini_processor
-        self.dimension_set = dimension_set
-        self.agent_config = agent_config
+        self.highlight_service = highlight_service
+        self.stream_id = stream_id
         
         # Processing state
         self._processing_semaphore = asyncio.Semaphore(config.max_concurrent_processing)
@@ -96,11 +93,18 @@ class StreamProcessor:
             f"concurrent workers"
         )
     
-    async def process_segment(self, segment: SegmentInfo) -> ProcessingResult:
-        """Process a single video segment.
+    async def process_segment(
+        self,
+        segment_info: SegmentInfo,
+        dimension_set: DimensionSetAggregate,
+        agent_config: Optional[HighlightAgentConfig] = None
+    ) -> ProcessingResult:
+        """Process a single video segment using domain services.
         
         Args:
-            segment: Segment information from the segmenter
+            segment_info: Segment information from the segmenter
+            dimension_set: Dimension set for analysis
+            agent_config: Optional agent configuration
             
         Returns:
             ProcessingResult containing highlights and metadata
@@ -108,16 +112,16 @@ class StreamProcessor:
         start_time = datetime.now()
         
         result = ProcessingResult(
-            segment_index=segment.index,
-            segment_path=segment.path,
-            start_time=segment.start_time,
-            end_time=segment.end_time
+            segment_index=segment_info.index,
+            segment_path=segment_info.path,
+            start_time=segment_info.start_time,
+            end_time=segment_info.end_time
         )
         
         # Skip short segments
-        if segment.duration < self.config.min_segment_duration:
+        if segment_info.duration < self.config.min_segment_duration:
             logger.warning(
-                f"Skipping segment {segment.index}: duration {segment.duration:.1f}s "
+                f"Skipping segment {segment_info.index}: duration {segment_info.duration:.1f}s "
                 f"is below minimum {self.config.min_segment_duration}s"
             )
             result.metadata["skipped"] = True
@@ -125,23 +129,26 @@ class StreamProcessor:
             return result
         
         try:
-            logger.info(f"Processing segment {segment.index}: {segment.filename}")
+            logger.info(f"Processing segment {segment_info.index}: {segment_info.filename}")
             
-            # Prepare segment info for Gemini
-            segment_info = {
-                "segment_id": f"segment_{segment.index}",
-                "start_time": segment.start_time,
-                "end_time": segment.end_time,
-                "duration": segment.duration,
-                "file_path": str(segment.path)
-            }
+            # Create domain video segment entity
+            video_segment = VideoSegment.create(
+                stream_id=self.stream_id,
+                segment_index=segment_info.index,
+                file_path=segment_info.path,
+                start_time=segment_info.start_time,
+                end_time=segment_info.end_time,
+                metadata={
+                    "filename": segment_info.filename,
+                    "format": self.config.__dict__.get("segment_format", "mp4")
+                }
+            )
             
-            # Process with timeout
-            process_task = self.gemini_processor.analyze_video_with_dimensions(
-                video_path=str(segment.path),
-                segment_info=segment_info,
-                dimension_set=self.dimension_set,
-                agent_config=self.agent_config
+            # Process with timeout using domain service
+            process_task = self.highlight_service.analyze_segment(
+                segment=video_segment,
+                dimension_set=dimension_set,
+                agent_config=agent_config
             )
             
             highlights = await asyncio.wait_for(
@@ -161,15 +168,15 @@ class StreamProcessor:
             self.stats["total_processing_time"] += processing_time
             
             logger.info(
-                f"Processed segment {segment.index}: "
+                f"Processed segment {segment_info.index}: "
                 f"found {len(highlights)} highlights in {processing_time:.2f}s"
             )
             
             # Delete segment if configured
             if self.config.delete_after_processing:
                 try:
-                    segment.path.unlink()
-                    logger.debug(f"Deleted processed segment: {segment.filename}")
+                    segment_info.path.unlink()
+                    logger.debug(f"Deleted processed segment: {segment_info.filename}")
                 except Exception as e:
                     logger.error(f"Error deleting segment: {e}")
             
@@ -177,53 +184,54 @@ class StreamProcessor:
             
         except asyncio.TimeoutError:
             error_msg = f"Processing timeout after {self.config.processing_timeout}s"
-            logger.error(f"Segment {segment.index}: {error_msg}")
+            logger.error(f"Segment {segment_info.index}: {error_msg}")
             result.error = error_msg
             self.stats["segments_failed"] += 1
             
-            # Keep failed segment if configured
-            if self.config.delete_after_processing and not self.config.keep_failed_segments:
-                try:
-                    segment.path.unlink()
-                except Exception as e:
-                    logger.error(f"Error deleting failed segment: {e}")
+            # Handle failed segment file
+            self._handle_failed_segment(segment_info)
             
             return result
             
         except Exception as e:
-            logger.error(f"Error processing segment {segment.index}: {e}")
+            logger.error(f"Error processing segment {segment_info.index}: {e}")
             result.error = str(e)
             self.stats["segments_failed"] += 1
             
-            # Keep failed segment if configured
-            if self.config.delete_after_processing and not self.config.keep_failed_segments:
-                try:
-                    segment.path.unlink()
-                except Exception as e:
-                    logger.error(f"Error deleting failed segment: {e}")
+            # Handle failed segment file
+            self._handle_failed_segment(segment_info)
             
             return result
     
-    async def process_segment_async(self, segment: SegmentInfo) -> asyncio.Task:
+    async def process_segment_async(
+        self,
+        segment_info: SegmentInfo,
+        dimension_set: DimensionSetAggregate,
+        agent_config: Optional[HighlightAgentConfig] = None
+    ) -> asyncio.Task:
         """Process a segment asynchronously with concurrency control.
         
         Args:
-            segment: Segment to process
+            segment_info: Segment to process
+            dimension_set: Dimension set for analysis
+            agent_config: Optional agent configuration
             
         Returns:
             Task that will complete with ProcessingResult
         """
         async def _process_with_semaphore():
             async with self._processing_semaphore:
-                return await self.process_segment(segment)
+                return await self.process_segment(
+                    segment_info, dimension_set, agent_config
+                )
         
         # Create task and track it
         task = asyncio.create_task(_process_with_semaphore())
-        self._active_tasks[segment.index] = task
+        self._active_tasks[segment_info.index] = task
         
         # Clean up when done
         def _cleanup(_):
-            self._active_tasks.pop(segment.index, None)
+            self._active_tasks.pop(segment_info.index, None)
         task.add_done_callback(_cleanup)
         
         return task
@@ -251,6 +259,15 @@ class StreamProcessor:
                 logger.error(f"Task failed with exception: {result}")
         
         return valid_results
+    
+    def _handle_failed_segment(self, segment_info: SegmentInfo) -> None:
+        """Handle a segment that failed processing."""
+        if self.config.delete_after_processing and not self.config.keep_failed_segments:
+            try:
+                segment_info.path.unlink()
+                logger.debug(f"Deleted failed segment: {segment_info.filename}")
+            except Exception as e:
+                logger.error(f"Error deleting failed segment: {e}")
     
     def get_stats(self) -> Dict[str, Any]:
         """Get processing statistics."""

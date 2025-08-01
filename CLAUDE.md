@@ -226,3 +226,11 @@ Given TDD approach:
 3. Use fixtures for database and Redis state
 4. Test webhook delivery with mock HTTP server
 5. Load test for enterprise SLA compliance
+
+## Important Development Guidelines
+
+### File Naming and Versioning
+- **NEVER create v2 or versioned files** (e.g., `file_v2.py`, `processor_v3.py`)
+- **ALWAYS replace the original file** with the new implementation
+- If you need to refactor or rewrite a component, update the existing file
+- Use Git for version control, not file naming

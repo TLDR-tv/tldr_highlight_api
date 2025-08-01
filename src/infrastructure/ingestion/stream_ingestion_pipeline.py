@@ -74,6 +74,8 @@ class StreamIngestionPipeline:
             progress_callback: Optional callback for progress updates
         """
         self.config = config
+        self.dimension_set = dimension_set
+        self.agent_config = agent_config
         self.progress_callback = progress_callback
         
         # Set up temp directory
@@ -104,18 +106,32 @@ class StreamIngestionPipeline:
             segment_callback=self._on_segment_created
         )
         
-        # Initialize processor
+        # Initialize domain services
+        from ...domain.services.highlight_analysis_service import HighlightAnalysisService
+        from ..ai_adapters.gemini_analyzer import GeminiAIAnalyzer
+        
+        # Create AI analyzer adapter
+        ai_analyzer = GeminiAIAnalyzer(
+            api_key=gemini_processor.api_key,
+            model_name=gemini_processor.model_name
+        )
+        
+        # Create domain highlight analysis service
+        highlight_service = HighlightAnalysisService(
+            ai_analyzer=ai_analyzer,
+            processing_options=None  # Use defaults
+        )
+        
+        # Initialize processor with domain service
         processor_config = StreamProcessorConfig(
-            enable_audio_processing=config.enable_audio_processing,
             max_concurrent_processing=config.max_concurrent_processing,
             delete_after_processing=config.delete_segments_after_processing
         )
         
         self.processor = StreamProcessor(
             config=processor_config,
-            gemini_processor=gemini_processor,
-            dimension_set=dimension_set,
-            agent_config=agent_config
+            highlight_service=highlight_service,
+            stream_id=int(config.stream_id.split('_')[-1])  # Extract numeric ID
         )
         
         # Pipeline state
@@ -145,7 +161,9 @@ class StreamIngestionPipeline:
                     break
                 
                 # Create processing task
-                task = await self.processor.process_segment_async(segment)
+                task = await self.processor.process_segment_async(
+                    segment, self.dimension_set, self.agent_config
+                )
                 self._processing_tasks.append(task)
                 
                 # Clean up completed tasks and yield results
