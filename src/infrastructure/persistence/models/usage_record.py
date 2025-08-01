@@ -86,41 +86,6 @@ class UsageRecord(Base):
         "User", back_populates="usage_records", lazy="joined"
     )
 
-    def get_unit(self) -> str:
-        """Get the unit of measurement for this usage type.
-
-        Returns:
-            str: Unit of measurement
-        """
-        units = {
-            UsageRecordType.STREAM_PROCESSED: "streams",
-            UsageRecordType.BATCH_VIDEO_PROCESSED: "videos",
-            UsageRecordType.HIGHLIGHT_GENERATED: "highlights",
-            UsageRecordType.API_CALL: "calls",
-            UsageRecordType.STORAGE_USED: "GB",
-            UsageRecordType.BANDWIDTH_USED: "GB",
-        }
-        return units.get(self.record_type, "units")
-
-    def get_billing_amount(self) -> float:
-        """Calculate the billing amount for this usage.
-
-        Returns:
-            float: Billing amount in USD
-        """
-        # Base rates per unit (these would typically come from a pricing config)
-        rates = {
-            UsageRecordType.STREAM_PROCESSED: 2.50,  # per stream hour
-            UsageRecordType.BATCH_VIDEO_PROCESSED: 0.50,  # per video
-            UsageRecordType.HIGHLIGHT_GENERATED: 0.10,  # per highlight
-            UsageRecordType.API_CALL: 0.0001,  # per API call
-            UsageRecordType.STORAGE_USED: 0.10,  # per GB per month
-            UsageRecordType.BANDWIDTH_USED: 0.08,  # per GB
-        }
-
-        rate = rates.get(self.record_type, 0.0)
-        return self.quantity * rate
-
     def __repr__(self) -> str:
         """String representation of the UsageRecord."""
         return f"<UsageRecord(id={self.id}, type='{self.record_type}', quantity={self.quantity})>"

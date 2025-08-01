@@ -195,7 +195,7 @@ async def test_async_authentication_components():
     """Test that all authentication components are properly async."""
     from src.services.auth import AuthService
     from src.services.rate_limit import RateLimitService
-    from src.core.cache import RedisCache
+    from src.infrastructure.cache import RedisCache
 
     # Verify that key components are async
     cache = RedisCache()

@@ -134,26 +134,6 @@ class Stream(Base, TimestampMixin):
         lazy="selectin",
     )
 
-    @property
-    def is_active(self) -> bool:
-        """Check if the stream is currently being processed.
-
-        Returns:
-            bool: True if the stream is active, False otherwise
-        """
-        return self.status in [StreamStatus.PENDING, StreamStatus.PROCESSING]
-
-    @property
-    def processing_duration(self) -> Optional[float]:
-        """Calculate the processing duration in seconds.
-
-        Returns:
-            Optional[float]: Duration in seconds if completed, None otherwise
-        """
-        if self.completed_at and self.created_at:
-            return (self.completed_at - self.created_at).total_seconds()
-        return None
-
     def __repr__(self) -> str:
         """String representation of the Stream."""
         return f"<Stream(id={self.id}, platform='{self.platform}', status='{self.status}')>"

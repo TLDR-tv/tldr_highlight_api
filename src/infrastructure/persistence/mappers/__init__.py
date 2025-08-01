@@ -14,7 +14,6 @@ from src.infrastructure.persistence.mappers.api_key_mapper import APIKeyMapper
 from src.infrastructure.persistence.mappers.stream_mapper import StreamMapper
 from src.infrastructure.persistence.mappers.highlight_mapper import HighlightMapper
 from src.infrastructure.persistence.mappers.webhook_mapper import WebhookMapper
-from src.infrastructure.persistence.mappers.batch_mapper import BatchMapper
 from src.infrastructure.persistence.mappers.usage_record_mapper import UsageRecordMapper
 
 __all__ = [
@@ -25,6 +24,5 @@ __all__ = [
     "StreamMapper",
     "HighlightMapper",
     "WebhookMapper",
-    "BatchMapper",
     "UsageRecordMapper",
 ]

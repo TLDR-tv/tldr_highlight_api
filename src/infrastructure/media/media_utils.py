@@ -113,7 +113,16 @@ class MediaProcessor:
             duration = float(video_stream.get("duration", 0))
             width = int(video_stream.get("width", 0))
             height = int(video_stream.get("height", 0))
-            fps = eval(video_stream.get("r_frame_rate", "25/1"))
+            # Safely parse frame rate string (e.g., "25/1" or "30000/1001")
+            fps_str = video_stream.get("r_frame_rate", "25/1")
+            try:
+                if "/" in fps_str:
+                    numerator, denominator = fps_str.split("/")
+                    fps = float(numerator) / float(denominator)
+                else:
+                    fps = float(fps_str)
+            except (ValueError, ZeroDivisionError):
+                fps = 25.0  # Default fallback
             codec = video_stream.get("codec_name", "unknown")
             bitrate = (
                 int(video_stream.get("bit_rate", 0))

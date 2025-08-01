@@ -4,7 +4,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from redis.exceptions import ConnectionError, TimeoutError
 
-from src.core.cache import (
+from src.infrastructure.cache import (
     RedisCache,
     cache,
     cached,
@@ -690,16 +690,16 @@ class TestGlobalInstances:
 
     def test_cache_global_instance(self):
         """Test global cache instance."""
-        from src.core.cache import cache as cache1
-        from src.core.cache import cache as cache2
+        from src.infrastructure.cache import cache as cache1
+        from src.infrastructure.cache import cache as cache2
 
         assert cache1 is cache2
         assert isinstance(cache1, RedisCache)
 
     def test_rate_limiter_global_instance(self):
         """Test global rate limiter instance."""
-        from src.core.cache import rate_limiter as limiter1
-        from src.core.cache import rate_limiter as limiter2
+        from src.infrastructure.cache import rate_limiter as limiter1
+        from src.infrastructure.cache import rate_limiter as limiter2
 
         assert limiter1 is limiter2
         assert isinstance(limiter1, RateLimiter)

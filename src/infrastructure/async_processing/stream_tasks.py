@@ -29,7 +29,6 @@ from src.infrastructure.media.ffmpeg_integration import (
     AudioCodec,
     ContainerFormat,
 )
-from src.infrastructure.content_processing.gemini import GeminiCaptionGenerator
 from src.infrastructure.storage.s3_storage import S3Storage
 from src.domain.services.b2b_stream_agent import B2BStreamAgent
 from src.infrastructure.async_processing.error_handler import ErrorHandler

@@ -4,8 +4,8 @@ This module defines the APIKey model which manages API keys
 for enterprise customers with scoped permissions.
 """
 
-from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Dict, List, Optional
+from datetime import datetime
+from typing import TYPE_CHECKING, List, Optional
 
 from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -95,56 +95,6 @@ class APIKey(Base):
     user: Mapped["User"] = relationship(
         "User", back_populates="api_keys", lazy="joined"
     )
-
-    def is_expired(self) -> bool:
-        """Check if the API key has expired.
-
-        Returns:
-            bool: True if the key has expired, False otherwise
-        """
-        if self.expires_at is None:
-            return False
-        return datetime.now(timezone.utc) > self.expires_at
-
-    def has_scope(self, scope: str) -> bool:
-        """Check if the API key has a specific scope.
-
-        Args:
-            scope: The scope to check for
-
-        Returns:
-            bool: True if the key has the scope, False otherwise
-        """
-        return scope in self.scopes
-
-    @property
-    def permissions(self) -> Dict[str, bool]:
-        """Get all permissions for this API key.
-
-        Returns:
-            dict: Dictionary of permission -> bool mappings
-        """
-        all_permissions = {
-            "read": False,
-            "write": False,
-            "delete": False,
-            "streams": False,
-            "batches": False,
-            "webhooks": False,
-            "analytics": False,
-            "admin": False,
-        }
-
-        # Admin scope grants all permissions
-        if "admin" in self.scopes:
-            return {perm: True for perm in all_permissions}
-
-        # Set specific permissions based on scopes
-        for scope in self.scopes:
-            if scope in all_permissions:
-                all_permissions[scope] = True
-
-        return all_permissions
 
     def __repr__(self) -> str:
         """String representation of the APIKey."""
