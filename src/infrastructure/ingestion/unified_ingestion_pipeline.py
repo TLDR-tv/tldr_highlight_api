@@ -44,7 +44,7 @@ class IngestionConfig:
 
     stream_url: str
     adapter_type: Optional[str] = None  # Auto-detect if not specified
-    
+
     # Segment configuration
     segment_duration_seconds: float = 30.0
     segment_overlap_seconds: float = 5.0
@@ -120,7 +120,9 @@ class UnifiedIngestionPipeline:
             SegmentConfig(
                 segment_duration=config.segment_duration_seconds,
                 overlap_duration=config.segment_overlap_seconds,
-                buffer_size=int(config.buffer_duration_seconds / config.segment_duration_seconds),
+                buffer_size=int(
+                    config.buffer_duration_seconds / config.segment_duration_seconds
+                ),
             )
         )
 
@@ -188,8 +190,9 @@ class UnifiedIngestionPipeline:
         self.status = IngestionStatus.CONNECTING
 
         # Create stream adapter
-        adapter_type = self.config.adapter_type or StreamAdapterFactory.detect_adapter_type(
-            self.config.stream_url
+        adapter_type = (
+            self.config.adapter_type
+            or StreamAdapterFactory.detect_adapter_type(self.config.stream_url)
         )
         self.stream_adapter = StreamAdapterFactory.create_adapter(
             adapter_type, self.config.stream_url
@@ -231,11 +234,13 @@ class UnifiedIngestionPipeline:
 
                 # Update progress
                 if self.progress_callback:
-                    self.progress_callback({
-                        "status": "processing",
-                        "segments_processed": self._current_result.segments_processed,
-                        "highlights_found": self._metrics["highlights_found"],
-                    })
+                    self.progress_callback(
+                        {
+                            "status": "processing",
+                            "segments_processed": self._current_result.segments_processed,
+                            "highlights_found": self._metrics["highlights_found"],
+                        }
+                    )
 
                 # Yield current result
                 yield self._current_result
@@ -250,7 +255,7 @@ class UnifiedIngestionPipeline:
         """Ingest stream and create video segments."""
         try:
             segment_count = 0
-            
+
             # Get stream data from adapter
             async for stream_data in self.stream_adapter.get_stream_data():
                 if self._shutdown_event.is_set():
@@ -260,15 +265,16 @@ class UnifiedIngestionPipeline:
                 # In a real implementation, this would use FFmpeg to split
                 # the stream into segments for Gemini processing
                 segment_count += 1
-                
+
                 # For now, we'll simulate segment creation
                 segment_info = {
                     "id": f"segment_{segment_count}",
-                    "start_time": (segment_count - 1) * self.config.segment_duration_seconds,
+                    "start_time": (segment_count - 1)
+                    * self.config.segment_duration_seconds,
                     "duration": self.config.segment_duration_seconds,
                     "path": f"/tmp/segment_{segment_count}.mp4",  # Would be actual path
                 }
-                
+
                 # Add segment to processor
                 await self.segment_processor.add_segment(segment_info)
                 self._metrics["segments_created"] += 1
@@ -300,7 +306,7 @@ class UnifiedIngestionPipeline:
                 # Process segment with Gemini's native video understanding
                 # The actual video file would be passed to Gemini
                 logger.info(f"Processing segment {segment.segment_id} with Gemini")
-                
+
                 # In production, this would call:
                 # gemini_result = await self.gemini_processor.analyze_video_with_dimensions(
                 #     video_path=segment.path,
@@ -308,11 +314,11 @@ class UnifiedIngestionPipeline:
                 #     dimension_set=dimension_set,
                 #     agent_config=agent_config
                 # )
-                
+
                 # For now, we'll add placeholder data
                 analysis.metadata["gemini_processed"] = True
                 analysis.metadata["segment_duration"] = segment.duration
-                
+
             else:
                 logger.warning("No Gemini processor configured")
                 analysis.metadata["skipped"] = True
@@ -331,7 +337,9 @@ class UnifiedIngestionPipeline:
             **self._metrics,
             "status": self.status.value,
             "uptime_seconds": (
-                (datetime.now(timezone.utc) - self._current_result.started_at).total_seconds()
+                (
+                    datetime.now(timezone.utc) - self._current_result.started_at
+                ).total_seconds()
                 if self._current_result.started_at
                 else 0
             ),

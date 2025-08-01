@@ -19,11 +19,11 @@ class DomainEvent:
 
     def __init__(self, event_type_name: str, **kwargs):
         self.event_type_name = event_type_name
-        self.aggregate_id = kwargs.get('aggregate_id')
-        self.aggregate_type = kwargs.get('aggregate_type')
-        self.event_id = kwargs.get('event_id', str(uuid4()))
-        self.occurred_at = kwargs.get('occurred_at', datetime.utcnow())
-        self.metadata = kwargs.get('metadata', {})
+        self.aggregate_id = kwargs.get("aggregate_id")
+        self.aggregate_type = kwargs.get("aggregate_type")
+        self.event_id = kwargs.get("event_id", str(uuid4()))
+        self.occurred_at = kwargs.get("occurred_at", datetime.utcnow())
+        self.metadata = kwargs.get("metadata", {})
 
     @property
     def event_type(self) -> str:

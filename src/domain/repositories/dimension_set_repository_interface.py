@@ -6,6 +6,7 @@ following DDD repository patterns.
 
 from typing import List, Optional, Dict, Any, Protocol
 from datetime import datetime
+from dataclasses import dataclass, field
 
 from src.domain.entities.dimension_set_aggregate import DimensionSetAggregate
 
@@ -17,20 +18,21 @@ class DimensionSetRepository(Protocol):
     while keeping the domain model free from infrastructure concerns.
     """
 
-    async def get_by_id(self, dimension_set_id: int) -> Optional[DimensionSetAggregate]:
+    async def get(self, id: int) -> Optional[DimensionSetAggregate]:
         """Retrieve a dimension set by its ID.
 
         Args:
-            dimension_set_id: The ID of the dimension set
+            id: The ID of the dimension set
 
         Returns:
             The dimension set aggregate or None if not found
         """
         ...
 
-    async def get_by_organization(
+    async def list_for_organization(
         self,
         organization_id: int,
+        *,
         active_only: bool = True,
         include_public: bool = True,
     ) -> List[DimensionSetAggregate]:
@@ -46,8 +48,9 @@ class DimensionSetRepository(Protocol):
         """
         ...
 
-    async def find_by_criteria(
+    async def find(
         self,
+        *,
         organization_id: Optional[int] = None,
         industry: Optional[str] = None,
         content_type: Optional[str] = None,
@@ -86,11 +89,11 @@ class DimensionSetRepository(Protocol):
         """
         ...
 
-    async def delete(self, dimension_set_id: int) -> bool:
+    async def delete(self, id: int) -> bool:
         """Delete a dimension set.
 
         Args:
-            dimension_set_id: The ID of the dimension set to delete
+            id: The ID of the dimension set to delete
 
         Returns:
             True if deleted, False if not found
@@ -111,14 +114,15 @@ class DimensionSetRepository(Protocol):
 
     async def get_usage_statistics(
         self,
-        dimension_set_id: int,
+        id: int,
+        *,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
     ) -> Dict[str, Any]:
         """Get usage statistics for a dimension set.
 
         Args:
-            dimension_set_id: The dimension set ID
+            id: The dimension set ID
             start_date: Start of date range
             end_date: End of date range
 
@@ -127,8 +131,8 @@ class DimensionSetRepository(Protocol):
         """
         ...
 
-    async def get_popular_sets(
-        self, limit: int = 10, time_window_days: int = 30
+    async def list_popular(
+        self, *, limit: int = 10, time_window_days: int = 30
     ) -> List[DimensionSetAggregate]:
         """Get most popular dimension sets.
 
@@ -141,17 +145,18 @@ class DimensionSetRepository(Protocol):
         """
         ...
 
-    async def clone_for_organization(
+    async def clone(
         self,
-        source_dimension_set_id: int,
+        source_id: int,
         target_organization_id: int,
         user_id: int,
+        *,
         new_name: Optional[str] = None,
     ) -> DimensionSetAggregate:
         """Clone a dimension set for another organization.
 
         Args:
-            source_dimension_set_id: Source dimension set ID
+            source_id: Source dimension set ID
             target_organization_id: Target organization ID
             user_id: User creating the clone
             new_name: Optional new name for the clone
@@ -162,51 +167,38 @@ class DimensionSetRepository(Protocol):
         ...
 
 
-class DimensionSetSpecification:
-    """Specification pattern for complex dimension set queries.
+@dataclass(frozen=True)
+class DimensionSetQuery:
+    """Query parameters for finding dimension sets.
 
-    This allows building complex queries while keeping them
-    in the domain layer.
+    This replaces the builder pattern with a simple immutable dataclass,
+    which is more Pythonic and explicit about available query options.
     """
 
-    def __init__(self) -> None:
-        self.criteria: Dict[str, Any] = {}
-
-    def for_organization(self, org_id: int) -> "DimensionSetSpecification":
-        """Filter by organization."""
-        self.criteria["organization_id"] = org_id
-        return self
-
-    def with_industry(self, industry: str) -> "DimensionSetSpecification":
-        """Filter by industry."""
-        self.criteria["industry"] = industry
-        return self
-
-    def with_content_type(self, content_type: str) -> "DimensionSetSpecification":
-        """Filter by content type."""
-        self.criteria["content_type"] = content_type
-        return self
-
-    def with_tags(self, tags: List[str]) -> "DimensionSetSpecification":
-        """Filter by tags."""
-        self.criteria["tags"] = tags
-        return self
-
-    def only_public(self) -> "DimensionSetSpecification":
-        """Only public dimension sets."""
-        self.criteria["is_public"] = True
-        return self
-
-    def only_active(self) -> "DimensionSetSpecification":
-        """Only active dimension sets."""
-        self.criteria["is_active"] = True
-        return self
-
-    def with_minimum_usage(self, count: int) -> "DimensionSetSpecification":
-        """Minimum usage count."""
-        self.criteria["min_usage_count"] = count
-        return self
+    organization_id: Optional[int] = None
+    industry: Optional[str] = None
+    content_type: Optional[str] = None
+    tags: Optional[List[str]] = field(default_factory=list)
+    is_public: Optional[bool] = None
+    is_active: Optional[bool] = None
+    min_usage_count: Optional[int] = None
+    limit: int = 100
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary for repository query."""
-        return self.criteria
+        """Convert to dictionary for repository query, excluding None values."""
+        return {k: v for k, v in self.__dict__.items() if v is not None}
+
+    @classmethod
+    def for_organization(cls, org_id: int, **kwargs) -> "DimensionSetQuery":
+        """Create a query for a specific organization."""
+        return cls(organization_id=org_id, **kwargs)
+
+    @classmethod
+    def public_only(cls, **kwargs) -> "DimensionSetQuery":
+        """Create a query for public dimension sets only."""
+        return cls(is_public=True, **kwargs)
+
+    @classmethod
+    def active_only(cls, **kwargs) -> "DimensionSetQuery":
+        """Create a query for active dimension sets only."""
+        return cls(is_active=True, **kwargs)

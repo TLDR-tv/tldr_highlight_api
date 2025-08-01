@@ -29,7 +29,9 @@ class OrganizationKey(Base):
     organization_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
 
     # Key information
-    key_id: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
+    key_id: Mapped[str] = mapped_column(
+        String(64), unique=True, nullable=False, index=True
+    )
     key_value: Mapped[str] = mapped_column(Text, nullable=False)  # Encrypted at rest
     algorithm: Mapped[str] = mapped_column(String(10), nullable=False, default="HS256")
 
@@ -39,7 +41,9 @@ class OrganizationKey(Base):
     is_primary: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     # Lifecycle
-    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=datetime.utcnow
+    )
     expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     rotated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     deactivated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)

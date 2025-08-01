@@ -31,7 +31,7 @@ __all__ = [
     "CompanyName",
     "ConfidenceScore",
     "DimensionConstraint",
-    "ConstraintType", 
+    "ConstraintType",
     "ConstraintOperator",
     "DimensionDefinition",
     "DimensionType",

@@ -3,6 +3,7 @@
 This module provides validation functions for dimension sets,
 following a more Pythonic functional approach instead of classes.
 """
+
 from typing import Dict, List, Callable
 from functools import partial
 
@@ -27,9 +28,7 @@ def check_dimension_not_exists(
         )
 
 
-def check_max_dimensions(
-    dimension_set: DimensionSet, max_dimensions: int = 20
-) -> None:
+def check_max_dimensions(dimension_set: DimensionSet, max_dimensions: int = 20) -> None:
     """Ensure we don't exceed max dimensions."""
     if len(dimension_set.dimensions) >= max_dimensions:
         raise BusinessRuleViolation(
@@ -43,9 +42,7 @@ def check_dimension_exists(dimension_set: DimensionSet, dimension_id: str) -> No
         raise BusinessRuleViolation(f"Dimension '{dimension_id}' not found in this set")
 
 
-def check_min_dimensions(
-    dimension_set: DimensionSet, min_dimensions: int = 3
-) -> None:
+def check_min_dimensions(dimension_set: DimensionSet, min_dimensions: int = 3) -> None:
     """Ensure we maintain minimum dimensions."""
     if len(dimension_set.dimensions) - 1 < min_dimensions:
         raise BusinessRuleViolation(
@@ -54,17 +51,17 @@ def check_min_dimensions(
 
 
 def validate_weights(
-    weights: Dict[str, DimensionWeight], 
+    weights: Dict[str, DimensionWeight],
     require_normalized: bool = True,
-    tolerance: float = 0.01
+    tolerance: float = 0.01,
 ) -> List[str]:
     """Validate weight configuration."""
     errors = []
-    
+
     if not weights:
         errors.append("Dimension set must have at least one weighted dimension")
         return errors
-    
+
     # Check for normalized weights if required
     if require_normalized:
         total = sum(w.value for w in weights.values())
@@ -72,32 +69,31 @@ def validate_weights(
             errors.append(
                 f"Weights must sum to 1.0 when normalization is required (sum: {total:.3f})"
             )
-    
+
     # Check for zero weights
     zero_weights = [dim_id for dim_id, w in weights.items() if w.value == 0.0]
     if zero_weights:
         errors.append(f"Dimensions with zero weight: {zero_weights}")
-    
+
     return errors
 
 
 def create_dimension_set_validators(
     min_dimensions: int = 3,
     max_dimensions: int = 20,
-    require_normalized_weights: bool = True
+    require_normalized_weights: bool = True,
 ) -> Dict[str, Callable]:
     """Create a set of validation functions with specific configuration.
-    
+
     This factory function returns configured validators that can be used
     by DimensionSetAggregate without needing a policy class.
     """
     return {
-        'can_add': partial(check_max_dimensions, max_dimensions=max_dimensions),
-        'can_remove': partial(check_min_dimensions, min_dimensions=min_dimensions),
-        'validate_weights': partial(
-            validate_weights, 
-            require_normalized=require_normalized_weights
-        )
+        "can_add": partial(check_max_dimensions, max_dimensions=max_dimensions),
+        "can_remove": partial(check_min_dimensions, min_dimensions=min_dimensions),
+        "validate_weights": partial(
+            validate_weights, require_normalized=require_normalized_weights
+        ),
     }
 
 
@@ -106,9 +102,9 @@ DEFAULT_VALIDATORS = create_dimension_set_validators()
 
 
 def can_add_dimension(
-    dimension_set: DimensionSet, 
+    dimension_set: DimensionSet,
     dimension: DimensionDefinition,
-    max_dimensions: int = 20
+    max_dimensions: int = 20,
 ) -> bool:
     """Check if a dimension can be added to the set."""
     check_dimension_not_exists(dimension_set, dimension)
@@ -117,9 +113,7 @@ def can_add_dimension(
 
 
 def can_remove_dimension(
-    dimension_set: DimensionSet,
-    dimension_id: str,
-    min_dimensions: int = 3  
+    dimension_set: DimensionSet, dimension_id: str, min_dimensions: int = 3
 ) -> bool:
     """Check if a dimension can be removed from the set."""
     check_dimension_exists(dimension_set, dimension_id)

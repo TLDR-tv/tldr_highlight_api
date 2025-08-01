@@ -1,7 +1,7 @@
 """Simple prompt template value object for AI-powered highlight detection."""
 
 from dataclasses import dataclass
-from typing import Dict, Any
+from typing import Any
 from string import Template
 
 
@@ -13,12 +13,12 @@ class PromptTemplate:
     """
 
     template: str
-    
+
     def __post_init__(self) -> None:
         """Validate template."""
         if not self.template or not self.template.strip():
             raise ValueError("Template cannot be empty")
-            
+
         # Validate it's a valid template
         try:
             Template(self.template)
@@ -27,10 +27,10 @@ class PromptTemplate:
 
     def render(self, **kwargs: Any) -> str:
         """Render the template with provided variables.
-        
+
         Args:
             **kwargs: Variables to substitute in the template
-            
+
         Returns:
             Rendered prompt string
         """

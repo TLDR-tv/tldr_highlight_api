@@ -26,6 +26,7 @@ if TYPE_CHECKING:
 # Define enums locally to avoid domain dependency
 class WebhookEventStatus(str, PyEnum):
     """Status of webhook event processing."""
+
     RECEIVED = "received"
     PROCESSING = "processing"
     PROCESSED = "processed"
@@ -35,6 +36,7 @@ class WebhookEventStatus(str, PyEnum):
 
 class WebhookEventType(str, PyEnum):
     """Type of webhook event."""
+
     STREAM_STARTED = "stream.started"
     STREAM_ENDED = "stream.ended"
     STREAM_UPDATE = "stream.update"
@@ -52,7 +54,9 @@ class WebhookEvent(Base):
 
     # Event identification
     event_id: Mapped[str] = mapped_column(String(255), nullable=False)
-    event_type: Mapped[WebhookEventType] = mapped_column(Enum(WebhookEventType), nullable=False)
+    event_type: Mapped[WebhookEventType] = mapped_column(
+        Enum(WebhookEventType), nullable=False
+    )
     platform: Mapped[str] = mapped_column(String(50), nullable=False)
 
     # Processing status
@@ -64,22 +68,34 @@ class WebhookEvent(Base):
     payload: Mapped[Dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
 
     # Processing information
-    stream_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("streams.id"), nullable=True)
-    user_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
+    stream_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("streams.id"), nullable=True
+    )
+    user_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=True
+    )
     processed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     # Timestamps
-    received_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
-    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    received_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=datetime.utcnow
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=datetime.utcnow
+    )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
     )
 
     # Relationships
-    stream: Mapped[Optional["Stream"]] = relationship("Stream", back_populates="webhook_events")
-    user: Mapped[Optional["User"]] = relationship("User", back_populates="webhook_events")
+    stream: Mapped[Optional["Stream"]] = relationship(
+        "Stream", back_populates="webhook_events"
+    )
+    user: Mapped[Optional["User"]] = relationship(
+        "User", back_populates="webhook_events"
+    )
 
     # Indexes
     __table_args__ = (

@@ -21,7 +21,7 @@ from .base import (
 
 class FFmpegStreamAdapter(StreamAdapter):
     """Generic stream adapter using FFmpeg for any supported format.
-    
+
     This adapter can handle:
     - RTMP/RTMPS streams
     - HLS (m3u8) streams
@@ -57,19 +57,33 @@ class FFmpegStreamAdapter(StreamAdapter):
         try:
             # Use FFmpeg to probe the stream
             from src.infrastructure.media.ffmpeg_integration import FFmpegProbe
-            
+
             # Probe with a reasonable timeout
             probe_info = await FFmpegProbe.probe_stream(self.stream_url, timeout=15)
-            
+
             # Extract metadata from probe
             metadata = StreamMetadata(
-                width=probe_info.video_streams[0].width if probe_info.video_streams else None,
-                height=probe_info.video_streams[0].height if probe_info.video_streams else None,
-                fps=probe_info.video_streams[0].fps if probe_info.video_streams else None,
-                video_codec=probe_info.video_streams[0].codec if probe_info.video_streams else None,
-                audio_codec=probe_info.audio_streams[0].codec if probe_info.audio_streams else None,
-                audio_sample_rate=probe_info.audio_streams[0].sample_rate if probe_info.audio_streams else None,
-                audio_channels=probe_info.audio_streams[0].channels if probe_info.audio_streams else None,
+                width=probe_info.video_streams[0].width
+                if probe_info.video_streams
+                else None,
+                height=probe_info.video_streams[0].height
+                if probe_info.video_streams
+                else None,
+                fps=probe_info.video_streams[0].fps
+                if probe_info.video_streams
+                else None,
+                video_codec=probe_info.video_streams[0].codec
+                if probe_info.video_streams
+                else None,
+                audio_codec=probe_info.audio_streams[0].codec
+                if probe_info.audio_streams
+                else None,
+                audio_sample_rate=probe_info.audio_streams[0].sample_rate
+                if probe_info.audio_streams
+                else None,
+                audio_channels=probe_info.audio_streams[0].channels
+                if probe_info.audio_streams
+                else None,
                 format_name=probe_info.format_name,
                 duration_seconds=probe_info.duration,
                 bitrate=probe_info.bitrate,
@@ -117,7 +131,10 @@ class FFmpegStreamAdapter(StreamAdapter):
         Yields:
             Raw stream data chunks
         """
-        if not self._connection or self._connection.status != ConnectionStatus.CONNECTED:
+        if (
+            not self._connection
+            or self._connection.status != ConnectionStatus.CONNECTED
+        ):
             raise ConnectionError("Not connected to stream")
 
         # For the generic adapter, we don't yield data directly
@@ -142,16 +159,18 @@ class FFmpegStreamAdapter(StreamAdapter):
         # Basic health check - verify stream is still accessible
         try:
             from src.infrastructure.media.ffmpeg_integration import FFmpegProbe
-            
+
             # Quick probe to check if stream is still alive
             await FFmpegProbe.probe_stream(self.stream_url, timeout=5)
-            
+
             return StreamHealth(
                 status=self._connection.status,
                 latency_ms=50,  # Estimated
                 dropped_frames=0,
                 connection_quality=1.0,
-                bandwidth_mbps=self._connection.metadata.bitrate / 1_000_000 if self._connection.metadata.bitrate else 0.0,
+                bandwidth_mbps=self._connection.metadata.bitrate / 1_000_000
+                if self._connection.metadata.bitrate
+                else 0.0,
             )
         except Exception:
             return StreamHealth(

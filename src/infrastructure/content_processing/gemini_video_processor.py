@@ -192,7 +192,9 @@ especially those with higher weights. Quality over quantity - only identify
 truly noteworthy moments.
 """
 
-    def _build_dimension_instructions(self, dimension_set: DimensionSetAggregate) -> str:
+    def _build_dimension_instructions(
+        self, dimension_set: DimensionSetAggregate
+    ) -> str:
         """Build detailed instructions for each dimension."""
         instructions = []
 
@@ -336,8 +338,12 @@ truly noteworthy moments.
                     dimension_scores[dim_id] = DimensionScore(
                         dimension_id=dim_id,
                         value=float(score_value),
-                        confidence="high" if score_value > 0.8 else "medium" if score_value > 0.5 else "low",
-                        evidence=f"Gemini analysis score: {score_value:.3f}"
+                        confidence="high"
+                        if score_value > 0.8
+                        else "medium"
+                        if score_value > 0.5
+                        else "low",
+                        evidence=f"Gemini analysis score: {score_value:.3f}",
                     )
 
             candidate = HighlightCandidate(

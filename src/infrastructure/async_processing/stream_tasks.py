@@ -462,8 +462,6 @@ def ingest_stream_with_ffmpeg(
             logger.error(f"Failed to create stream segments: {e}")
             raise
 
-    
-
 
 @celery_app.task(bind=True, base=StreamProcessingTask, name="detect_highlights_with_ai")
 @traced_background_task(name="detect_highlights_with_ai")
@@ -536,7 +534,9 @@ def detect_highlights_with_ai(
             )
 
             # Initialize B2B agent configuration (simplified)
-            from src.domain.entities.stream_processing_config import StreamProcessingConfig
+            from src.domain.entities.stream_processing_config import (
+                StreamProcessingConfig,
+            )
 
             # Use default config if none specified
             if agent_config_id:
@@ -546,7 +546,7 @@ def detect_highlights_with_ai(
                     organization_id=stream.organization_id,
                     user_id=stream.user_id,
                     dimension_set_id=1,  # Would be fetched from config
-                    name="Default Stream Processing"
+                    name="Default Stream Processing",
                 )
             else:
                 # Create default simplified config
@@ -554,7 +554,7 @@ def detect_highlights_with_ai(
                     organization_id=stream.organization_id,
                     user_id=stream.user_id,
                     dimension_set_id=1,  # Would be fetched from config
-                    name="Default Stream Processing"
+                    name="Default Stream Processing",
                 )
 
             # Initialize Gemini processor (now primary method)
@@ -567,8 +567,12 @@ def detect_highlights_with_ai(
                     from src.infrastructure.content_processing import (
                         GeminiVideoProcessor,
                     )
-                    from src.application.services.dimension_set_service import DimensionSetService
-                    from src.infrastructure.persistence.repositories.dimension_set_repository import DimensionSetRepository
+                    from src.application.services.dimension_set_service import (
+                        DimensionSetService,
+                    )
+                    from src.infrastructure.persistence.repositories.dimension_set_repository import (
+                        DimensionSetRepository,
+                    )
                     from src.infrastructure.database import get_async_session
 
                     gemini_processor = GeminiVideoProcessor(
@@ -586,13 +590,15 @@ def detect_highlights_with_ai(
                     async with get_async_session() as session:
                         dimension_set_repo = DimensionSetRepository(session)
                         dimension_set_service = DimensionSetService(dimension_set_repo)
-                        
-                        dimension_set = await dimension_set_service.get_dimension_set_for_stream(
-                            dimension_set_id=stream.dimension_set_id,
-                            organization_id=stream.organization_id or 1,
-                            user_id=stream.user_id,
+
+                        dimension_set = (
+                            await dimension_set_service.get_dimension_set_for_stream(
+                                dimension_set_id=stream.dimension_set_id,
+                                organization_id=stream.organization_id or 1,
+                                user_id=stream.user_id,
+                            )
                         )
-                    
+
                     gemini_span.set_attribute("dimension_set.name", dimension_set.name)
                     gemini_span.set_attribute(
                         "dimension_count", len(dimension_set.dimensions)
@@ -603,11 +609,15 @@ def detect_highlights_with_ai(
                 )
                 raise ValueError("Gemini API key is required for highlight detection")
 
-            # Create B2B agent with observability
+                # Create B2B agent with observability
                 with logfire.span("initialize_b2b_agent") as agent_span:
                     agent_span.set_attribute("agent_config_id", agent_config_id)
-                    agent_span.set_attribute("agent_config.type", agent_config.config_type)
-                    agent_span.set_attribute("gemini.enabled", gemini_processor is not None)
+                    agent_span.set_attribute(
+                        "agent_config.type", agent_config.config_type
+                    )
+                    agent_span.set_attribute(
+                        "gemini.enabled", gemini_processor is not None
+                    )
 
                     b2b_agent = B2BStreamAgent(
                         stream=stream,
@@ -637,7 +647,9 @@ def detect_highlights_with_ai(
                 try:
                     with logfire.span("start_b2b_agent"):
                         loop.run_until_complete(b2b_agent.start())
-                        logfire.info("B2B agent started successfully", stream_id=stream_id)
+                        logfire.info(
+                            "B2B agent started successfully", stream_id=stream_id
+                        )
 
                     # Process each segment
                     all_highlights = []
@@ -695,7 +707,8 @@ def detect_highlights_with_ai(
                                             "candidates.count", len(candidates)
                                         )
                                         analyze_span.set_attribute(
-                                            "analysis.duration_seconds", analyze_duration
+                                            "analysis.duration_seconds",
+                                            analyze_duration,
                                         )
                                         analyze_span.set_attribute("success", True)
 
@@ -731,11 +744,15 @@ def detect_highlights_with_ai(
                                         )
                                         if highlight:
                                             # Generate clip, thumbnail, and caption
-                                            clip_path = await clip_generator.generate_clip(
-                                                source_path=segment["path"],
-                                                output_dir=ingestion_data["temp_dir"],
-                                                start_time=highlight.start_time,
-                                                duration=highlight.duration,
+                                            clip_path = (
+                                                await clip_generator.generate_clip(
+                                                    source_path=segment["path"],
+                                                    output_dir=ingestion_data[
+                                                        "temp_dir"
+                                                    ],
+                                                    start_time=highlight.start_time,
+                                                    duration=highlight.duration,
+                                                )
                                             )
                                             thumbnail_path = await thumbnail_generator.generate_thumbnail(
                                                 video_path=clip_path,
@@ -785,7 +802,9 @@ def detect_highlights_with_ai(
                     # Stop the agent
                     with logfire.span("stop_b2b_agent"):
                         loop.run_until_complete(b2b_agent.stop())
-                        logfire.info("B2B agent stopped successfully", stream_id=stream_id)
+                        logfire.info(
+                            "B2B agent stopped successfully", stream_id=stream_id
+                        )
 
                     # Update stream status to completed
                     with logfire.span("update_stream_completed"):
@@ -828,7 +847,9 @@ def detect_highlights_with_ai(
                             import shutil
 
                             shutil.rmtree(temp_dir)
-                            logfire.info("Cleaned up temporary files", temp_dir=temp_dir)
+                            logfire.info(
+                                "Cleaned up temporary files", temp_dir=temp_dir
+                            )
 
                     # Final progress update
                     self.progress_tracker.update_progress(
@@ -841,7 +862,7 @@ def detect_highlights_with_ai(
                             "total_highlights": len(all_highlights),
                             "agent_metrics": b2b_agent.get_performance_metrics(),
                         },
-                )
+                    )
 
                     # Send completion webhook
                     asyncio.create_task(

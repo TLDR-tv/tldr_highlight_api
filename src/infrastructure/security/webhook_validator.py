@@ -3,14 +3,13 @@
 import hmac
 import hashlib
 import time
-from typing import Optional, Dict
-from abc import ABC, abstractmethod
+from typing import Optional, Dict, Protocol, runtime_checkable
 
 
-class WebhookValidator(ABC):
-    """Base class for webhook validators."""
+@runtime_checkable
+class WebhookValidator(Protocol):
+    """Protocol for webhook validators."""
 
-    @abstractmethod
     def validate_signature(
         self, payload: bytes, signature: str, timestamp: Optional[str] = None
     ) -> bool:
@@ -24,10 +23,10 @@ class WebhookValidator(ABC):
         Returns:
             True if valid, False otherwise
         """
-        pass
+        ...
 
 
-class HMACWebhookValidator(WebhookValidator):
+class HMACWebhookValidator:
     """HMAC-based webhook validator."""
 
     def __init__(
@@ -87,7 +86,7 @@ class HundredMSWebhookValidator(HMACWebhookValidator):
         )
 
 
-class TwitchWebhookValidator(WebhookValidator):
+class TwitchWebhookValidator:
     """Twitch EventSub webhook validator."""
 
     def __init__(self, webhook_secret: str):
@@ -116,39 +115,44 @@ class TwitchWebhookValidator(WebhookValidator):
         return hmac.compare_digest(expected_signature, signature)
 
 
-class WebhookValidatorFactory:
-    """Factory for creating platform-specific validators."""
+def create_webhook_validator(platform: str, secret: str) -> Optional[WebhookValidator]:
+    """Create a platform-specific webhook validator.
 
-    def __init__(self, webhook_secrets: Dict[str, str]):
-        """Initialize validator factory.
+    Args:
+        platform: Platform name
+        secret: Webhook secret
 
-        Args:
-            webhook_secrets: Platform -> secret mapping
-        """
-        self.webhook_secrets = webhook_secrets
+    Returns:
+        Validator instance or None
+    """
+    if not secret:
+        return None
 
-    def get_validator(self, platform: str) -> Optional[WebhookValidator]:
-        """Get validator for platform.
+    platform_lower = platform.lower()
 
-        Args:
-            platform: Platform name
+    if platform_lower == "100ms":
+        return HundredMSWebhookValidator(secret)
+    elif platform_lower == "twitch":
+        return TwitchWebhookValidator(secret)
+    else:
+        # Default HMAC validator
+        return HMACWebhookValidator(secret)
 
-        Returns:
-            Validator instance or None
-        """
-        secret = self.webhook_secrets.get(platform)
-        if not secret:
-            return None
 
-        platform_lower = platform.lower()
+def get_webhook_validator(
+    platform: str, webhook_secrets: Dict[str, str]
+) -> Optional[WebhookValidator]:
+    """Get validator for platform from secrets mapping.
 
-        if platform_lower == "100ms":
-            return HundredMSWebhookValidator(secret)
-        elif platform_lower == "twitch":
-            return TwitchWebhookValidator(secret)
-        else:
-            # Default HMAC validator
-            return HMACWebhookValidator(secret)
+    Args:
+        platform: Platform name
+        webhook_secrets: Platform -> secret mapping
+
+    Returns:
+        Validator instance or None
+    """
+    secret = webhook_secrets.get(platform)
+    return create_webhook_validator(platform, secret) if secret else None
 
 
 class WebhookAuthenticationError(Exception):

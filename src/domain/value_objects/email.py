@@ -26,39 +26,39 @@ class Email:
         """Check if email has valid format using stdlib."""
         if not email or not isinstance(email, str):
             return False
-        
+
         # Basic validation using parseaddr
         parsed = parseaddr(email.strip())
-        
+
         # parseaddr returns ('', '') for invalid emails
         if not parsed[1]:
             return False
-            
+
         # Check for @ symbol
-        if '@' not in parsed[1]:
+        if "@" not in parsed[1]:
             return False
-            
+
         # Check basic structure
-        local, domain = parsed[1].rsplit('@', 1)
-        
+        local, domain = parsed[1].rsplit("@", 1)
+
         # Validate local part
         if not local or len(local) > 64:
             return False
-            
+
         # Validate domain
-        if not domain or '.' not in domain:
+        if not domain or "." not in domain:
             return False
-            
+
         # Check domain parts
-        domain_parts = domain.split('.')
+        domain_parts = domain.split(".")
         if len(domain_parts) < 2:
             return False
-            
+
         # Each part should have at least one character
         for part in domain_parts:
             if not part or len(part) > 63:
                 return False
-                
+
         return True
 
     @property

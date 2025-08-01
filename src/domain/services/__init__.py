@@ -2,7 +2,7 @@
 
 Pure domain logic has been moved to function modules:
 - src/domain/scoring.py - Dimension scoring functions
-- src/domain/calibration.py - Dimension calibration functions  
+- src/domain/calibration.py - Dimension calibration functions
 - src/domain/validation.py - Dimension validation functions
 
 Application services have been moved to:

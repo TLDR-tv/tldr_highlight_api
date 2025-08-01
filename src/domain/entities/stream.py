@@ -11,11 +11,10 @@ from src.domain.value_objects.duration import Duration
 from src.domain.value_objects.processing_options import ProcessingOptions
 from src.domain.exceptions import InvalidStateTransition, BusinessRuleViolation
 from src.domain.events import (
-    StreamCreatedEvent,
     StreamProcessingStartedEvent,
     StreamProcessingCompletedEvent,
     StreamProcessingFailedEvent,
-    HighlightAddedToStreamEvent
+    HighlightAddedToStreamEvent,
 )
 
 
@@ -82,7 +81,7 @@ class Stream(AggregateRoot[int]):
 
     def start_processing(self) -> None:
         """Start processing the stream.
-        
+
         This follows Pythonic DDD where aggregates enforce state transitions
         and raise appropriate domain events.
         """
@@ -93,20 +92,20 @@ class Stream(AggregateRoot[int]):
                 entity_id=self.id,
                 from_state=self.status.value,
                 to_state=StreamStatus.PROCESSING.value,
-                allowed_states=[StreamStatus.PENDING.value]
+                allowed_states=[StreamStatus.PENDING.value],
             )
 
         # Update state
         self.status = StreamStatus.PROCESSING
         self.started_at = Timestamp.now()
         self.updated_at = Timestamp.now()
-        
+
         # Raise domain event
         if self.id is not None:
             self.add_domain_event(
                 StreamProcessingStartedEvent(
                     stream_id=self.id,
-                    processing_options=self.processing_options.to_dict()
+                    processing_options=self.processing_options.to_dict(),
                 )
             )
 
@@ -119,7 +118,7 @@ class Stream(AggregateRoot[int]):
                 entity_id=self.id,
                 from_state=self.status.value,
                 to_state=StreamStatus.COMPLETED.value,
-                allowed_states=[StreamStatus.PROCESSING.value]
+                allowed_states=[StreamStatus.PROCESSING.value],
             )
 
         # Update state
@@ -129,19 +128,21 @@ class Stream(AggregateRoot[int]):
         if duration:
             self.duration = duration
         self.updated_at = Timestamp.now()
-        
+
         # Calculate processing duration
         processing_duration = 0.0
         if self.started_at:
-            processing_duration = self.completed_at.duration_since(self.started_at).total_seconds()
-        
+            processing_duration = self.completed_at.duration_since(
+                self.started_at
+            ).total_seconds()
+
         # Raise domain event
         if self.id is not None:
             self.add_domain_event(
                 StreamProcessingCompletedEvent(
                     stream_id=self.id,
                     duration_seconds=processing_duration,
-                    highlight_count=len(self.highlight_ids)
+                    highlight_count=len(self.highlight_ids),
                 )
             )
 
@@ -154,7 +155,10 @@ class Stream(AggregateRoot[int]):
                 entity_id=self.id,
                 from_state=self.status.value,
                 to_state=StreamStatus.FAILED.value,
-                allowed_states=[StreamStatus.PENDING.value, StreamStatus.PROCESSING.value]
+                allowed_states=[
+                    StreamStatus.PENDING.value,
+                    StreamStatus.PROCESSING.value,
+                ],
             )
 
         # Update state
@@ -162,13 +166,12 @@ class Stream(AggregateRoot[int]):
         self.completed_at = Timestamp.now()
         self.error_message = error_message
         self.updated_at = Timestamp.now()
-        
+
         # Raise domain event
         if self.id is not None:
             self.add_domain_event(
                 StreamProcessingFailedEvent(
-                    stream_id=self.id,
-                    error_message=error_message
+                    stream_id=self.id, error_message=error_message
                 )
             )
 
@@ -181,7 +184,10 @@ class Stream(AggregateRoot[int]):
                 entity_id=self.id,
                 from_state=self.status.value,
                 to_state=StreamStatus.CANCELLED.value,
-                allowed_states=[StreamStatus.PENDING.value, StreamStatus.PROCESSING.value]
+                allowed_states=[
+                    StreamStatus.PENDING.value,
+                    StreamStatus.PROCESSING.value,
+                ],
             )
 
         # Update state
@@ -189,7 +195,7 @@ class Stream(AggregateRoot[int]):
         self.completed_at = Timestamp.now()
         self.error_message = "Cancelled by user"
         self.updated_at = Timestamp.now()
-        
+
         # Note: We could add a StreamCancelledEvent if needed
 
     def add_highlight(self, highlight_id: int, confidence_score: float) -> None:
@@ -200,9 +206,9 @@ class Stream(AggregateRoot[int]):
                 "Can only add highlights to streams being processed",
                 entity_type="Stream",
                 entity_id=self.id,
-                context={"status": self.status.value}
+                context={"status": self.status.value},
             )
-        
+
         # Business rule: No duplicate highlights
         if highlight_id in self.highlight_ids:
             return  # Idempotent operation
@@ -210,14 +216,14 @@ class Stream(AggregateRoot[int]):
         # Update state
         self.highlight_ids.append(highlight_id)
         self.updated_at = Timestamp.now()
-        
+
         # Raise domain event
         if self.id is not None:
             self.add_domain_event(
                 HighlightAddedToStreamEvent(
                     stream_id=self.id,
                     highlight_id=highlight_id,
-                    confidence_score=confidence_score
+                    confidence_score=confidence_score,
                 )
             )
 
@@ -253,7 +259,7 @@ class Stream(AggregateRoot[int]):
             f"Stream(id={self.id}, platform={self.platform.value}, "
             f"status={self.status.value}, highlights={len(self.highlight_ids)})"
         )
-    
+
     @classmethod
     def create(
         cls,
@@ -263,10 +269,10 @@ class Stream(AggregateRoot[int]):
         processing_options: ProcessingOptions,
         title: Optional[str] = None,
         channel_name: Optional[str] = None,
-        **kwargs
+        **kwargs,
     ) -> "Stream":
         """Factory method to create a new stream.
-        
+
         This is the Pythonic way to handle entity creation with
         proper initialization.
         """
@@ -279,15 +285,15 @@ class Stream(AggregateRoot[int]):
             processing_options=processing_options,
             title=title,
             channel_name=channel_name,
-            game_category=kwargs.get('game_category'),
-            language=kwargs.get('language'),
-            viewer_count=kwargs.get('viewer_count'),
+            game_category=kwargs.get("game_category"),
+            language=kwargs.get("language"),
+            viewer_count=kwargs.get("viewer_count"),
             duration=None,
             started_at=None,
             completed_at=None,
             error_message=None,
             highlight_ids=[],
-            platform_data=kwargs.get('platform_data', {})
+            platform_data=kwargs.get("platform_data", {}),
         )
-        
+
         return stream

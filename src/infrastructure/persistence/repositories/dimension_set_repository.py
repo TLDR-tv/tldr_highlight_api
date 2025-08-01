@@ -17,7 +17,8 @@ from src.infrastructure.persistence.mappers.dimension_set_mapper import (
 
 
 class DimensionSetRepository(
-    BaseRepository[DimensionSetAggregate, DimensionSetModel, int], IDimensionSetRepository
+    BaseRepository[DimensionSetAggregate, DimensionSetModel, int],
+    IDimensionSetRepository,
 ):
     """Concrete implementation of DimensionSetRepository using SQLAlchemy."""
 
@@ -31,7 +32,9 @@ class DimensionSetRepository(
             session=session, model_class=DimensionSetModel, mapper=DimensionSetMapper()
         )
 
-    async def get_by_organization(self, organization_id: int) -> List[DimensionSetAggregate]:
+    async def get_by_organization(
+        self, organization_id: int
+    ) -> List[DimensionSetAggregate]:
         """Get all dimension sets for an organization.
 
         Args:

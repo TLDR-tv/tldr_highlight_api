@@ -11,14 +11,13 @@ from src.domain.exceptions import (
     BusinessRuleViolation,
     QuotaExceeded,
     UnauthorizedOperation,
-    InvalidStateTransition
+    InvalidStateTransition,
 )
 from src.domain.events import (
-    OrganizationCreatedEvent,
     MemberAddedEvent,
     MemberRemovedEvent,
     PlanUpgradedEvent,
-    OrganizationDeactivatedEvent
+    OrganizationDeactivatedEvent,
 )
 
 
@@ -118,16 +117,16 @@ class Organization(AggregateRoot[int]):
             for key, value in self.custom_limits.items():
                 if hasattr(base_limits, key):
                     overrides[key] = value
-            
+
             if overrides:
                 # Get all current values
                 current_values = {
-                    'api_rate_limit_per_minute': base_limits.api_rate_limit_per_minute,
-                    'monthly_processing_minutes': base_limits.monthly_processing_minutes,
-                    'concurrent_streams': base_limits.concurrent_streams,
-                    'webhook_endpoints': base_limits.webhook_endpoints,
-                    'api_keys': base_limits.api_keys,
-                    'team_members': base_limits.team_members,
+                    "api_rate_limit_per_minute": base_limits.api_rate_limit_per_minute,
+                    "monthly_processing_minutes": base_limits.monthly_processing_minutes,
+                    "concurrent_streams": base_limits.concurrent_streams,
+                    "webhook_endpoints": base_limits.webhook_endpoints,
+                    "api_keys": base_limits.api_keys,
+                    "team_members": base_limits.team_members,
                 }
                 # Apply overrides
                 current_values.update(overrides)
@@ -158,7 +157,7 @@ class Organization(AggregateRoot[int]):
 
     def add_member(self, user_id: int, added_by_user_id: int) -> None:
         """Add a member to the organization.
-        
+
         This follows Pythonic DDD patterns where aggregates protect invariants
         and raise domain events.
         """
@@ -167,15 +166,15 @@ class Organization(AggregateRoot[int]):
             raise UnauthorizedOperation(
                 operation="add_member",
                 reason="Only the owner can add members",
-                user_id=added_by_user_id
+                user_id=added_by_user_id,
             )
-        
+
         # Business rule: Owner is implicitly a member
         if user_id == self.owner_id:
             raise BusinessRuleViolation(
                 "Owner is already a member",
                 entity_type="Organization",
-                entity_id=self.id
+                entity_id=self.id,
             )
 
         # Business rule: No duplicate members
@@ -188,20 +187,20 @@ class Organization(AggregateRoot[int]):
                 resource="team_members",
                 limit=self.plan_limits.team_members,
                 current=self.member_count,
-                organization_id=self.id
+                organization_id=self.id,
             )
 
         # Update state
         self.member_ids.append(user_id)
         self.updated_at = Timestamp.now()
-        
+
         # Raise domain event
         if self.id is not None:
             self.add_domain_event(
                 MemberAddedEvent(
                     organization_id=self.id,
                     user_id=user_id,
-                    added_by_user_id=added_by_user_id
+                    added_by_user_id=added_by_user_id,
                 )
             )
 
@@ -212,9 +211,9 @@ class Organization(AggregateRoot[int]):
             raise UnauthorizedOperation(
                 operation="remove_member",
                 reason="Only the owner can remove members",
-                user_id=removed_by_user_id
+                user_id=removed_by_user_id,
             )
-        
+
         # Business rule: Member must exist
         if user_id not in self.member_ids:
             return  # Idempotent operation
@@ -222,14 +221,14 @@ class Organization(AggregateRoot[int]):
         # Update state
         self.member_ids.remove(user_id)
         self.updated_at = Timestamp.now()
-        
+
         # Raise domain event
         if self.id is not None:
             self.add_domain_event(
                 MemberRemovedEvent(
                     organization_id=self.id,
                     user_id=user_id,
-                    removed_by_user_id=removed_by_user_id
+                    removed_by_user_id=removed_by_user_id,
                 )
             )
 
@@ -240,20 +239,20 @@ class Organization(AggregateRoot[int]):
             raise UnauthorizedOperation(
                 operation="upgrade_plan",
                 reason="Only the owner can upgrade the plan",
-                user_id=upgraded_by_user_id
+                user_id=upgraded_by_user_id,
             )
-        
+
         # Business rule: Must be a different plan
         if new_plan == self.plan_type:
             return  # No change needed
-        
+
         old_plan = self.plan_type
-        
+
         # Update state
         self.plan_type = new_plan
         self.subscription_started_at = Timestamp.now()
         self.updated_at = Timestamp.now()
-        
+
         # Raise domain event
         if self.id is not None:
             self.add_domain_event(
@@ -261,7 +260,7 @@ class Organization(AggregateRoot[int]):
                     organization_id=self.id,
                     old_plan=old_plan.value,
                     new_plan=new_plan.value,
-                    upgraded_by_user_id=upgraded_by_user_id
+                    upgraded_by_user_id=upgraded_by_user_id,
                 )
             )
 
@@ -274,20 +273,17 @@ class Organization(AggregateRoot[int]):
                 entity_id=self.id,
                 from_state="inactive",
                 to_state="inactive",
-                allowed_states=["active"]
+                allowed_states=["active"],
             )
-        
+
         # Update state
         self.is_active = False
         self.updated_at = Timestamp.now()
-        
+
         # Raise domain event
         if self.id is not None:
             self.add_domain_event(
-                OrganizationDeactivatedEvent(
-                    organization_id=self.id,
-                    reason=reason
-                )
+                OrganizationDeactivatedEvent(organization_id=self.id, reason=reason)
             )
 
     def __str__(self) -> str:
@@ -301,16 +297,13 @@ class Organization(AggregateRoot[int]):
             f"plan={self.plan_type.value}, members={self.member_count}, "
             f"active={self.is_active})"
         )
-    
+
     @classmethod
     def create(
-        cls,
-        name: CompanyName,
-        owner_id: int,
-        plan_type: PlanType = PlanType.STARTER
+        cls, name: CompanyName, owner_id: int, plan_type: PlanType = PlanType.STARTER
     ) -> "Organization":
         """Factory method to create a new organization.
-        
+
         This is the Pythonic way to handle entity creation with
         proper initialization and event raising.
         """
@@ -324,10 +317,10 @@ class Organization(AggregateRoot[int]):
             settings={},
             subscription_started_at=Timestamp.now(),
             subscription_ends_at=None,
-            is_active=True
+            is_active=True,
         )
-        
+
         # Note: We can't raise the creation event here since we don't have an ID yet
         # The repository should handle this after persisting
-        
+
         return org

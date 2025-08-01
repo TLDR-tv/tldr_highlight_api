@@ -2,6 +2,7 @@ from typing import Optional
 
 from src.infrastructure.media.ffmpeg_integration import FFmpegProcessor
 
+
 class ClipGenerator:
     def __init__(self, ffmpeg_processor: Optional[FFmpegProcessor] = None):
         self.ffmpeg_processor = ffmpeg_processor or FFmpegProcessor()

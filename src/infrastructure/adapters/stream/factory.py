@@ -1,6 +1,6 @@
-"""Factory for creating stream adapters.
+"""Factory functions for creating stream adapters.
 
-This module provides a factory pattern implementation for creating
+This module provides factory functions for creating
 the appropriate stream adapter based on the URL or platform.
 """
 
@@ -16,92 +16,86 @@ from .ffmpeg import FFmpegStreamAdapter
 
 logger = logging.getLogger(__name__)
 
+# Registry of adapter implementations
+_ADAPTERS: Dict[str, Type[StreamAdapter]] = {
+    "rtmp": RTMPStreamAdapter,
+    "rtmps": RTMPStreamAdapter,
+    "ffmpeg": FFmpegStreamAdapter,  # Generic adapter for any format
+}
 
-class StreamAdapterFactory:
-    """Factory for creating stream adapters based on URL or platform."""
 
-    # Registry of adapter implementations
-    _adapters: Dict[str, Type[StreamAdapter]] = {
-        "rtmp": RTMPStreamAdapter,
-        "rtmps": RTMPStreamAdapter,
-        "ffmpeg": FFmpegStreamAdapter,  # Generic adapter for any format
-    }
+def register_stream_adapter(platform: str, adapter_class: Type[StreamAdapter]) -> None:
+    """Register a new adapter implementation.
 
-    @classmethod
-    def register_adapter(
-        cls, platform: str, adapter_class: Type[StreamAdapter]
-    ) -> None:
-        """Register a new adapter implementation.
+    Args:
+        platform: Platform identifier
+        adapter_class: Adapter class that implements StreamAdapter protocol
+    """
+    _ADAPTERS[platform.lower()] = adapter_class
+    logger.info(f"Registered adapter for platform: {platform}")
 
-        Args:
-            platform: Platform identifier
-            adapter_class: Adapter class that implements StreamAdapter protocol
-        """
-        cls._adapters[platform.lower()] = adapter_class
-        logger.info(f"Registered adapter for platform: {platform}")
 
-    @classmethod
-    def create(
-        cls, url: str, session: Optional[ClientSession] = None, **kwargs
-    ) -> StreamAdapter:
-        """Create a stream adapter for the given URL.
+def create_stream_adapter(
+    url: str, session: Optional[ClientSession] = None, **kwargs
+) -> StreamAdapter:
+    """Create a stream adapter for the given URL.
 
-        Args:
-            url: Stream URL
-            session: Optional aiohttp ClientSession
-            **kwargs: Additional adapter-specific configuration
+    Args:
+        url: Stream URL
+        session: Optional aiohttp ClientSession
+        **kwargs: Additional adapter-specific configuration
 
-        Returns:
-            StreamAdapter: Appropriate adapter instance
+    Returns:
+        StreamAdapter: Appropriate adapter instance
 
-        Raises:
-            ValueError: If no adapter found for the URL
-        """
-        platform = cls._detect_platform(url)
+    Raises:
+        ValueError: If no adapter found for the URL
+    """
+    platform = _detect_platform(url)
 
-        if platform not in cls._adapters:
-            raise ValueError(
-                f"No adapter found for platform: {platform}. "
-                f"Available platforms: {list(cls._adapters.keys())}"
-            )
+    if platform not in _ADAPTERS:
+        raise ValueError(
+            f"No adapter found for platform: {platform}. "
+            f"Available platforms: {list(_ADAPTERS.keys())}"
+        )
 
-        adapter_class = cls._adapters[platform]
-        logger.info(f"Creating {adapter_class.__name__} for URL: {url}")
+    adapter_class = _ADAPTERS[platform]
+    logger.info(f"Creating {adapter_class.__name__} for URL: {url}")
 
-        return adapter_class(url, session=session, **kwargs)
+    return adapter_class(url, session=session, **kwargs)
 
-    @staticmethod
-    def _detect_platform(url: str) -> str:
-        """Detect the platform from the URL.
 
-        Args:
-            url: Stream URL
+def _detect_platform(url: str) -> str:
+    """Detect the platform from the URL.
 
-        Returns:
-            str: Platform identifier
+    Args:
+        url: Stream URL
 
-        Raises:
-            ValueError: If platform cannot be detected
-        """
-        # Check URL scheme for protocol-based adapters
-        parsed = urlparse(url)
-        scheme = parsed.scheme.lower()
+    Returns:
+        str: Platform identifier
 
-        if scheme in ["rtmp", "rtmps"]:
-            return scheme
+    Raises:
+        ValueError: If platform cannot be detected
+    """
+    # Check URL scheme for protocol-based adapters
+    parsed = urlparse(url)
+    scheme = parsed.scheme.lower()
 
-        # For any other URL, use the generic FFmpeg adapter
-        # which supports all formats that FFmpeg can handle
-        return "ffmpeg"
+    if scheme in ["rtmp", "rtmps"]:
+        return scheme
 
-    @classmethod
-    def get_supported_platforms(cls) -> list[str]:
-        """Get list of supported platforms.
+    # For any other URL, use the generic FFmpeg adapter
+    # which supports all formats that FFmpeg can handle
+    return "ffmpeg"
 
-        Returns:
-            List of platform identifiers
-        """
-        return list(cls._adapters.keys())
+
+def get_supported_platforms() -> list[str]:
+    """Get list of supported platforms.
+
+    Returns:
+        List of platform identifiers
+    """
+    return list(_ADAPTERS.keys())
 
 
 def get_stream_adapter(
@@ -123,14 +117,13 @@ def get_stream_adapter(
     """
     if platform:
         # Use specified platform
-        if platform.lower() not in StreamAdapterFactory._adapters:
+        if platform.lower() not in _ADAPTERS:
             raise ValueError(
-                f"Unknown platform: {platform}. "
-                f"Available: {StreamAdapterFactory.get_supported_platforms()}"
+                f"Unknown platform: {platform}. Available: {get_supported_platforms()}"
             )
 
-        adapter_class = StreamAdapterFactory._adapters[platform.lower()]
+        adapter_class = _ADAPTERS[platform.lower()]
         return adapter_class(url, session=session, **kwargs)
 
     # Auto-detect platform
-    return StreamAdapterFactory.create(url, session=session, **kwargs)
+    return create_stream_adapter(url, session=session, **kwargs)

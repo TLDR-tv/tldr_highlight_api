@@ -4,6 +4,7 @@ from typing import Optional
 import boto3
 from botocore.exceptions import NoCredentialsError
 
+
 class S3Storage:
     def __init__(
         self,

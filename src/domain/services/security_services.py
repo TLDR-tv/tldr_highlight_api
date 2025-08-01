@@ -12,10 +12,10 @@ class PasswordHashingService(Protocol):
 
     def hash_password(self, password: str) -> str:
         """Hash a password using a secure algorithm.
-        
+
         Args:
             password: Plain text password
-            
+
         Returns:
             Hashed password string
         """
@@ -23,11 +23,11 @@ class PasswordHashingService(Protocol):
 
     def verify_password(self, password: str, password_hash: str) -> bool:
         """Verify a password against its hash.
-        
+
         Args:
             password: Plain text password to verify
             password_hash: Stored password hash
-            
+
         Returns:
             True if password matches, False otherwise
         """
@@ -40,10 +40,10 @@ class APIKeyHashingService(Protocol):
 
     def hash_key(self, api_key: str) -> str:
         """Hash an API key for storage.
-        
+
         Args:
             api_key: Plain text API key
-            
+
         Returns:
             Hashed API key
         """
@@ -51,7 +51,7 @@ class APIKeyHashingService(Protocol):
 
     def generate_key(self) -> str:
         """Generate a new API key.
-        
+
         Returns:
             New API key in standard format
         """
@@ -63,17 +63,11 @@ class BcryptPasswordHashingService:
 
     def hash_password(self, password: str) -> str:
         """Hash a password using bcrypt."""
-        return bcrypt.hashpw(
-            password.encode("utf-8"), 
-            bcrypt.gensalt()
-        ).decode("utf-8")
+        return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
     def verify_password(self, password: str, password_hash: str) -> bool:
         """Verify a password against its bcrypt hash."""
-        return bcrypt.checkpw(
-            password.encode("utf-8"),
-            password_hash.encode("utf-8")
-        )
+        return bcrypt.checkpw(password.encode("utf-8"), password_hash.encode("utf-8"))
 
 
 class SHA256APIKeyHashingService:

@@ -12,6 +12,7 @@ from src.domain.repositories.api_key_repository import APIKeyRepository
 from src.domain.repositories.stream_repository import StreamRepository
 from src.domain.repositories.highlight_repository import HighlightRepository
 from src.domain.repositories.webhook_repository import WebhookRepository
+
 # BatchRepository removed - no longer needed
 from src.domain.repositories.usage_record_repository import UsageRecordRepository
 

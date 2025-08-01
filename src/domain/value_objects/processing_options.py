@@ -5,7 +5,7 @@ Complex logic should be handled by domain services.
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 
 from src.domain.exceptions import InvalidValueError
 
@@ -44,7 +44,7 @@ class ProcessingOptions:
 
     # Performance
     processing_priority: str = "balanced"  # speed, quality, balanced
-    
+
     # Custom configuration
     metadata: Dict[str, Any] = field(default_factory=dict)
 
@@ -76,9 +76,7 @@ class ProcessingOptions:
             raise InvalidValueError("Minimum highlight duration cannot be negative")
 
         if self.max_highlight_duration < self.min_highlight_duration:
-            raise InvalidValueError(
-                "Maximum duration must be >= minimum duration"
-            )
+            raise InvalidValueError("Maximum duration must be >= minimum duration")
 
         if not (
             self.min_highlight_duration
