@@ -1,7 +1,10 @@
 """SQLAlchemy model for webhook events."""
 
+from datetime import datetime
+from typing import Optional, Dict, Any, TYPE_CHECKING
+from enum import Enum as PyEnum
+
 from sqlalchemy import (
-    Column,
     Integer,
     String,
     Text,
@@ -11,11 +14,32 @@ from sqlalchemy import (
     ForeignKey,
     Index,
 )
-from sqlalchemy.orm import relationship
-from datetime import datetime
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.infrastructure.persistence.models.base import Base
-from src.domain.entities.webhook_event import WebhookEventStatus, WebhookEventType
+
+if TYPE_CHECKING:
+    from src.infrastructure.persistence.models.stream import Stream
+    from src.infrastructure.persistence.models.user import User
+
+
+# Define enums locally to avoid domain dependency
+class WebhookEventStatus(str, PyEnum):
+    """Status of webhook event processing."""
+    RECEIVED = "received"
+    PROCESSING = "processing"
+    PROCESSED = "processed"
+    FAILED = "failed"
+    RETRY = "retry"
+
+
+class WebhookEventType(str, PyEnum):
+    """Type of webhook event."""
+    STREAM_STARTED = "stream.started"
+    STREAM_ENDED = "stream.ended"
+    STREAM_UPDATE = "stream.update"
+    HIGHLIGHT_CREATED = "highlight.created"
+    VIDEO_UPLOADED = "video.uploaded"
 
 
 class WebhookEvent(Base):
@@ -24,38 +48,38 @@ class WebhookEvent(Base):
     __tablename__ = "webhook_events"
 
     # Primary key
-    id = Column(Integer, primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
 
     # Event identification
-    event_id = Column(String(255), nullable=False)
-    event_type = Column(Enum(WebhookEventType), nullable=False)
-    platform = Column(String(50), nullable=False)
+    event_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    event_type: Mapped[WebhookEventType] = mapped_column(Enum(WebhookEventType), nullable=False)
+    platform: Mapped[str] = mapped_column(String(50), nullable=False)
 
     # Processing status
-    status = Column(
+    status: Mapped[WebhookEventStatus] = mapped_column(
         Enum(WebhookEventStatus), nullable=False, default=WebhookEventStatus.RECEIVED
     )
 
     # Event payload
-    payload = Column(JSON, nullable=False, default=dict)
+    payload: Mapped[Dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
 
     # Processing information
-    stream_id = Column(Integer, ForeignKey("streams.id"), nullable=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
-    processed_at = Column(DateTime, nullable=True)
-    error_message = Column(Text, nullable=True)
-    retry_count = Column(Integer, nullable=False, default=0)
+    stream_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("streams.id"), nullable=True)
+    user_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
+    processed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     # Timestamps
-    received_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = Column(
+    received_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
     )
 
     # Relationships
-    stream = relationship("Stream", back_populates="webhook_events")
-    user = relationship("User", back_populates="webhook_events")
+    stream: Mapped[Optional["Stream"]] = relationship("Stream", back_populates="webhook_events")
+    user: Mapped[Optional["User"]] = relationship("User", back_populates="webhook_events")
 
     # Indexes
     __table_args__ = (

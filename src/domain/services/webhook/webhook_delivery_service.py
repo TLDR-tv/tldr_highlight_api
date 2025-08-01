@@ -27,11 +27,11 @@ from src.domain.repositories.highlight_repository import HighlightRepository
 from src.domain.exceptions import EntityNotFoundError
 
 
-class WebhookDeliveryClient:
-    """Infrastructure client for webhook delivery.
+class WebhookDeliveryService:
+    """Domain service for webhook delivery.
 
-    Handles HTTP delivery of webhooks to external endpoints with
-    retries, signature generation, and delivery tracking.
+    Handles webhook event delivery, retry logic, signature generation,
+    and delivery tracking.
     """
 
     # Delivery configuration

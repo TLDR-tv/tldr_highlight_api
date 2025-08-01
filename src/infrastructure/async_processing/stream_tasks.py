@@ -567,7 +567,9 @@ def detect_highlights_with_ai(
                     from src.infrastructure.content_processing import (
                         GeminiVideoProcessor,
                     )
-                    from src.domain.entities.dimension_set_aggregate import DimensionSetAggregate
+                    from src.application.services.dimension_set_service import DimensionSetService
+                    from src.infrastructure.persistence.repositories.dimension_set_repository import DimensionSetRepository
+                    from src.infrastructure.database import get_async_session
 
                     gemini_processor = GeminiVideoProcessor(
                         api_key=settings.gemini_api_key,
@@ -580,12 +582,17 @@ def detect_highlights_with_ai(
                         "gemini.model", gemini_processor.model_name
                     )
 
-                    # Get dimension set based on processing options
-                    # For now, use gaming set as default
-                    dimension_set = DimensionSetAggregate.create_gaming_set(
-                        organization_id=1,  # Would get from stream/org
-                        user_id=stream.user_id,
-                    )
+                    # Get dimension set through application service
+                    async with get_async_session() as session:
+                        dimension_set_repo = DimensionSetRepository(session)
+                        dimension_set_service = DimensionSetService(dimension_set_repo)
+                        
+                        dimension_set = await dimension_set_service.get_dimension_set_for_stream(
+                            dimension_set_id=stream.dimension_set_id,
+                            organization_id=stream.organization_id or 1,
+                            user_id=stream.user_id,
+                        )
+                    
                     gemini_span.set_attribute("dimension_set.name", dimension_set.name)
                     gemini_span.set_attribute(
                         "dimension_count", len(dimension_set.dimensions)
@@ -614,7 +621,7 @@ def detect_highlights_with_ai(
                 # Initialize clip, thumbnail, and caption generators
                 clip_generator = ClipGenerator()
                 thumbnail_generator = ThumbnailGenerator()
-                caption_generator = GeminiCaptionGenerator(api_key=settings.gemini_api_key)
+                # Caption generation is now handled by GeminiVideoProcessor
                 s3_storage = S3Storage(
                     access_key_id=settings.aws_access_key_id,
                     secret_access_key=settings.aws_secret_access_key,

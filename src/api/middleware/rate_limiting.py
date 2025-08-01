@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from src.api.exceptions import create_error_response
-from src.infrastructure.cache import rate_limiter
+from src.infrastructure.cache import get_rate_limiter
 from src.infrastructure.config import settings
 
 logger = logging.getLogger(__name__)
@@ -164,13 +164,16 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             tuple: (is_exceeded, remaining_info)
         """
         try:
+            # Get rate limiter instance
+            limiter = await get_rate_limiter()
+            
             # Check per-minute limit
-            minute_allowed, minute_remaining = await rate_limiter.is_allowed(
+            minute_allowed, minute_remaining = await limiter.is_allowed(
                 f"{key}:minute", per_minute_limit, 60
             )
 
             # Check per-hour limit
-            hour_allowed, hour_remaining = await rate_limiter.is_allowed(
+            hour_allowed, hour_remaining = await limiter.is_allowed(
                 f"{key}:hour", per_hour_limit, 3600
             )
 

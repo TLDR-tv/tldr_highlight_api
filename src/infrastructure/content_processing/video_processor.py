@@ -152,7 +152,8 @@ class VideoProcessor:
         logger.info(f"Detected {len(scene_changes)} scene changes")
         return scene_changes
 
-    def get_processing_stats(self) -> Dict[str, Any]:
+    @property
+    def processing_stats(self) -> Dict[str, Any]:
         """Get video processing statistics.
 
         Returns:

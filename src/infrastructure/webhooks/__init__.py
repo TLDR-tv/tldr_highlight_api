@@ -1,9 +1,9 @@
-"""Infrastructure services for webhook delivery.
+"""Infrastructure services for webhook support.
 
-This module contains the webhook delivery client that handles
-the HTTP delivery of webhooks to external endpoints.
+This module provides infrastructure components that support
+the webhook domain services.
 """
 
-from .webhook_delivery_client import WebhookDeliveryClient
-
-__all__ = ["WebhookDeliveryClient"]
+# Infrastructure components for webhooks are currently empty
+# The WebhookDeliveryService has been moved to domain services
+__all__ = []

@@ -195,7 +195,8 @@ class AudioProcessor:
 
         return ["speech", "background_music"]
 
-    def get_processing_stats(self) -> Dict[str, Any]:
+    @property
+    def processing_stats(self) -> Dict[str, Any]:
         """Get audio processing statistics.
 
         Returns:

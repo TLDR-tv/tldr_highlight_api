@@ -240,7 +240,7 @@ def init_worker(**kwargs):
     """Initialize worker process resources."""
     import structlog
     from src.infrastructure.database import init_db
-    from src.infrastructure.cache import cache as init_cache
+    from src.infrastructure.cache import get_redis_cache
 
     logger = structlog.get_logger(__name__)
     logger.info("Initializing Celery worker process", worker_pid=os.getpid())
@@ -255,8 +255,8 @@ def init_worker(**kwargs):
 
     # Initialize cache connections
     try:
-        init_cache()
-        logger.info("Cache initialized for worker")
+        # Cache will be initialized on first use via get_redis_cache()
+        logger.info("Cache will be initialized on first use")
     except Exception as e:
         logger.error("Failed to initialize cache", error=str(e))
         raise

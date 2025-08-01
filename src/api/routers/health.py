@@ -14,7 +14,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.schemas.common import HealthCheckResponse, StatusResponse
-from src.infrastructure.cache import cache
+from src.infrastructure.cache import get_redis_cache
 from src.infrastructure.config import settings
 from src.infrastructure.database import get_db
 from src.services.storage import storage_service
@@ -121,6 +121,7 @@ async def readiness_check(db: AsyncSession = Depends(get_db)) -> StatusResponse:
         await db.execute(text("SELECT 1"))
 
         # Quick Redis check
+        cache = await get_redis_cache()
         async with cache.get_client() as client:
             await client.ping()
 
@@ -238,6 +239,7 @@ async def _check_redis_health() -> Dict[str, Any]:
     start_time = datetime.utcnow()
 
     try:
+        cache = await get_redis_cache()
         async with cache.get_client() as client:
             # Test basic connectivity
             await client.ping()

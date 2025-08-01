@@ -5,8 +5,9 @@ signing keys used for generating signed URLs.
 """
 
 from datetime import datetime
+from typing import Optional
+
 from sqlalchemy import (
-    Column,
     Integer,
     String,
     DateTime,
@@ -14,6 +15,7 @@ from sqlalchemy import (
     Index,
     Text,
 )
+from sqlalchemy.orm import Mapped, mapped_column
 
 from src.infrastructure.persistence.models.base import Base
 
@@ -23,36 +25,36 @@ class OrganizationKey(Base):
 
     __tablename__ = "organization_keys"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    organization_id = Column(Integer, nullable=False, index=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    organization_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
 
     # Key information
-    key_id = Column(String(64), unique=True, nullable=False, index=True)
-    key_value = Column(Text, nullable=False)  # Encrypted at rest
-    algorithm = Column(String(10), nullable=False, default="HS256")
+    key_id: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
+    key_value: Mapped[str] = mapped_column(Text, nullable=False)  # Encrypted at rest
+    algorithm: Mapped[str] = mapped_column(String(10), nullable=False, default="HS256")
 
     # Key metadata
-    key_version = Column(Integer, nullable=False, default=1)
-    is_active = Column(Boolean, nullable=False, default=True)
-    is_primary = Column(Boolean, nullable=False, default=False)
+    key_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    is_primary: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     # Lifecycle
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    expires_at = Column(DateTime, nullable=True)
-    rotated_at = Column(DateTime, nullable=True)
-    deactivated_at = Column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    rotated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    deactivated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     # Usage tracking
-    last_used_at = Column(DateTime, nullable=True)
-    usage_count = Column(Integer, nullable=False, default=0)
+    last_used_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    usage_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     # Rotation information
-    previous_key_id = Column(String(64), nullable=True)
-    rotation_reason = Column(String(255), nullable=True)
+    previous_key_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    rotation_reason: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
     # Metadata
-    created_by = Column(String(255), nullable=True)
-    description = Column(Text, nullable=True)
+    created_by: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     __table_args__ = (
         # Ensure only one primary key per organization
