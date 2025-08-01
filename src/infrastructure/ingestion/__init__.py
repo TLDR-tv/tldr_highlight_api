@@ -1,21 +1,17 @@
 """Stream ingestion infrastructure module.
 
-This module provides unified stream ingestion capabilities that integrate
-FFmpeg processing with stream adapters for comprehensive content analysis.
+This module provides simplified stream ingestion using FFmpeg's segment muxer
+for efficient and reliable stream processing.
 """
 
-from .unified_ingestion_pipeline import (
-    StreamIngestionPipeline,
-    IngestionConfig,
-    IngestionResult,
-    IngestionStatus,
+from .simplified_ingestion_pipeline import (
+    SimplifiedIngestionPipeline,
+    SimplifiedIngestionConfig,
+    ProcessingResult,
 )
-from .stream_ingestion_factory import StreamIngestionFactory
 
 __all__ = [
-    "StreamIngestionPipeline",
-    "IngestionConfig",
-    "IngestionResult",
-    "IngestionStatus",
-    "StreamIngestionFactory",
+    "SimplifiedIngestionPipeline",
+    "SimplifiedIngestionConfig",
+    "ProcessingResult",
 ]

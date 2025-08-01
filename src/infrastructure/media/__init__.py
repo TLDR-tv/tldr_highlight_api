@@ -1,25 +1,36 @@
 """Media processing infrastructure components.
 
 This module provides utilities for video and audio processing,
-frame extraction, and media format handling.
+with FFmpeg-based segmentation for stream handling.
 """
 
-from .media_utils import (
-    MediaProcessor,
-    VideoFrame,
-    AudioSegment,
-    StreamCapture,
-    FrameExtractor,
-    AudioExtractor,
-    MediaValidator,
+from .ffmpeg_segmenter import (
+    FFmpegSegmenter,
+    SegmentConfig,
+    SegmentInfo,
+    SegmentFormat,
+)
+
+from .ffmpeg_integration import (
+    FFmpegProcessor,
+    FFmpegProbe,
+    MediaInfo,
+    VideoInfo,
+    AudioInfo,
+    TranscodeOptions,
 )
 
 __all__ = [
-    "MediaProcessor",
-    "VideoFrame",
-    "AudioSegment",
-    "StreamCapture",
-    "FrameExtractor",
-    "AudioExtractor",
-    "MediaValidator",
+    # Segmentation
+    "FFmpegSegmenter",
+    "SegmentConfig",
+    "SegmentInfo",
+    "SegmentFormat",
+    # FFmpeg utilities
+    "FFmpegProcessor",
+    "FFmpegProbe",
+    "MediaInfo",
+    "VideoInfo",
+    "AudioInfo",
+    "TranscodeOptions",
 ]
