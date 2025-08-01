@@ -12,6 +12,7 @@ from src.domain.exceptions import (
     QuotaExceeded,
     UnauthorizedOperation,
     InvalidStateTransition,
+    StateTransitionInfo,
 )
 from src.domain.events import (
     MemberAddedEvent,
@@ -268,13 +269,14 @@ class Organization(AggregateRoot[int]):
         """Deactivate the organization."""
         # Business rule: Can't deactivate already inactive org
         if not self.is_active:
-            raise InvalidStateTransition(
-                entity_type="Organization",
-                entity_id=self.id,
+            transition_info = StateTransitionInfo(
                 from_state="inactive",
                 to_state="inactive",
                 allowed_states=["active"],
+                entity_type="Organization",
+                entity_id=self.id,
             )
+            raise InvalidStateTransition(transition_info)
 
         # Update state
         self.is_active = False

@@ -166,7 +166,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         try:
             # Get rate limiter instance
             limiter = await get_rate_limiter()
-            
+
             # Check per-minute limit
             minute_allowed, minute_remaining = await limiter.is_allowed(
                 f"{key}:minute", per_minute_limit, 60

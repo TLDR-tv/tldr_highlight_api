@@ -135,9 +135,7 @@ class OrganizationMapper:
         )
 
     @staticmethod
-    def to_organization_usage_stats(
-        usage_result: dict
-    ) -> OrganizationUsageStats:
+    def to_organization_usage_stats(usage_result: dict) -> OrganizationUsageStats:
         """Convert usage result to response DTO (unlimited limits)."""
         # Calculate current month usage
         current_usage = {

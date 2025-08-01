@@ -50,7 +50,8 @@ async def auth_status() -> StatusResponse:
         StatusResponse: Authentication service status
     """
     return StatusResponse(
-        status="Authentication service operational", timestamp=datetime.now(timezone.utc)
+        status="Authentication service operational",
+        timestamp=datetime.now(timezone.utc),
     )
 
 
@@ -64,7 +65,9 @@ async def auth_status() -> StatusResponse:
 )
 async def register(
     request: UserRegistrationRequest,
-    registration_use_case: UserRegistrationUseCase = Depends(get_user_registration_use_case),
+    registration_use_case: UserRegistrationUseCase = Depends(
+        get_user_registration_use_case
+    ),
 ) -> UserRegistrationResponse:
     """Register a new user.
 
@@ -173,7 +176,9 @@ async def login(
 async def create_api_key(
     request: APIKeyCreate,
     current_user: CurrentUser,
-    api_key_use_case: APIKeyManagementUseCase = Depends(get_api_key_management_use_case),
+    api_key_use_case: APIKeyManagementUseCase = Depends(
+        get_api_key_management_use_case
+    ),
 ) -> APIKeyCreateResponse:
     """Create a new API key.
 
@@ -186,6 +191,7 @@ async def create_api_key(
 
         # Create API key
         from src.application.use_cases.api_key_management import CreateAPIKeyRequest
+
         create_request = CreateAPIKeyRequest(
             user_id=current_user.id,
             name=request.name,
@@ -228,7 +234,9 @@ async def create_api_key(
 )
 async def list_api_keys(
     current_user: CurrentUser,
-    api_key_use_case: APIKeyManagementUseCase = Depends(get_api_key_management_use_case),
+    api_key_use_case: APIKeyManagementUseCase = Depends(
+        get_api_key_management_use_case
+    ),
 ) -> APIKeyListResponse:
     """List API keys for the authenticated user."""
     # Get API keys from use case
@@ -257,7 +265,9 @@ async def list_api_keys(
 async def revoke_api_key(
     key_id: int,
     current_user: CurrentUser,
-    api_key_use_case: APIKeyManagementUseCase = Depends(get_api_key_management_use_case),
+    api_key_use_case: APIKeyManagementUseCase = Depends(
+        get_api_key_management_use_case
+    ),
 ) -> None:
     """Revoke an API key.
 
@@ -293,7 +303,9 @@ async def rotate_api_key(
     key_id: int,
     current_user: CurrentUser,
     background_tasks: BackgroundTasks,
-    api_key_use_case: APIKeyManagementUseCase = Depends(get_api_key_management_use_case),
+    api_key_use_case: APIKeyManagementUseCase = Depends(
+        get_api_key_management_use_case
+    ),
 ) -> APIKeyCreateResponse:
     """Rotate an API key.
 

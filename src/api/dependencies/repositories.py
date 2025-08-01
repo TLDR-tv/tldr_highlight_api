@@ -1,6 +1,7 @@
 """Repository dependencies for FastAPI.
 
-This module provides dependency injection for infrastructure repositories.
+This module provides clean FastAPI dependency injection for repositories.
+Sticks to FastAPI's native dependency injection patterns.
 """
 
 from fastapi import Depends
@@ -40,80 +41,78 @@ from src.infrastructure.persistence.repositories.highlight_type_registry_reposit
 )
 
 
-# Repository Dependencies
+# Repository Dependencies - clean FastAPI dependency injection
 
 
-async def get_user_repository(
-    db: AsyncSession = Depends(get_db_session),
-) -> UserRepository:
+def get_user_repository(db: AsyncSession = Depends(get_db_session)) -> UserRepository:
     """Get user repository instance."""
     return UserRepository(db)
 
 
-async def get_api_key_repository(
+def get_api_key_repository(
     db: AsyncSession = Depends(get_db_session),
 ) -> APIKeyRepository:
     """Get API key repository instance."""
     return APIKeyRepository(db)
 
 
-async def get_organization_repository(
+def get_organization_repository(
     db: AsyncSession = Depends(get_db_session),
 ) -> OrganizationRepository:
     """Get organization repository instance."""
     return OrganizationRepository(db)
 
 
-async def get_stream_repository(
+def get_stream_repository(
     db: AsyncSession = Depends(get_db_session),
 ) -> StreamRepository:
     """Get stream repository instance."""
     return StreamRepository(db)
 
 
-async def get_highlight_repository(
+def get_highlight_repository(
     db: AsyncSession = Depends(get_db_session),
 ) -> HighlightRepository:
     """Get highlight repository instance."""
     return HighlightRepository(db)
 
 
-async def get_webhook_repository(
+def get_webhook_repository(
     db: AsyncSession = Depends(get_db_session),
 ) -> WebhookRepository:
     """Get webhook repository instance."""
     return WebhookRepository(db)
 
 
-async def get_webhook_event_repository(
+def get_webhook_event_repository(
     db: AsyncSession = Depends(get_db_session),
 ) -> WebhookEventRepository:
     """Get webhook event repository instance."""
     return WebhookEventRepository(db)
 
 
-async def get_usage_record_repository(
+def get_usage_record_repository(
     db: AsyncSession = Depends(get_db_session),
 ) -> UsageRecordRepository:
     """Get usage record repository instance."""
     return UsageRecordRepository(db)
 
 
-async def get_dimension_set_repository(
+def get_dimension_set_repository(
     db: AsyncSession = Depends(get_db_session),
 ) -> DimensionSetRepository:
     """Get dimension set repository instance."""
     return DimensionSetRepository(db)
 
 
-async def get_highlight_type_registry_repository(
+def get_highlight_type_registry_repository(
     db: AsyncSession = Depends(get_db_session),
 ) -> HighlightTypeRegistryRepository:
     """Get highlight type registry repository instance."""
     return HighlightTypeRegistryRepository(db)
 
 
-async def get_organization_key_repository(
+def get_organization_key_repository(
     db: AsyncSession = Depends(get_db_session),
 ) -> OrganizationKeyRepository:
     """Get organization key repository instance."""

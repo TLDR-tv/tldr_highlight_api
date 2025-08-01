@@ -34,9 +34,15 @@ class StreamMetadata(BaseModel):
 
     title: Optional[str] = None
     description: Optional[str] = None
-    external_stream_id: Optional[str] = Field(None, description="External system's stream ID")
-    external_user_id: Optional[str] = Field(None, description="External system's user ID")
-    external_username: Optional[str] = Field(None, description="External system's username")
+    external_stream_id: Optional[str] = Field(
+        None, description="External system's stream ID"
+    )
+    external_user_id: Optional[str] = Field(
+        None, description="External system's user ID"
+    )
+    external_username: Optional[str] = Field(
+        None, description="External system's username"
+    )
     tags: List[str] = Field(default_factory=list)
     custom_data: Dict[str, Any] = Field(default_factory=dict)
 

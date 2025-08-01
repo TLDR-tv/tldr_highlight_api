@@ -1,6 +1,6 @@
 """Domain service dependencies for FastAPI.
 
-This module provides dependency injection for domain services.
+This module provides clean FastAPI dependency injection for domain services.
 """
 
 from fastapi import Depends
@@ -52,10 +52,10 @@ from src.infrastructure.persistence.repositories.highlight_type_registry_reposit
 )
 
 
-# Domain Service Dependencies
+# Domain Service Dependencies - clean FastAPI dependency injection
 
 
-async def get_organization_management_service(
+def get_organization_management_service(
     user_repo: UserRepository = Depends(get_user_repository),
     org_repo: OrganizationRepository = Depends(get_organization_repository),
     api_key_repo: APIKeyRepository = Depends(get_api_key_repository),
@@ -66,7 +66,7 @@ async def get_organization_management_service(
     )
 
 
-async def get_stream_processing_service(
+def get_stream_processing_service(
     stream_repo: StreamRepository = Depends(get_stream_repository),
     user_repo: UserRepository = Depends(get_user_repository),
     org_repo: OrganizationRepository = Depends(get_organization_repository),
@@ -83,11 +83,13 @@ async def get_stream_processing_service(
     )
 
 
-async def get_highlight_detection_service(
+def get_highlight_detection_service(
     highlight_repo: HighlightRepository = Depends(get_highlight_repository),
     stream_repo: StreamRepository = Depends(get_stream_repository),
     dimension_set_repo: DimensionSetRepository = Depends(get_dimension_set_repository),
-    type_registry_repo: HighlightTypeRegistryRepository = Depends(get_highlight_type_registry_repository),
+    type_registry_repo: HighlightTypeRegistryRepository = Depends(
+        get_highlight_type_registry_repository
+    ),
 ) -> HighlightDetectionService:
     """Get highlight detection service instance."""
     return HighlightDetectionService(
@@ -98,7 +100,7 @@ async def get_highlight_detection_service(
     )
 
 
-async def get_webhook_delivery_service(
+def get_webhook_delivery_service(
     webhook_repo: WebhookRepository = Depends(get_webhook_repository),
     stream_repo: StreamRepository = Depends(get_stream_repository),
     highlight_repo: HighlightRepository = Depends(get_highlight_repository),
@@ -111,7 +113,7 @@ async def get_webhook_delivery_service(
     )
 
 
-async def get_usage_tracking_service(
+def get_usage_tracking_service(
     usage_repo: UsageRecordRepository = Depends(get_usage_record_repository),
     org_repo: OrganizationRepository = Depends(get_organization_repository),
     user_repo: UserRepository = Depends(get_user_repository),

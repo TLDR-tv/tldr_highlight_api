@@ -54,7 +54,10 @@ from src.application.use_cases.webhook_configuration import WebhookConfiguration
 from src.infrastructure.security.url_signer import URLSigner
 from .security import get_url_signer
 from .security_services import get_password_hashing_service, get_api_key_hashing_service
-from src.domain.services.security_services import PasswordHashingService, APIKeyHashingService
+from src.domain.services.security_services import (
+    PasswordHashingService,
+    APIKeyHashingService,
+)
 
 from .repositories import (
     get_user_repository,

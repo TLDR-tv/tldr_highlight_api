@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field, field_validator
 
 from .streams import PaginatedResponse
+from src.domain.enums import SourceType, SortOrder, HighlightSortField
 
 
 class HighlightFilters(BaseModel):
@@ -18,7 +19,7 @@ class HighlightFilters(BaseModel):
     batch_id: Optional[int] = Field(
         default=None, description="Filter by specific batch ID"
     )
-    source_type: Optional[str] = Field(
+    source_type: Optional[SourceType] = Field(
         default=None, description="Filter by source type (stream, batch)"
     )
 
@@ -56,36 +57,13 @@ class HighlightFilters(BaseModel):
     )
 
     # Sorting
-    sort_by: str = Field(
-        default="created_at",
+    sort_by: HighlightSortField = Field(
+        default=HighlightSortField.CREATED_AT,
         description="Sort field (created_at, confidence_score, duration, timestamp)",
     )
-    sort_order: str = Field(default="desc", description="Sort order (asc, desc)")
-
-    @field_validator("source_type")
-    @classmethod
-    def validate_source_type(cls, v: Optional[str]) -> Optional[str]:
-        """Validate source type."""
-        if v is not None and v not in ["stream", "batch"]:
-            raise ValueError("source_type must be 'stream' or 'batch'")
-        return v
-
-    @field_validator("sort_by")
-    @classmethod
-    def validate_sort_by(cls, v: str) -> str:
-        """Validate sort field."""
-        allowed = {"created_at", "confidence_score", "duration", "timestamp"}
-        if v not in allowed:
-            raise ValueError(f"sort_by must be one of: {allowed}")
-        return v
-
-    @field_validator("sort_order")
-    @classmethod
-    def validate_sort_order(cls, v: str) -> str:
-        """Validate sort order."""
-        if v not in ["asc", "desc"]:
-            raise ValueError("sort_order must be 'asc' or 'desc'")
-        return v
+    sort_order: SortOrder = Field(
+        default=SortOrder.DESC, description="Sort order (asc, desc)"
+    )
 
     @field_validator("max_confidence")
     @classmethod

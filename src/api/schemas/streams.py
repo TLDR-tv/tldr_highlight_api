@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field, field_validator
 
 from src.infrastructure.persistence.models.stream import StreamPlatform, StreamStatus
+from src.domain.enums import OutputFormat, OutputQuality, WebhookEvent
 
 
 class StreamOptions(BaseModel):
@@ -40,8 +41,12 @@ class StreamOptions(BaseModel):
     )
 
     # Output Configuration
-    output_format: str = Field(default="mp4", description="Output video format")
-    output_quality: str = Field(default="720p", description="Output video quality")
+    output_format: OutputFormat = Field(
+        default=OutputFormat.MP4, description="Output video format"
+    )
+    output_quality: OutputQuality = Field(
+        default=OutputQuality.STANDARD, description="Output video quality"
+    )
     generate_thumbnails: bool = Field(
         default=True, description="Generate thumbnail images for highlights"
     )
@@ -50,7 +55,7 @@ class StreamOptions(BaseModel):
     custom_tags: List[str] = Field(
         default_factory=list, description="Custom tags to apply to all highlights"
     )
-    webhook_events: List[str] = Field(
+    webhook_events: List[WebhookEvent] = Field(
         default_factory=list, description="Webhook events to trigger for this stream"
     )
 
@@ -74,8 +79,13 @@ class StreamOptions(BaseModel):
 class StreamCreate(BaseModel):
     """Request schema for creating a new stream."""
 
-    source_url: str = Field(description="URL of the stream to process (any FFmpeg-supported format)")
-    platform: Optional[StreamPlatform] = Field(default=None, description="Streaming platform type (auto-detected if not provided)")
+    source_url: str = Field(
+        description="URL of the stream to process (any FFmpeg-supported format)"
+    )
+    platform: Optional[StreamPlatform] = Field(
+        default=None,
+        description="Streaming platform type (auto-detected if not provided)",
+    )
     options: StreamOptions = Field(
         default_factory=StreamOptions, description="Processing configuration options"
     )
@@ -94,7 +104,7 @@ class StreamCreate(BaseModel):
                             "max_duration": 45,
                             "output_quality": "1080p",
                         },
-                    }
+                    },
                 },
                 {
                     "summary": "HLS Stream",
@@ -104,7 +114,7 @@ class StreamCreate(BaseModel):
                             "highlight_threshold": 0.8,
                             "max_highlights": 20,
                         },
-                    }
+                    },
                 },
                 {
                     "summary": "YouTube Live",
@@ -113,7 +123,7 @@ class StreamCreate(BaseModel):
                         "options": {
                             "highlight_threshold": 0.75,
                         },
-                    }
+                    },
                 },
                 {
                     "summary": "Local Video File",
@@ -123,7 +133,7 @@ class StreamCreate(BaseModel):
                             "highlight_threshold": 0.9,
                             "max_highlights": 10,
                         },
-                    }
+                    },
                 },
             ]
         }

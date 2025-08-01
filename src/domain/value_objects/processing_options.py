@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from typing import Dict, Any, Optional
 
 from src.domain.exceptions import InvalidValueError
+from src.domain.enums import ProcessingPriority
 
 
 @dataclass(frozen=True)
@@ -43,7 +44,7 @@ class ProcessingOptions:
     similarity_threshold: float = 0.8
 
     # Performance
-    processing_priority: str = "balanced"  # speed, quality, balanced
+    processing_priority: ProcessingPriority = ProcessingPriority.BALANCED
 
     # Custom configuration
     metadata: Dict[str, Any] = field(default_factory=dict)
@@ -85,12 +86,7 @@ class ProcessingOptions:
         ):
             raise InvalidValueError("Typical duration must be between min and max")
 
-        # Validate priority
-        valid_priorities = {"speed", "quality", "balanced"}
-        if self.processing_priority not in valid_priorities:
-            raise InvalidValueError(
-                f"Priority must be one of {valid_priorities}, got {self.processing_priority}"
-            )
+        # Priority validation is handled by the enum
 
     @classmethod
     def for_gaming(cls) -> "ProcessingOptions":
@@ -100,7 +96,7 @@ class ProcessingOptions:
             max_highlight_duration=90.0,
             typical_highlight_duration=45.0,
             target_confidence_threshold=0.75,
-            processing_priority="balanced",
+            processing_priority=ProcessingPriority.BALANCED,
             metadata={"preset": "gaming"},
         )
 
@@ -113,7 +109,7 @@ class ProcessingOptions:
             typical_highlight_duration=120.0,
             min_confidence_threshold=0.6,
             target_confidence_threshold=0.8,
-            processing_priority="quality",
+            processing_priority=ProcessingPriority.QUALITY,
             metadata={"preset": "education"},
         )
 
@@ -125,7 +121,7 @@ class ProcessingOptions:
             max_highlight_duration=60.0,
             typical_highlight_duration=30.0,
             target_confidence_threshold=0.8,
-            processing_priority="speed",
+            processing_priority=ProcessingPriority.SPEED,
             merge_threshold_seconds=5.0,
             metadata={"preset": "sports"},
         )
@@ -139,6 +135,27 @@ class ProcessingOptions:
             typical_highlight_duration=60.0,
             min_confidence_threshold=0.7,
             target_confidence_threshold=0.85,
-            processing_priority="quality",
+            processing_priority=ProcessingPriority.QUALITY,
             metadata={"preset": "corporate"},
         )
+
+    def to_dict(self) -> dict:
+        """Convert to dictionary for serialization."""
+        return {
+            "dimension_set_id": self.dimension_set_id,
+            "min_highlight_duration": self.min_highlight_duration,
+            "max_highlight_duration": self.max_highlight_duration,
+            "typical_highlight_duration": self.typical_highlight_duration,
+            "min_confidence_threshold": self.min_confidence_threshold,
+            "target_confidence_threshold": self.target_confidence_threshold,
+            "exceptional_threshold": self.exceptional_threshold,
+            "analysis_window_seconds": self.analysis_window_seconds,
+            "context_window_seconds": self.context_window_seconds,
+            "lookahead_seconds": self.lookahead_seconds,
+            "merge_nearby_highlights": self.merge_nearby_highlights,
+            "merge_threshold_seconds": self.merge_threshold_seconds,
+            "remove_duplicates": self.remove_duplicates,
+            "similarity_threshold": self.similarity_threshold,
+            "processing_priority": self.processing_priority,
+            "metadata": self.metadata,
+        }

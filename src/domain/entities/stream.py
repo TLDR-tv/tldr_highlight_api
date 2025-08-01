@@ -9,7 +9,11 @@ from src.domain.value_objects.url import Url
 from src.domain.value_objects.timestamp import Timestamp
 from src.domain.value_objects.duration import Duration
 from src.domain.value_objects.processing_options import ProcessingOptions
-from src.domain.exceptions import InvalidStateTransition, BusinessRuleViolation
+from src.domain.exceptions import (
+    InvalidStateTransition,
+    BusinessRuleViolation,
+    StateTransitionInfo,
+)
 from src.domain.events import (
     StreamProcessingStartedEvent,
     StreamProcessingCompletedEvent,
@@ -87,13 +91,14 @@ class Stream(AggregateRoot[int]):
         """
         # Business rule: Can only start from PENDING status
         if self.status != StreamStatus.PENDING:
-            raise InvalidStateTransition(
-                entity_type="Stream",
-                entity_id=self.id,
+            transition_info = StateTransitionInfo(
                 from_state=self.status.value,
                 to_state=StreamStatus.PROCESSING.value,
                 allowed_states=[StreamStatus.PENDING.value],
+                entity_type="Stream",
+                entity_id=self.id,
             )
+            raise InvalidStateTransition(transition_info)
 
         # Update state
         self.status = StreamStatus.PROCESSING
@@ -113,13 +118,14 @@ class Stream(AggregateRoot[int]):
         """Complete stream processing."""
         # Business rule: Can only complete from PROCESSING status
         if self.status != StreamStatus.PROCESSING:
-            raise InvalidStateTransition(
-                entity_type="Stream",
-                entity_id=self.id,
+            transition_info = StateTransitionInfo(
                 from_state=self.status.value,
                 to_state=StreamStatus.COMPLETED.value,
                 allowed_states=[StreamStatus.PROCESSING.value],
+                entity_type="Stream",
+                entity_id=self.id,
             )
+            raise InvalidStateTransition(transition_info)
 
         # Update state
         self.status = StreamStatus.COMPLETED
@@ -150,16 +156,17 @@ class Stream(AggregateRoot[int]):
         """Mark stream processing as failed."""
         # Business rule: Can fail from PENDING or PROCESSING
         if self.status not in [StreamStatus.PENDING, StreamStatus.PROCESSING]:
-            raise InvalidStateTransition(
-                entity_type="Stream",
-                entity_id=self.id,
+            transition_info = StateTransitionInfo(
                 from_state=self.status.value,
                 to_state=StreamStatus.FAILED.value,
                 allowed_states=[
                     StreamStatus.PENDING.value,
                     StreamStatus.PROCESSING.value,
                 ],
+                entity_type="Stream",
+                entity_id=self.id,
             )
+            raise InvalidStateTransition(transition_info)
 
         # Update state
         self.status = StreamStatus.FAILED
@@ -179,16 +186,17 @@ class Stream(AggregateRoot[int]):
         """Cancel stream processing."""
         # Business rule: Cannot cancel terminal states
         if self.status in [StreamStatus.COMPLETED, StreamStatus.FAILED]:
-            raise InvalidStateTransition(
-                entity_type="Stream",
-                entity_id=self.id,
+            transition_info = StateTransitionInfo(
                 from_state=self.status.value,
                 to_state=StreamStatus.CANCELLED.value,
                 allowed_states=[
                     StreamStatus.PENDING.value,
                     StreamStatus.PROCESSING.value,
                 ],
+                entity_type="Stream",
+                entity_id=self.id,
             )
+            raise InvalidStateTransition(transition_info)
 
         # Update state
         self.status = StreamStatus.CANCELLED
@@ -297,3 +305,95 @@ class Stream(AggregateRoot[int]):
         )
 
         return stream
+
+    @classmethod
+    def from_model(cls, model) -> "Stream":
+        """Create domain entity from persistence model.
+
+        This method provides Pythonic mapping without separate mapper classes.
+        """
+        import json
+
+        # Parse processing options from JSON
+        processing_opts_data = (
+            json.loads(model.processing_options) if model.processing_options else {}
+        )
+        processing_options = (
+            ProcessingOptions(**processing_opts_data)
+            if processing_opts_data
+            else ProcessingOptions()
+        )
+
+        # Parse platform data
+        platform_data = json.loads(model.platform_data) if model.platform_data else {}
+
+        return cls(
+            id=model.id,
+            url=Url(model.url),
+            platform=StreamPlatform(model.platform),
+            status=StreamStatus(model.status),
+            user_id=model.user_id,
+            processing_options=processing_options,
+            title=model.title,
+            channel_name=model.channel_name,
+            game_category=model.game_category,
+            language=model.language,
+            viewer_count=model.viewer_count,
+            duration=Duration(model.duration_seconds)
+            if model.duration_seconds
+            else None,
+            started_at=Timestamp(model.started_at) if model.started_at else None,
+            completed_at=Timestamp(model.completed_at) if model.completed_at else None,
+            error_message=model.error_message,
+            created_at=Timestamp(model.created_at),
+            updated_at=Timestamp(model.updated_at),
+            highlight_ids=[h.id for h in model.highlights] if model.highlights else [],
+            platform_data=platform_data,
+        )
+
+    def to_model(self):
+        """Convert domain entity to persistence model.
+
+        Returns a new persistence model instance with data from this entity.
+        """
+        import json
+        from src.infrastructure.persistence.models.stream import Stream as StreamModel
+
+        model = StreamModel()
+
+        # Set basic attributes
+        if self.id is not None:
+            model.id = self.id
+
+        model.url = self.url.value
+        model.platform = self.platform.value
+        model.status = self.status.value
+        model.user_id = self.user_id
+
+        # Serialize processing options
+        model.processing_options = json.dumps(self.processing_options.to_dict())
+
+        # Set optional attributes
+        model.title = self.title
+        model.channel_name = self.channel_name
+        model.game_category = self.game_category
+        model.language = self.language
+        model.viewer_count = self.viewer_count
+        model.duration_seconds = float(self.duration) if self.duration else None
+
+        # Set timestamps
+        model.started_at = self.started_at.value if self.started_at else None
+        model.completed_at = self.completed_at.value if self.completed_at else None
+        model.error_message = self.error_message
+
+        # Serialize platform data
+        model.platform_data = (
+            json.dumps(self.platform_data) if self.platform_data else None
+        )
+
+        # Set audit timestamps for existing entities
+        if self.id is not None:
+            model.created_at = self.created_at.value
+            model.updated_at = self.updated_at.value
+
+        return model

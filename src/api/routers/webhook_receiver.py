@@ -37,7 +37,7 @@ async def receive_stream_webhook(
 
     This platform-agnostic endpoint accepts webhooks for stream ingestion triggers.
     Authentication is via API key header.
-    
+
     Expected payload format:
     {
         "event_id": "unique-event-id",
@@ -71,12 +71,16 @@ async def receive_stream_webhook(
         # Validate webhook event structure
         try:
             # Parse the webhook event
-            event_type = payload.get("event_type", WebhookEventType.STREAM_STARTED.value)
-            
+            event_type = payload.get(
+                "event_type", WebhookEventType.STREAM_STARTED.value
+            )
+
             # For stream started events, validate the payload
             if event_type == WebhookEventType.STREAM_STARTED.value:
                 webhook_event = StreamStartedWebhookEvent(
-                    event_id=payload.get("event_id", f"webhook_{datetime.utcnow().timestamp()}"),
+                    event_id=payload.get(
+                        "event_id", f"webhook_{datetime.utcnow().timestamp()}"
+                    ),
                     event_type=event_type,
                     timestamp=payload.get("timestamp", datetime.utcnow()),
                     stream_url=payload["stream_url"],
@@ -85,8 +89,7 @@ async def receive_stream_webhook(
                 )
         except Exception as e:
             return WebhookResponse(
-                success=False, 
-                message=f"Invalid webhook payload: {str(e)}"
+                success=False, message=f"Invalid webhook payload: {str(e)}"
             )
 
         # Process webhook

@@ -271,14 +271,23 @@ class TestTaskExecution:
                 assert "chunks_created" in result.result
                 assert result.result["chunks_created"] > 0
 
-
     def test_detect_highlights_task(self, celery_app_test, test_stream):
         """Test detect_highlights task execution."""
         processed_content = {
             "stream_id": test_stream.id,
             "segments": [
-                {"segment_id": "seg_1", "start_time": 0, "end_time": 30, "path": "/tmp/seg_1.mp4"},
-                {"segment_id": "seg_2", "start_time": 30, "end_time": 60, "path": "/tmp/seg_2.mp4"}
+                {
+                    "segment_id": "seg_1",
+                    "start_time": 0,
+                    "end_time": 30,
+                    "path": "/tmp/seg_1.mp4",
+                },
+                {
+                    "segment_id": "seg_2",
+                    "start_time": 30,
+                    "end_time": 60,
+                    "path": "/tmp/seg_2.mp4",
+                },
             ],
             "dimension_scores": {"action_intensity": 0.8, "educational_value": 0.3},
         }

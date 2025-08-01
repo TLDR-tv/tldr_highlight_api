@@ -20,7 +20,7 @@ os.environ["AWS_REGION"] = "us-east-1"
 async def test_basic_imports():
     """Test that basic imports work."""
     from src.domain.entities.stream import StreamStatus
-    
+
     assert StreamStatus.PENDING.value == "pending"
     assert StreamStatus.PROCESSING.value == "processing"
     assert StreamStatus.COMPLETED.value == "completed"
@@ -34,7 +34,7 @@ async def test_domain_entity_creation():
     from src.domain.value_objects.email import Email
     from src.domain.value_objects.company_name import CompanyName
     from src.domain.value_objects.timestamp import Timestamp
-    
+
     # Create a user
     user = User(
         id=1,
@@ -43,12 +43,12 @@ async def test_domain_entity_creation():
         password_hash="hashed_password_value",
         is_active=True,
         created_at=Timestamp.now(),
-        updated_at=Timestamp.now()
+        updated_at=Timestamp.now(),
     )
-    
+
     assert user.email.value == "test@example.com"
     assert user.is_active is True
-    
+
     # Create an organization
     org = Organization(
         id=1,
@@ -57,9 +57,9 @@ async def test_domain_entity_creation():
         plan_type=PlanType.PROFESSIONAL,
         is_active=True,
         created_at=Timestamp.now(),
-        updated_at=Timestamp.now()
+        updated_at=Timestamp.now(),
     )
-    
+
     assert org.name == "Test Org"
     assert org.plan_type == PlanType.PROFESSIONAL
 
@@ -71,7 +71,7 @@ async def test_stream_flow():
     from src.domain.value_objects.url import Url
     from src.domain.value_objects.timestamp import Timestamp
     from src.domain.value_objects.processing_options import ProcessingOptions
-    
+
     # Create a stream
     stream = Stream(
         id=1,
@@ -82,22 +82,24 @@ async def test_stream_flow():
         status=StreamStatus.PENDING,
         processing_options=ProcessingOptions(),
         created_at=Timestamp.now(),
-        updated_at=Timestamp.now()
+        updated_at=Timestamp.now(),
     )
-    
+
     assert stream.platform == StreamPlatform.HLS
     assert stream.status == StreamStatus.PENDING
-    
+
     # Start processing
     processing_stream = stream.start_processing()
     assert processing_stream.status == StreamStatus.PROCESSING
     assert processing_stream.started_at is not None
-    
+
     # Complete processing
     completed_stream = processing_stream.complete_processing()
     assert completed_stream.status == StreamStatus.COMPLETED
     assert completed_stream.completed_at is not None
-    assert completed_stream.duration is not None or completed_stream.duration is None  # duration is optional
+    assert (
+        completed_stream.duration is not None or completed_stream.duration is None
+    )  # duration is optional
 
 
 @pytest.mark.asyncio
@@ -108,7 +110,7 @@ async def test_highlight_creation():
     from src.domain.value_objects.duration import Duration
     from src.domain.value_objects.timestamp import Timestamp
     from src.domain.value_objects.url import Url
-    
+
     # Create a highlight
     highlight = Highlight(
         id=1,
@@ -122,15 +124,12 @@ async def test_highlight_creation():
         thumbnail_url=Url("https://s3.test.com/thumbnails/1.jpg"),
         clip_url=Url("https://s3.test.com/clips/1.mp4"),
         video_analysis={
-            "dimensions": {
-                "action_intensity": 0.95,
-                "skill_display": 0.88
-            }
+            "dimensions": {"action_intensity": 0.95, "skill_display": 0.88}
         },
         created_at=Timestamp.now(),
-        updated_at=Timestamp.now()
+        updated_at=Timestamp.now(),
     )
-    
+
     assert highlight.stream_id == 1
     assert highlight.start_time.seconds == 10.0
     assert highlight.end_time.seconds == 35.0

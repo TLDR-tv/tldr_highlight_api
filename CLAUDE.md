@@ -136,10 +136,10 @@ This is a standalone enterprise B2B API service that provides AI-powered highlig
    - Independent implementation optimized for enterprise needs
    - Multi-modal analysis: video frames, audio transcription
 
-2. **Flexible AI-Powered Analysis**
+2. **AI-Powered Analysis**
    - **Customizable Dimensions**: Clients define their own scoring dimensions (e.g., action_intensity, educational_value, humor)
    - **Dynamic Highlight Types**: Create custom highlight types with specific criteria
-   - **Multiple Detection Strategies**: AI-only, rule-based, or hybrid approaches
+   - **AI-Based Detection**: Advanced AI-powered highlight detection using multimodal analysis
    - **Fusion Strategies**: Weighted, consensus, cascade, or max-confidence fusion of multi-modal signals
    - **Industry Presets**: Pre-configured templates for gaming, education, sports, and corporate use cases
 

@@ -131,3 +131,25 @@ class BaseRepository(
         self.session = session
         self.model_class = model_class
         self.mapper = mapper
+
+    @classmethod
+    def create_with_entity_mapping(
+        cls,
+        session: AsyncSession,
+        model_class: Type[PersistenceModel],
+        entity_class: Type[DomainEntity],
+    ):
+        """Create repository using entity's from_model/to_model methods.
+
+        This is the preferred Pythonic approach that eliminates mapper classes.
+        """
+
+        # Create a simple functional mapper using entity methods
+        def to_domain_func(model):
+            return entity_class.from_model(model)
+
+        def to_persistence_func(entity):
+            return entity.to_model()
+
+        mapper = Mapper(to_domain_func, to_persistence_func)
+        return cls(session, model_class, mapper)

@@ -32,18 +32,16 @@ async def test_db():
     """Create a test database for each test."""
     # Create async engine
     engine = create_async_engine(TEST_DATABASE_URL, echo=False)
-    
+
     # Create tables
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    
+
     # Create session factory
-    async_session = sessionmaker(
-        engine, class_=AsyncSession, expire_on_commit=False
-    )
-    
+    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
     yield async_session
-    
+
     # Clean up
     await engine.dispose()
 
@@ -51,10 +49,11 @@ async def test_db():
 @pytest.fixture
 def override_db(test_db):
     """Override the default database dependency."""
+
     async def _get_test_db():
         async with test_db() as session:
             yield session
-    
+
     app.dependency_overrides[get_db] = _get_test_db
     yield
     app.dependency_overrides.clear()
@@ -69,7 +68,7 @@ def test_client(override_db):
 @pytest.fixture
 def mock_redis():
     """Mock Redis for testing."""
-    with patch('src.infrastructure.cache.get_redis_client') as mock:
+    with patch("src.infrastructure.cache.get_redis_client") as mock:
         redis_mock = AsyncMock()
         redis_mock.get = AsyncMock(return_value=None)
         redis_mock.set = AsyncMock(return_value=True)
@@ -86,7 +85,9 @@ def mock_redis():
 @pytest.fixture
 def mock_celery():
     """Mock Celery for testing."""
-    with patch('src.infrastructure.async_processing.stream_tasks.ingest_stream_with_ffmpeg.delay') as mock_task:
+    with patch(
+        "src.infrastructure.async_processing.stream_tasks.ingest_stream_with_ffmpeg.delay"
+    ) as mock_task:
         mock_result = Mock()
         mock_result.id = "test-task-123"
         mock_result.state = "PENDING"
@@ -97,19 +98,21 @@ def mock_celery():
 @pytest.fixture
 def mock_ffmpeg():
     """Mock FFmpeg for testing."""
-    with patch('src.infrastructure.media.ffmpeg_integration.FFmpegProbe.probe_stream') as mock_probe:
+    with patch(
+        "src.infrastructure.media.ffmpeg_integration.FFmpegProbe.probe_stream"
+    ) as mock_probe:
         # Create mock media info
         video_stream = Mock()
         video_stream.width = 1920
         video_stream.height = 1080
         video_stream.fps = 30.0
         video_stream.codec = "h264"
-        
+
         audio_stream = Mock()
         audio_stream.codec = "aac"
         audio_stream.sample_rate = 48000
         audio_stream.channels = 2
-        
+
         media_info = Mock()
         media_info.format_name = "hls"
         media_info.duration = None  # Live stream
@@ -117,7 +120,7 @@ def mock_ffmpeg():
         media_info.video_streams = [video_stream]
         media_info.audio_streams = [audio_stream]
         media_info.is_live = True
-        
+
         mock_probe.return_value = asyncio.Future()
         mock_probe.return_value.set_result(media_info)
         yield mock_probe
@@ -126,23 +129,27 @@ def mock_ffmpeg():
 @pytest.fixture
 def mock_gemini():
     """Mock Gemini AI for testing."""
-    with patch('src.infrastructure.content_processing.gemini.GeminiVideoProcessor') as mock_class:
+    with patch(
+        "src.infrastructure.content_processing.gemini.GeminiVideoProcessor"
+    ) as mock_class:
         mock_processor = Mock()
-        mock_processor.analyze_video_segment = AsyncMock(return_value={
-            "highlights": [
-                {
-                    "start_time": 10.0,
-                    "end_time": 35.0,
-                    "confidence": 0.92,
-                    "type": "action_sequence",
-                    "dimensions": {
-                        "action_intensity": 0.95,
-                        "skill_display": 0.88,
-                        "viewer_engagement": 0.90
+        mock_processor.analyze_video_segment = AsyncMock(
+            return_value={
+                "highlights": [
+                    {
+                        "start_time": 10.0,
+                        "end_time": 35.0,
+                        "confidence": 0.92,
+                        "type": "action_sequence",
+                        "dimensions": {
+                            "action_intensity": 0.95,
+                            "skill_display": 0.88,
+                            "viewer_engagement": 0.90,
+                        },
                     }
-                }
-            ]
-        })
+                ]
+            }
+        )
         mock_class.return_value = mock_processor
         yield mock_processor
 
@@ -150,10 +157,11 @@ def mock_gemini():
 @pytest.fixture
 def mock_s3():
     """Mock S3 storage for testing."""
-    with patch('src.infrastructure.storage.s3_storage.S3Storage') as mock_class:
+    with patch("src.infrastructure.storage.s3_storage.S3Storage") as mock_class:
         mock_storage = Mock()
         mock_storage.upload_file = AsyncMock(
-            side_effect=lambda file_path, object_name: f"https://s3.test.com/{object_name}"
+            side_effect=lambda file_path,
+            object_name: f"https://s3.test.com/{object_name}"
         )
         mock_class.return_value = mock_storage
         yield mock_storage
@@ -172,7 +180,7 @@ def sample_video_file():
 
 class TestEndToEndFlow:
     """Test the complete end-to-end flow from registration to highlights."""
-    
+
     @pytest.mark.asyncio
     async def test_complete_user_journey(
         self,
@@ -183,50 +191,50 @@ class TestEndToEndFlow:
         mock_ffmpeg,
         mock_gemini,
         mock_s3,
-        sample_video_file
+        sample_video_file,
     ):
         """Test the complete flow from user registration to highlight retrieval."""
-        
+
         # Step 1: User Registration
         print("\n=== Step 1: User Registration ===")
         registration_data = {
             "email": "test@example.com",
             "password": "SecurePass123!",
-            "company_name": "Test Company"
+            "company_name": "Test Company",
         }
-        
+
         response = test_client.post("/auth/register", json=registration_data)
         assert response.status_code == 201
         user_data = response.json()
         assert "access_token" in user_data
         assert user_data["email"] == registration_data["email"]
         assert user_data["company_name"] == registration_data["company_name"]
-        
+
         access_token = user_data["access_token"]
         user_id = user_data["id"]
         print(f"✓ User registered with ID: {user_id}")
-        
+
         # Step 2: Create API Key
         print("\n=== Step 2: Create API Key ===")
         api_key_data = {
             "name": "Test API Key",
             "scopes": ["streams:read", "streams:write", "highlights:read"],
-            "expires_at": (datetime.utcnow() + timedelta(days=365)).isoformat()
+            "expires_at": (datetime.utcnow() + timedelta(days=365)).isoformat(),
         }
-        
+
         response = test_client.post(
             "/auth/api-keys",
             json=api_key_data,
-            headers={"Authorization": f"Bearer {access_token}"}
+            headers={"Authorization": f"Bearer {access_token}"},
         )
         assert response.status_code == 201
         api_key_response = response.json()
         assert "key" in api_key_response
         assert api_key_response["name"] == api_key_data["name"]
-        
+
         api_key = api_key_response["key"]
         print(f"✓ API key created: {api_key[:20]}...")
-        
+
         # Step 3: Submit Stream for Processing
         print("\n=== Step 3: Submit Stream ===")
         stream_data = {
@@ -235,61 +243,55 @@ class TestEndToEndFlow:
                 "highlight_threshold": 0.8,
                 "min_duration": 10,
                 "max_duration": 60,
-                "max_highlights": 20
-            }
+                "max_highlights": 20,
+            },
         }
-        
+
         # Mock the stream processing service to create a stream in DB
         async with test_db() as session:
             # First ensure user and org exist
             org = Organization(
-                id=1,
-                name="Test Company",
-                owner_id=user_id,
-                plan_type="professional"
+                id=1, name="Test Company", owner_id=user_id, plan_type="professional"
             )
             session.add(org)
             await session.commit()
-        
+
         response = test_client.post(
-            "/streams",
-            json=stream_data,
-            headers={"X-API-Key": api_key}
+            "/streams", json=stream_data, headers={"X-API-Key": api_key}
         )
         assert response.status_code == 201
         stream_response = response.json()
         assert stream_response["platform"] == "hls"  # Auto-detected from URL
         assert stream_response["status"] == "pending"
-        
+
         stream_id = stream_response["id"]
         print(f"✓ Stream submitted with ID: {stream_id}")
-        
+
         # Step 4: Verify Celery Task Was Triggered
         print("\n=== Step 4: Verify Async Processing Started ===")
         mock_celery.assert_called_once()
         args, kwargs = mock_celery.call_args
         assert args[0] == stream_id  # Stream ID passed to task
         print("✓ Celery task triggered for stream processing")
-        
+
         # Step 5: Simulate Processing Progress
         print("\n=== Step 5: Simulate Processing Progress ===")
-        
+
         # Update stream status in database
         async with test_db() as session:
             stream = await session.get(Stream, stream_id)
             stream.status = StreamStatus.PROCESSING
             await session.commit()
-        
+
         # Check stream status
         response = test_client.get(
-            f"/streams/{stream_id}",
-            headers={"X-API-Key": api_key}
+            f"/streams/{stream_id}", headers={"X-API-Key": api_key}
         )
         assert response.status_code == 200
         status_data = response.json()
         assert status_data["status"] == "processing"
         print("✓ Stream status updated to processing")
-        
+
         # Step 6: Simulate Highlight Creation
         print("\n=== Step 6: Create Highlights ===")
         async with test_db() as session:
@@ -309,9 +311,9 @@ class TestEndToEndFlow:
                         "dimensions": {
                             "action_intensity": 0.95,
                             "skill_display": 0.88,
-                            "viewer_engagement": 0.90
+                            "viewer_engagement": 0.90,
                         }
-                    }
+                    },
                 ),
                 Highlight(
                     stream_id=stream_id,
@@ -327,35 +329,34 @@ class TestEndToEndFlow:
                         "dimensions": {
                             "humor": 0.88,
                             "surprise": 0.92,
-                            "viewer_engagement": 0.85
+                            "viewer_engagement": 0.85,
                         }
-                    }
-                )
+                    },
+                ),
             ]
-            
+
             for highlight in highlights:
                 session.add(highlight)
-            
+
             # Update stream to completed
             stream = await session.get(Stream, stream_id)
             stream.status = StreamStatus.COMPLETED
             stream.completed_at = datetime.utcnow()
-            
+
             await session.commit()
-        
+
         print("✓ Created 2 highlights for the stream")
-        
+
         # Step 7: Retrieve Highlights
         print("\n=== Step 7: Retrieve Highlights ===")
         response = test_client.get(
-            f"/streams/{stream_id}/highlights",
-            headers={"X-API-Key": api_key}
+            f"/streams/{stream_id}/highlights", headers={"X-API-Key": api_key}
         )
         assert response.status_code == 200
         highlights_data = response.json()
         assert highlights_data["total"] == 2
         assert len(highlights_data["items"]) == 2
-        
+
         # Verify highlight data
         highlight = highlights_data["items"][0]
         assert highlight["confidence_score"] == 0.92
@@ -363,18 +364,18 @@ class TestEndToEndFlow:
         assert highlight["video_url"].startswith("https://s3.test.com/")
         assert "dimensions" in highlight["metadata"]
         print("✓ Successfully retrieved highlights")
-        
+
         # Step 8: Check Usage Statistics
         print("\n=== Step 8: Check Usage Statistics ===")
         response = test_client.get(
             "/api/v1/organizations/1/usage",
-            headers={"Authorization": f"Bearer {access_token}"}
+            headers={"Authorization": f"Bearer {access_token}"},
         )
         assert response.status_code == 200
         usage_data = response.json()
         assert usage_data["total_streams"] >= 1
         print("✓ Usage statistics available")
-        
+
         # Summary
         print("\n=== ✓ End-to-End Test Completed Successfully ===")
         print(f"• User registered: {user_data['email']}")
@@ -382,102 +383,88 @@ class TestEndToEndFlow:
         print(f"• Stream processed: {stream_id}")
         print(f"• Highlights generated: {highlights_data['total']}")
         print("• All components working together correctly!")
-    
+
     @pytest.mark.asyncio
     async def test_webhook_notifications(
-        self,
-        test_client,
-        test_db,
-        mock_redis,
-        access_token,
-        api_key,
-        stream_id
+        self, test_client, test_db, mock_redis, access_token, api_key, stream_id
     ):
         """Test webhook notifications throughout the flow."""
-        
+
         # Configure webhook endpoint
         webhook_data = {
             "url": "https://example.com/webhooks/tldr",
             "events": ["stream.started", "highlight.detected", "processing.complete"],
-            "active": True
+            "active": True,
         }
-        
+
         response = test_client.post(
             "/webhooks",
             json=webhook_data,
-            headers={"Authorization": f"Bearer {access_token}"}
+            headers={"Authorization": f"Bearer {access_token}"},
         )
         assert response.status_code == 201
-        
+
         # Mock webhook delivery
-        with patch('httpx.AsyncClient.post') as mock_post:
+        with patch("httpx.AsyncClient.post") as mock_post:
             mock_response = Mock()
             mock_response.status_code = 200
             mock_post.return_value = mock_response
-            
+
             # Simulate webhook events
             events = [
                 {
                     "event": "stream.started",
                     "stream_id": stream_id,
-                    "timestamp": datetime.utcnow().isoformat()
+                    "timestamp": datetime.utcnow().isoformat(),
                 },
                 {
                     "event": "highlight.detected",
                     "stream_id": stream_id,
                     "highlight_id": 1001,
                     "confidence": 0.92,
-                    "timestamp": datetime.utcnow().isoformat()
+                    "timestamp": datetime.utcnow().isoformat(),
                 },
                 {
                     "event": "processing.complete",
                     "stream_id": stream_id,
                     "highlights_count": 2,
-                    "timestamp": datetime.utcnow().isoformat()
-                }
+                    "timestamp": datetime.utcnow().isoformat(),
+                },
             ]
-            
+
             # Verify webhook calls
             for event in events:
                 mock_post.assert_any_call(
                     webhook_data["url"],
                     json=event,
                     headers={"Content-Type": "application/json"},
-                    timeout=30.0
+                    timeout=30.0,
                 )
-    
-    @pytest.mark.asyncio 
-    async def test_error_handling_flow(
-        self,
-        test_client,
-        test_db,
-        mock_redis,
-        api_key
-    ):
+
+    @pytest.mark.asyncio
+    async def test_error_handling_flow(self, test_client, test_db, mock_redis, api_key):
         """Test error handling throughout the flow."""
-        
+
         # Test invalid stream URL
         stream_data = {
             "source_url": "invalid://not-a-real-url",
-            "options": {"highlight_threshold": 0.8}
+            "options": {"highlight_threshold": 0.8},
         }
-        
+
         response = test_client.post(
-            "/streams",
-            json=stream_data,
-            headers={"X-API-Key": api_key}
+            "/streams", json=stream_data, headers={"X-API-Key": api_key}
         )
         assert response.status_code == 422  # Validation error
-        
+
         # Test with mocked FFmpeg failure
-        with patch('src.infrastructure.media.ffmpeg_integration.FFmpegProbe.probe_stream') as mock_probe:
+        with patch(
+            "src.infrastructure.media.ffmpeg_integration.FFmpegProbe.probe_stream"
+        ) as mock_probe:
             mock_probe.side_effect = Exception("Cannot access stream")
-            
+
             stream_data["source_url"] = "rtmp://example.com/live"
             response = test_client.post(
-                "/streams",
-                json=stream_data,
-                headers={"X-API-Key": api_key}
+                "/streams", json=stream_data, headers={"X-API-Key": api_key}
             )
             # Should still accept the stream, error happens in async processing
             assert response.status_code == 201

@@ -131,7 +131,10 @@ class StreamMapper:
             exceptional_threshold=min(0.9, options.highlight_threshold + 0.15),
             min_highlight_duration=float(options.min_duration),
             max_highlight_duration=float(options.max_duration),
-            typical_highlight_duration=(float(options.min_duration) + float(options.max_duration)) / 2,
+            typical_highlight_duration=(
+                float(options.min_duration) + float(options.max_duration)
+            )
+            / 2,
             enable_scene_detection=options.enable_scene_detection,
             enable_silence_detection=getattr(options, "enable_audio_analysis", True),
             enable_motion_detection=getattr(options, "enable_scene_detection", True),

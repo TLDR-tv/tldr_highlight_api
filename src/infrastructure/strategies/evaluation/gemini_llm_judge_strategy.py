@@ -265,10 +265,8 @@ You have access to the video segment. Please analyze:
                     reasoning=f"Evaluation failed: {str(e)}",
                 )
 
-        # For objective dimensions, consider using simpler evaluation
+        # For objective dimensions, use AI evaluation
         for dim_id, dimension in objective_dims:
-            # Could delegate to rule-based strategy here
-            # For now, use LLM evaluation
             try:
                 result = await self.evaluate_dimension(dimension, context)
                 results[dim_id] = result
