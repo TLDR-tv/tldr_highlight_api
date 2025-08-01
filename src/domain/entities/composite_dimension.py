@@ -5,7 +5,7 @@ using formulas and aggregation methods.
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Set, Any
+from typing import Dict, List, Optional, Set
 from enum import Enum
 import re
 
@@ -296,57 +296,62 @@ class CompositeDimension(Entity):
 
     def _validate_formula_syntax(self, formula: str) -> None:
         """Validate custom formula syntax."""
-        # Basic validation - check for dangerous operations
-        dangerous_patterns = [
-            r"__[a-zA-Z]+__",  # Dunder methods
-            r"import\s+",  # Import statements
-            r"exec\s*\(",  # Exec calls
-            r"eval\s*\(",  # Eval calls
-            r"globals\s*\(",  # Globals access
-            r"locals\s*\(",  # Locals access
-        ]
-
-        for pattern in dangerous_patterns:
-            if re.search(pattern, formula):
-                raise InvalidValueError(
-                    f"Formula contains forbidden pattern: {pattern}"
-                )
-
         # Check balanced parentheses
         open_count = formula.count("(")
         close_count = formula.count(")")
         if open_count != close_count:
             raise InvalidValueError("Formula has unbalanced parentheses")
+        
+        # Basic syntax validation - simpleeval will handle security
+        if not formula.strip():
+            raise InvalidValueError("Formula cannot be empty")
+        
+        # Check for common syntax errors
+        if formula.count('"') % 2 != 0 or formula.count("'") % 2 != 0:
+            raise InvalidValueError("Formula has unbalanced quotes")
 
     def _evaluate_custom_formula(self, scores: Dict[str, DimensionScore]) -> float:
-        """Evaluate custom formula with dimension scores.
+        """Evaluate custom formula with dimension scores using safe evaluation.
 
-        This is a simplified implementation. In production, consider using
-        a proper expression parser like sympy or asteval for safety.
+        Uses simpleeval library for safe mathematical expression evaluation.
         """
+        from simpleeval import simple_eval, SimpleEval
+        import math
+
         # Create evaluation context with dimension values
         context = {dep_id: scores[dep_id].value for dep_id in scores.keys()}
 
-        # Add safe math functions
-        import math
-
-        safe_functions: Dict[str, Any] = {
+        # Safe math functions
+        safe_functions = {
             "max": max,
             "min": min,
             "abs": abs,
             "sqrt": math.sqrt,
             "pow": pow,
-            "log": math.log,
+            "log": lambda x: math.log(x) if x > 0 else 0.0,
+            "exp": math.exp,
+            "sin": math.sin,
+            "cos": math.cos,
+            "tan": math.tan,
+            "round": round,
+            "floor": math.floor,
+            "ceil": math.ceil,
         }
-        context.update(safe_functions)
 
         try:
-            # Simple evaluation - in production use asteval or similar
-            # This is NOT safe for untrusted input!
-            result = eval(self.formula, {"__builtins__": {}}, context)
+            # Create evaluator with safe functions
+            evaluator = SimpleEval()
+            evaluator.functions = safe_functions
+            evaluator.names = context
+            
+            # Evaluate the formula safely
+            result = evaluator.eval(self.formula)
             return float(result)
+
         except Exception as e:
-            raise BusinessRuleViolation(f"Formula evaluation failed: {str(e)}")
+            raise BusinessRuleViolation(
+                f"Formula evaluation failed: {str(e)}. Check formula syntax and variable names."
+            )
 
     def get_dependency_graph(self) -> Dict[str, Set[str]]:
         """Get dependency graph for cycle detection."""
@@ -377,3 +382,15 @@ class CompositeDimension(Entity):
 
         # Re-validate
         self.__post_init__()
+
+    def __str__(self) -> str:
+        """Human-readable string representation."""
+        return f"CompositeDimension({self.dimension_id})"
+
+    def __repr__(self) -> str:
+        """Developer-friendly string representation."""
+        return (
+            f"CompositeDimension(id={self.dimension_id}, "
+            f"method={self.aggregation_method.value}, "
+            f"dependencies={len(self.dependencies)})"
+        )

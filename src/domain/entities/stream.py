@@ -4,11 +4,19 @@ from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Any
 from enum import Enum
 
-from src.domain.entities.base import Entity
+from src.domain.entities.base import AggregateRoot
 from src.domain.value_objects.url import Url
 from src.domain.value_objects.timestamp import Timestamp
 from src.domain.value_objects.duration import Duration
 from src.domain.value_objects.processing_options import ProcessingOptions
+from src.domain.exceptions import InvalidStateTransition, BusinessRuleViolation
+from src.domain.events import (
+    StreamCreatedEvent,
+    StreamProcessingStartedEvent,
+    StreamProcessingCompletedEvent,
+    StreamProcessingFailedEvent,
+    HighlightAddedToStreamEvent
+)
 
 
 class StreamStatus(Enum):
@@ -38,7 +46,7 @@ class StreamPlatform(Enum):
 
 
 @dataclass
-class Stream(Entity[int]):
+class Stream(AggregateRoot[int]):
     """Domain entity representing a stream processing job.
 
     Streams are individual livestream or video URLs submitted
@@ -72,143 +80,146 @@ class Stream(Entity[int]):
     # Raw platform data (for debugging/analysis)
     platform_data: Dict[str, Any] = field(default_factory=dict)
 
-    def start_processing(self) -> "Stream":
-        """Mark stream as processing."""
+    def start_processing(self) -> None:
+        """Start processing the stream.
+        
+        This follows Pythonic DDD where aggregates enforce state transitions
+        and raise appropriate domain events.
+        """
+        # Business rule: Can only start from PENDING status
         if self.status != StreamStatus.PENDING:
-            raise ValueError(f"Cannot start processing stream in {self.status} status")
+            raise InvalidStateTransition(
+                entity_type="Stream",
+                entity_id=self.id,
+                from_state=self.status.value,
+                to_state=StreamStatus.PROCESSING.value,
+                allowed_states=[StreamStatus.PENDING.value]
+            )
 
-        return Stream(
-            id=self.id,
-            url=self.url,
-            platform=self.platform,
-            status=StreamStatus.PROCESSING,
-            user_id=self.user_id,
-            processing_options=self.processing_options,
-            title=self.title,
-            channel_name=self.channel_name,
-            game_category=self.game_category,
-            language=self.language,
-            viewer_count=self.viewer_count,
-            duration=self.duration,
-            started_at=Timestamp.now(),
-            completed_at=self.completed_at,
-            error_message=self.error_message,
-            created_at=self.created_at,
-            updated_at=Timestamp.now(),
-            highlight_ids=self.highlight_ids.copy(),
-            platform_data=self.platform_data.copy(),
-        )
+        # Update state
+        self.status = StreamStatus.PROCESSING
+        self.started_at = Timestamp.now()
+        self.updated_at = Timestamp.now()
+        
+        # Raise domain event
+        if self.id is not None:
+            self.add_domain_event(
+                StreamProcessingStartedEvent(
+                    stream_id=self.id,
+                    processing_options=self.processing_options.to_dict()
+                )
+            )
 
-    def complete_processing(self, duration: Optional[Duration] = None) -> "Stream":
-        """Mark stream as completed."""
+    def complete_processing(self, duration: Optional[Duration] = None) -> None:
+        """Complete stream processing."""
+        # Business rule: Can only complete from PROCESSING status
         if self.status != StreamStatus.PROCESSING:
-            raise ValueError(f"Cannot complete stream in {self.status} status")
+            raise InvalidStateTransition(
+                entity_type="Stream",
+                entity_id=self.id,
+                from_state=self.status.value,
+                to_state=StreamStatus.COMPLETED.value,
+                allowed_states=[StreamStatus.PROCESSING.value]
+            )
 
-        return Stream(
-            id=self.id,
-            url=self.url,
-            platform=self.platform,
-            status=StreamStatus.COMPLETED,
-            user_id=self.user_id,
-            processing_options=self.processing_options,
-            title=self.title,
-            channel_name=self.channel_name,
-            game_category=self.game_category,
-            language=self.language,
-            viewer_count=self.viewer_count,
-            duration=duration or self.duration,
-            started_at=self.started_at,
-            completed_at=Timestamp.now(),
-            error_message=None,
-            created_at=self.created_at,
-            updated_at=Timestamp.now(),
-            highlight_ids=self.highlight_ids.copy(),
-            platform_data=self.platform_data.copy(),
-        )
+        # Update state
+        self.status = StreamStatus.COMPLETED
+        self.completed_at = Timestamp.now()
+        self.error_message = None
+        if duration:
+            self.duration = duration
+        self.updated_at = Timestamp.now()
+        
+        # Calculate processing duration
+        processing_duration = 0.0
+        if self.started_at:
+            processing_duration = self.completed_at.duration_since(self.started_at).total_seconds()
+        
+        # Raise domain event
+        if self.id is not None:
+            self.add_domain_event(
+                StreamProcessingCompletedEvent(
+                    stream_id=self.id,
+                    duration_seconds=processing_duration,
+                    highlight_count=len(self.highlight_ids)
+                )
+            )
 
-    def fail_processing(self, error_message: str) -> "Stream":
-        """Mark stream as failed."""
+    def fail_processing(self, error_message: str) -> None:
+        """Mark stream processing as failed."""
+        # Business rule: Can fail from PENDING or PROCESSING
         if self.status not in [StreamStatus.PENDING, StreamStatus.PROCESSING]:
-            raise ValueError(f"Cannot fail stream in {self.status} status")
+            raise InvalidStateTransition(
+                entity_type="Stream",
+                entity_id=self.id,
+                from_state=self.status.value,
+                to_state=StreamStatus.FAILED.value,
+                allowed_states=[StreamStatus.PENDING.value, StreamStatus.PROCESSING.value]
+            )
 
-        return Stream(
-            id=self.id,
-            url=self.url,
-            platform=self.platform,
-            status=StreamStatus.FAILED,
-            user_id=self.user_id,
-            processing_options=self.processing_options,
-            title=self.title,
-            channel_name=self.channel_name,
-            game_category=self.game_category,
-            language=self.language,
-            viewer_count=self.viewer_count,
-            duration=self.duration,
-            started_at=self.started_at,
-            completed_at=Timestamp.now(),
-            error_message=error_message,
-            created_at=self.created_at,
-            updated_at=Timestamp.now(),
-            highlight_ids=self.highlight_ids.copy(),
-            platform_data=self.platform_data.copy(),
-        )
+        # Update state
+        self.status = StreamStatus.FAILED
+        self.completed_at = Timestamp.now()
+        self.error_message = error_message
+        self.updated_at = Timestamp.now()
+        
+        # Raise domain event
+        if self.id is not None:
+            self.add_domain_event(
+                StreamProcessingFailedEvent(
+                    stream_id=self.id,
+                    error_message=error_message
+                )
+            )
 
-    def cancel(self) -> "Stream":
+    def cancel(self) -> None:
         """Cancel stream processing."""
+        # Business rule: Cannot cancel terminal states
         if self.status in [StreamStatus.COMPLETED, StreamStatus.FAILED]:
-            raise ValueError(f"Cannot cancel stream in {self.status} status")
+            raise InvalidStateTransition(
+                entity_type="Stream",
+                entity_id=self.id,
+                from_state=self.status.value,
+                to_state=StreamStatus.CANCELLED.value,
+                allowed_states=[StreamStatus.PENDING.value, StreamStatus.PROCESSING.value]
+            )
 
-        return Stream(
-            id=self.id,
-            url=self.url,
-            platform=self.platform,
-            status=StreamStatus.CANCELLED,
-            user_id=self.user_id,
-            processing_options=self.processing_options,
-            title=self.title,
-            channel_name=self.channel_name,
-            game_category=self.game_category,
-            language=self.language,
-            viewer_count=self.viewer_count,
-            duration=self.duration,
-            started_at=self.started_at,
-            completed_at=Timestamp.now(),
-            error_message="Cancelled by user",
-            created_at=self.created_at,
-            updated_at=Timestamp.now(),
-            highlight_ids=self.highlight_ids.copy(),
-            platform_data=self.platform_data.copy(),
-        )
+        # Update state
+        self.status = StreamStatus.CANCELLED
+        self.completed_at = Timestamp.now()
+        self.error_message = "Cancelled by user"
+        self.updated_at = Timestamp.now()
+        
+        # Note: We could add a StreamCancelledEvent if needed
 
-    def add_highlight(self, highlight_id: int) -> "Stream":
+    def add_highlight(self, highlight_id: int, confidence_score: float) -> None:
         """Add a highlight to this stream."""
+        # Business rule: Can only add highlights during processing
+        if self.status != StreamStatus.PROCESSING:
+            raise BusinessRuleViolation(
+                "Can only add highlights to streams being processed",
+                entity_type="Stream",
+                entity_id=self.id,
+                context={"status": self.status.value}
+            )
+        
+        # Business rule: No duplicate highlights
         if highlight_id in self.highlight_ids:
-            return self
+            return  # Idempotent operation
 
-        new_highlight_ids = self.highlight_ids.copy()
-        new_highlight_ids.append(highlight_id)
-
-        return Stream(
-            id=self.id,
-            url=self.url,
-            platform=self.platform,
-            status=self.status,
-            user_id=self.user_id,
-            processing_options=self.processing_options,
-            title=self.title,
-            channel_name=self.channel_name,
-            game_category=self.game_category,
-            language=self.language,
-            viewer_count=self.viewer_count,
-            duration=self.duration,
-            started_at=self.started_at,
-            completed_at=self.completed_at,
-            error_message=self.error_message,
-            created_at=self.created_at,
-            updated_at=Timestamp.now(),
-            highlight_ids=new_highlight_ids,
-            platform_data=self.platform_data.copy(),
-        )
+        # Update state
+        self.highlight_ids.append(highlight_id)
+        self.updated_at = Timestamp.now()
+        
+        # Raise domain event
+        if self.id is not None:
+            self.add_domain_event(
+                HighlightAddedToStreamEvent(
+                    stream_id=self.id,
+                    highlight_id=highlight_id,
+                    confidence_score=confidence_score
+                )
+            )
 
     @property
     def is_live(self) -> bool:
@@ -230,3 +241,53 @@ class Stream(Entity[int]):
             StreamStatus.FAILED,
             StreamStatus.CANCELLED,
         ]
+
+    def __str__(self) -> str:
+        """Human-readable string representation."""
+        title = self.title or "Untitled"
+        return f"Stream({title} - {self.status.value})"
+
+    def __repr__(self) -> str:
+        """Developer-friendly string representation."""
+        return (
+            f"Stream(id={self.id}, platform={self.platform.value}, "
+            f"status={self.status.value}, highlights={len(self.highlight_ids)})"
+        )
+    
+    @classmethod
+    def create(
+        cls,
+        url: Url,
+        platform: StreamPlatform,
+        user_id: int,
+        processing_options: ProcessingOptions,
+        title: Optional[str] = None,
+        channel_name: Optional[str] = None,
+        **kwargs
+    ) -> "Stream":
+        """Factory method to create a new stream.
+        
+        This is the Pythonic way to handle entity creation with
+        proper initialization.
+        """
+        stream = cls(
+            id=None,  # Will be assigned by repository
+            url=url,
+            platform=platform,
+            status=StreamStatus.PENDING,
+            user_id=user_id,
+            processing_options=processing_options,
+            title=title,
+            channel_name=channel_name,
+            game_category=kwargs.get('game_category'),
+            language=kwargs.get('language'),
+            viewer_count=kwargs.get('viewer_count'),
+            duration=None,
+            started_at=None,
+            completed_at=None,
+            error_message=None,
+            highlight_ids=[],
+            platform_data=kwargs.get('platform_data', {})
+        )
+        
+        return stream

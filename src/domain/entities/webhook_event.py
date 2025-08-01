@@ -94,3 +94,14 @@ class WebhookEvent(Entity[int]):
         if self.processed_at and self.received_at:
             return (self.processed_at.value - self.received_at.value).total_seconds()
         return None
+
+    def __str__(self) -> str:
+        """Human-readable string representation."""
+        return f"WebhookEvent({self.event_type.value} - {self.status.value})"
+
+    def __repr__(self) -> str:
+        """Developer-friendly string representation."""
+        return (
+            f"WebhookEvent(id={self.id}, event_id={self.event_id!r}, "
+            f"type={self.event_type.value}, status={self.status.value})"
+        )

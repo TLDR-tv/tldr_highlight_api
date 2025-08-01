@@ -6,9 +6,9 @@ configuration focused on the essential parameters for streamlined processing.
 
 from dataclasses import dataclass
 from typing import Optional
-from datetime import datetime
 
 from .base import Entity
+from ..value_objects.timestamp import Timestamp
 
 
 @dataclass
@@ -45,13 +45,13 @@ class StreamProcessingConfig(Entity[int]):
 
     # Usage tracking
     times_used: int = 0
-    last_used_at: Optional[datetime] = None
+    last_used_at: Optional[Timestamp] = None
 
     def record_usage(self) -> None:
         """Record that this configuration was used."""
         self.times_used += 1
-        self.last_used_at = datetime.utcnow()
-        self.updated_at = datetime.utcnow()
+        self.last_used_at = Timestamp.now()
+        self.updated_at = Timestamp.now()
 
     def validate(self) -> bool:
         """Validate configuration parameters."""

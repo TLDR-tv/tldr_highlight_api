@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from typing import TypeVar, Generic, Optional, List
 
 from src.domain.events import DomainEvent
+from src.domain.value_objects.timestamp import Timestamp
 
 
 T = TypeVar("T")
@@ -19,9 +20,17 @@ class Entity(Generic[T]):
 
     id: Optional[T]
 
+    # Audit timestamps
+    created_at: Timestamp = field(default_factory=Timestamp.now)
+    updated_at: Timestamp = field(default_factory=Timestamp.now)
+
     def __post_init__(self):
         """Initialize entity after dataclass initialization."""
         pass
+
+    def _touch_updated_at(self) -> None:
+        """Update the updated_at timestamp to current time."""
+        object.__setattr__(self, "updated_at", Timestamp.now())
 
     def __eq__(self, other: object) -> bool:
         """Entities are equal if they have the same type and ID."""

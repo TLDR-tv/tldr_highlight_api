@@ -6,11 +6,11 @@ registry that allows clients to define their own highlight types.
 
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any
-from datetime import datetime
 from enum import Enum
 
 from ..entities.base import Entity
 from ..exceptions import BusinessRuleViolation, EntityNotFoundError
+from ..value_objects.timestamp import Timestamp
 
 
 class BuiltInHighlightType(str, Enum):
@@ -50,7 +50,7 @@ class HighlightTypeDefinition:
     tags: List[str] = field(default_factory=list)  # Searchable tags
 
     # Metadata
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: Timestamp = field(default_factory=Timestamp.now)
     is_active: bool = True
 
     def matches_criteria(
@@ -96,7 +96,7 @@ class HighlightTypeDefinition:
             "color": self.color,
             "icon": self.icon,
             "tags": self.tags,
-            "created_at": self.created_at.isoformat(),
+            "created_at": self.created_at.value.isoformat(),
             "is_active": self.is_active,
         }
 
@@ -134,8 +134,8 @@ class HighlightTypeRegistry(Entity[int]):
     usage_count: int = 0
 
     # Timestamps
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: Timestamp = field(default_factory=Timestamp.now)
+    updated_at: Timestamp = field(default_factory=Timestamp.now)
 
     def __post_init__(self):
         """Initialize the registry with built-in types if configured."""
@@ -202,7 +202,7 @@ class HighlightTypeRegistry(Entity[int]):
             )
 
         self.types[type_definition.id] = type_definition
-        self.updated_at = datetime.utcnow()
+        self.updated_at = Timestamp.now()
 
     def update_type(self, type_id: str, updates: Dict[str, Any]) -> None:
         """Update an existing highlight type.
@@ -244,7 +244,7 @@ class HighlightTypeRegistry(Entity[int]):
             if field_name in allowed_fields:
                 setattr(type_def, field_name, value)
 
-        self.updated_at = datetime.utcnow()
+        self.updated_at = Timestamp.now()
 
     def remove_type(self, type_id: str) -> None:
         """Remove a highlight type from the registry.
@@ -266,7 +266,7 @@ class HighlightTypeRegistry(Entity[int]):
             raise BusinessRuleViolation("Cannot remove the default highlight type")
 
         del self.types[type_id]
-        self.updated_at = datetime.utcnow()
+        self.updated_at = Timestamp.now()
 
     def determine_types(
         self,

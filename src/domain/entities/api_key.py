@@ -1,6 +1,6 @@
 """API Key domain entity."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import List, Dict, Optional
 from secrets import token_urlsafe
 from enum import Enum
@@ -21,11 +21,6 @@ class APIKeyScope(Enum):
     HIGHLIGHTS_READ = "highlights:read"
     HIGHLIGHTS_WRITE = "highlights:write"
     HIGHLIGHTS_DELETE = "highlights:delete"
-
-    # Batch operations
-    BATCHES_READ = "batches:read"
-    BATCHES_WRITE = "batches:write"
-    BATCHES_DELETE = "batches:delete"
 
     # Webhook operations
     WEBHOOKS_READ = "webhooks:read"
@@ -129,24 +124,8 @@ class APIKey(Entity[int]):
         if scope in self.scopes:
             return self
 
-        new_scopes = self.scopes.copy()
-        new_scopes.append(scope)
-
-        return APIKey(
-            id=self.id,
-            name=self.name,
-            key_hash=self.key_hash,
-            user_id=self.user_id,
-            scopes=new_scopes,
-            description=self.description,
-            expires_at=self.expires_at,
-            last_used_at=self.last_used_at,
-            rate_limit_override=self.rate_limit_override,
-            allowed_ips=self.allowed_ips.copy(),
-            is_active=self.is_active,
-            created_at=self.created_at,
-            updated_at=Timestamp.now(),
-        )
+        new_scopes = self.scopes + [scope]
+        return replace(self, scopes=new_scopes, updated_at=Timestamp.now())
 
     def remove_scope(self, scope: APIKeyScope) -> "APIKey":
         """Remove a scope from the API key."""
@@ -154,83 +133,35 @@ class APIKey(Entity[int]):
             return self
 
         new_scopes = [s for s in self.scopes if s != scope]
-
-        return APIKey(
-            id=self.id,
-            name=self.name,
-            key_hash=self.key_hash,
-            user_id=self.user_id,
-            scopes=new_scopes,
-            description=self.description,
-            expires_at=self.expires_at,
-            last_used_at=self.last_used_at,
-            rate_limit_override=self.rate_limit_override,
-            allowed_ips=self.allowed_ips.copy(),
-            is_active=self.is_active,
-            created_at=self.created_at,
-            updated_at=Timestamp.now(),
-        )
+        return replace(self, scopes=new_scopes, updated_at=Timestamp.now())
 
     def record_usage(self) -> "APIKey":
         """Update last used timestamp."""
-        return APIKey(
-            id=self.id,
-            name=self.name,
-            key_hash=self.key_hash,
-            user_id=self.user_id,
-            scopes=self.scopes.copy(),
-            description=self.description,
-            expires_at=self.expires_at,
-            last_used_at=Timestamp.now(),
-            rate_limit_override=self.rate_limit_override,
-            allowed_ips=self.allowed_ips.copy(),
-            is_active=self.is_active,
-            created_at=self.created_at,
-            updated_at=self.updated_at,
-        )
+        return replace(self, last_used_at=Timestamp.now())
 
     def deactivate(self) -> "APIKey":
         """Deactivate the API key."""
-        return APIKey(
-            id=self.id,
-            name=self.name,
-            key_hash=self.key_hash,
-            user_id=self.user_id,
-            scopes=self.scopes.copy(),
-            description=self.description,
-            expires_at=self.expires_at,
-            last_used_at=self.last_used_at,
-            rate_limit_override=self.rate_limit_override,
-            allowed_ips=self.allowed_ips.copy(),
-            is_active=False,
-            created_at=self.created_at,
-            updated_at=Timestamp.now(),
-        )
+        return replace(self, is_active=False, updated_at=Timestamp.now())
 
     def add_ip_restriction(self, ip_address: str) -> "APIKey":
         """Add an IP address restriction."""
         if ip_address in self.allowed_ips:
             return self
 
-        new_ips = self.allowed_ips.copy()
-        new_ips.append(ip_address)
-
-        return APIKey(
-            id=self.id,
-            name=self.name,
-            key_hash=self.key_hash,
-            user_id=self.user_id,
-            scopes=self.scopes.copy(),
-            description=self.description,
-            expires_at=self.expires_at,
-            last_used_at=self.last_used_at,
-            rate_limit_override=self.rate_limit_override,
-            allowed_ips=new_ips,
-            is_active=self.is_active,
-            created_at=self.created_at,
-            updated_at=Timestamp.now(),
-        )
+        new_ips = self.allowed_ips + [ip_address]
+        return replace(self, allowed_ips=new_ips, updated_at=Timestamp.now())
 
     def revoke(self) -> "APIKey":
         """Revoke the API key (alias for deactivate)."""
         return self.deactivate()
+
+    def __str__(self) -> str:
+        """Human-readable string representation."""
+        return f"APIKey({self.name})"
+
+    def __repr__(self) -> str:
+        """Developer-friendly string representation."""
+        return (
+            f"APIKey(id={self.id}, name={self.name!r}, "
+            f"scopes={len(self.scopes)}, active={self.is_active})"
+        )

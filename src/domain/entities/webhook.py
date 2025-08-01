@@ -17,8 +17,6 @@ class WebhookEvent(Enum):
     STREAM_COMPLETED = "stream.completed"
     STREAM_FAILED = "stream.failed"
     HIGHLIGHT_DETECTED = "highlight.detected"
-    BATCH_COMPLETED = "batch.completed"
-    BATCH_FAILED = "batch.failed"
 
 
 class WebhookStatus(Enum):
@@ -230,4 +228,15 @@ class Webhook(Entity[int]):
             custom_headers=new_headers,
             created_at=self.created_at,
             updated_at=Timestamp.now(),
+        )
+
+    def __str__(self) -> str:
+        """Human-readable string representation."""
+        return f"Webhook({self.url.value} - {self.status.value})"
+
+    def __repr__(self) -> str:
+        """Developer-friendly string representation."""
+        return (
+            f"Webhook(id={self.id}, url={self.url.value!r}, "
+            f"events={len(self.events)}, status={self.status.value})"
         )

@@ -32,8 +32,8 @@ class UsageRecord(Entity[int]):
     usage_type: UsageType
 
     # What was consumed
-    resource_id: Optional[int] = None  # ID of stream, batch, etc.
-    resource_type: Optional[str] = None  # "stream", "batch", etc.
+    resource_id: Optional[int] = None  # ID of stream, etc.
+    resource_type: Optional[str] = None  # "stream", etc.
 
     # Quantity consumed
     quantity: float = 1.0
@@ -42,6 +42,11 @@ class UsageRecord(Entity[int]):
     # When it was consumed
     period_start: Timestamp = None
     period_end: Optional[Timestamp] = None
+
+    # Billing information
+    billable: bool = True
+    rate: Optional[float] = None  # Cost per unit
+    total_cost: Optional[float] = None
 
     # Metadata
     api_key_id: Optional[int] = None
@@ -73,7 +78,7 @@ class UsageRecord(Entity[int]):
 
         final_quantity = quantity if quantity is not None else self.quantity
         final_cost = None
-        if self.rate:
+        if self.rate and self.billable:
             final_cost = final_quantity * self.rate
 
         return UsageRecord(
@@ -100,7 +105,7 @@ class UsageRecord(Entity[int]):
     def update_quantity(self, new_quantity: float) -> "UsageRecord":
         """Update the quantity consumed."""
         new_cost = None
-        if self.rate:
+        if self.rate and self.billable:
             new_cost = new_quantity * self.rate
 
         return UsageRecord(
@@ -147,6 +152,24 @@ class UsageRecord(Entity[int]):
             updated_at=Timestamp.now(),
         )
 
+    @property
+    def estimated_cost(self) -> float:
+        """Calculate estimated cost based on current quantity and rate."""
+        if not self.billable or not self.rate:
+            return 0.0
+        return self.quantity * self.rate
+
+    def __str__(self) -> str:
+        """Human-readable string representation."""
+        return f"UsageRecord({self.usage_type.value}: {self.quantity} {self.unit})"
+
+    def __repr__(self) -> str:
+        """Developer-friendly string representation."""
+        return (
+            f"UsageRecord(id={self.id}, type={self.usage_type.value}, "
+            f"quantity={self.quantity}, billable={self.billable})"
+        )
+
     @classmethod
     def for_stream_processing(
         cls,
@@ -154,6 +177,7 @@ class UsageRecord(Entity[int]):
         stream_id: int,
         duration_minutes: float,
         organization_id: Optional[int] = None,
+        rate: Optional[float] = None,
     ) -> "UsageRecord":
         """Create usage record for stream processing."""
         return cls(
@@ -165,6 +189,9 @@ class UsageRecord(Entity[int]):
             resource_type="stream",
             quantity=duration_minutes,
             unit="minutes",
+            billable=True,
+            rate=rate,
+            total_cost=None,
             created_at=Timestamp.now(),
             updated_at=Timestamp.now(),
         )
@@ -177,6 +204,7 @@ class UsageRecord(Entity[int]):
         endpoint: str,
         ip_address: str,
         organization_id: Optional[int] = None,
+        rate: Optional[float] = None,
     ) -> "UsageRecord":
         """Create usage record for API call."""
         return cls(
@@ -187,6 +215,9 @@ class UsageRecord(Entity[int]):
             resource_type=endpoint,
             quantity=1,
             unit="request",
+            billable=True,
+            rate=rate,
+            total_cost=None,
             api_key_id=api_key_id,
             ip_address=ip_address,
             created_at=Timestamp.now(),

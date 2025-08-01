@@ -6,9 +6,9 @@ ensuring consistency and encapsulating all business rules.
 
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Set, Callable
-from datetime import datetime
 
 from ..entities.base import AggregateRoot
+from ..value_objects.timestamp import Timestamp
 from ..value_objects.dimension_definition import DimensionDefinition
 from ..value_objects.dimension_weight import DimensionWeight
 from ..value_objects.dimension_score import DimensionScore
@@ -24,7 +24,7 @@ from ..exceptions import BusinessRuleViolation
 from ..policies.dimension_set_policy import (
     can_add_dimension,
     can_remove_dimension,
-    create_dimension_set_validators
+    create_dimension_set_validators,
 )
 
 
@@ -32,6 +32,7 @@ from ..policies.dimension_set_policy import (
 @dataclass
 class DimensionSetConfig:
     """Configuration for dimension set business rules."""
+
     min_dimensions: int = 3
     max_dimensions: int = 20
     require_normalized_weights: bool = True
@@ -56,7 +57,7 @@ class DimensionSetAggregate(AggregateRoot):
     # Version tracking
     _version: DimensionSetVersion = field(
         default_factory=lambda: DimensionSetVersion(
-            major=1, minor=0, patch=0, effective_date=datetime.utcnow()
+            major=1, minor=0, patch=0, effective_date=Timestamp.now().value
         )
     )
     _version_history: List[DimensionSetVersion] = field(default_factory=list)
@@ -79,16 +80,16 @@ class DimensionSetAggregate(AggregateRoot):
     _validators: Dict[str, Callable] = field(init=False)
 
     # Timestamps
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
-    last_used_at: Optional[datetime] = None
+    created_at: Timestamp = field(default_factory=Timestamp.now)
+    updated_at: Timestamp = field(default_factory=Timestamp.now)
+    last_used_at: Optional[Timestamp] = None
 
     def __post_init__(self) -> None:
         """Initialize validators based on configuration."""
         self._validators = create_dimension_set_validators(
             min_dimensions=self._config.min_dimensions,
             max_dimensions=self._config.max_dimensions,
-            require_normalized_weights=self._config.require_normalized_weights
+            require_normalized_weights=self._config.require_normalized_weights,
         )
 
     @property
@@ -129,7 +130,7 @@ class DimensionSetAggregate(AggregateRoot):
         self._weights[dimension.id] = DimensionWeight(dimension.id, weight_value)
 
         # Update timestamp
-        self.updated_at = datetime.utcnow()
+        self.updated_at = Timestamp.now()
 
         # Raise domain event
         if self.id is not None:
@@ -145,7 +146,7 @@ class DimensionSetAggregate(AggregateRoot):
 
     def remove_dimension(self, dimension_id: str) -> None:
         """Remove a dimension from the set."""
-        # Check business rules  
+        # Check business rules
         can_remove_dimension(self, dimension_id, self._config.min_dimensions)
 
         # Remove dimension and weight
@@ -153,7 +154,7 @@ class DimensionSetAggregate(AggregateRoot):
         del self._weights[dimension_id]
 
         # Update timestamp
-        self.updated_at = datetime.utcnow()
+        self.updated_at = Timestamp.now()
 
         # Raise domain event
         if self.id is not None:
@@ -174,7 +175,7 @@ class DimensionSetAggregate(AggregateRoot):
         self._weights[dimension_id] = DimensionWeight(dimension_id, new_weight)
 
         # Validate new weight configuration
-        errors = self._validators['validate_weights'](self._weights)
+        errors = self._validators["validate_weights"](self._weights)
         if errors:
             # Rollback
             self._weights[dimension_id] = DimensionWeight(dimension_id, old_weight)
@@ -183,7 +184,7 @@ class DimensionSetAggregate(AggregateRoot):
             )
 
         # Update timestamp
-        self.updated_at = datetime.utcnow()
+        self.updated_at = Timestamp.now()
 
         # Raise domain event
         if self.id is not None:
@@ -239,7 +240,7 @@ class DimensionSetAggregate(AggregateRoot):
 
     def record_usage(self, usage_context: str = "evaluation") -> None:
         """Record that this dimension set was used."""
-        self.last_used_at = datetime.utcnow()
+        self.last_used_at = Timestamp.now()
 
         # Raise domain event
         if self.id is not None:
@@ -261,7 +262,7 @@ class DimensionSetAggregate(AggregateRoot):
         errors = []
 
         # Validate weights
-        errors.extend(self._validators['validate_weights'](self._weights))
+        errors.extend(self._validators["validate_weights"](self._weights))
 
         # Validate dimension consistency
         weight_dims = set(self._weights.keys())
@@ -294,7 +295,7 @@ class DimensionSetAggregate(AggregateRoot):
         self._version_history.append(self._version)
 
         # Create new version
-        effective_date = datetime.utcnow()
+        effective_date = Timestamp.now().value
 
         if version_type == "major":
             new_version = self._version.increment_major(effective_date)
@@ -315,7 +316,7 @@ class DimensionSetAggregate(AggregateRoot):
             )
 
         self._version = new_version
-        self.updated_at = effective_date
+        self.updated_at = Timestamp.from_datetime(effective_date)
 
         # Raise domain event
         if self.id is not None:
@@ -338,7 +339,7 @@ class DimensionSetAggregate(AggregateRoot):
             major=int(parts[0]),
             minor=int(parts[1]),
             patch=int(parts[2]),
-            effective_date=datetime.utcnow(),
+            effective_date=Timestamp.now().value,
         )
 
         return self._version.is_compatible_with(required)

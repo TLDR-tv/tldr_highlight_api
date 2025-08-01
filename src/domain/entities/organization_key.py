@@ -5,9 +5,12 @@ used for generating secure signed URLs.
 """
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Optional
 from enum import Enum
+
+from src.domain.entities.base import Entity
+from src.domain.value_objects.timestamp import Timestamp
 
 
 class KeyAlgorithm(str, Enum):
@@ -32,11 +35,9 @@ class KeyStatus(str, Enum):
 
 
 @dataclass
-class OrganizationKey:
+class OrganizationKey(Entity[int]):
     """Organization signing key domain model."""
 
-    # Identity
-    id: Optional[int]
     organization_id: int
     key_id: str  # Public identifier for the key
 
@@ -50,22 +51,21 @@ class OrganizationKey:
 
     # Lifecycle
     status: KeyStatus
-    created_at: datetime
-    expires_at: Optional[datetime]
-    rotated_at: Optional[datetime]
-    deactivated_at: Optional[datetime]
+    expires_at: Optional[Timestamp] = None
+    rotated_at: Optional[Timestamp] = None
+    deactivated_at: Optional[Timestamp] = None
 
     # Usage metrics
-    last_used_at: Optional[datetime]
-    usage_count: int
+    last_used_at: Optional[Timestamp] = None
+    usage_count: int = 0
 
     # Rotation tracking
-    previous_key_id: Optional[str]
-    rotation_reason: Optional[str]
+    previous_key_id: Optional[str] = None
+    rotation_reason: Optional[str] = None
 
     # Metadata
-    created_by: Optional[str]
-    description: Optional[str]
+    created_by: Optional[str] = None
+    description: Optional[str] = None
 
     @property
     def is_active(self) -> bool:
@@ -73,7 +73,7 @@ class OrganizationKey:
         if self.status != KeyStatus.ACTIVE:
             return False
 
-        if self.expires_at and datetime.utcnow() > self.expires_at:
+        if self.expires_at and self.expires_at.is_before(Timestamp.now()):
             return False
 
         return True
@@ -81,7 +81,7 @@ class OrganizationKey:
     @property
     def is_expired(self) -> bool:
         """Check if key has expired."""
-        return self.expires_at and datetime.utcnow() > self.expires_at
+        return self.expires_at and self.expires_at.is_before(Timestamp.now())
 
     @property
     def can_verify(self) -> bool:
@@ -115,7 +115,7 @@ class OrganizationKey:
         """
         self.status = KeyStatus.ROTATING
         self.is_primary = False
-        self.rotated_at = datetime.utcnow()
+        self.rotated_at = Timestamp.now()
         self.rotation_reason = reason
         new_key.previous_key_id = self.key_id
 
@@ -127,7 +127,7 @@ class OrganizationKey:
         """
         self.status = KeyStatus.DEACTIVATED
         self.is_primary = False
-        self.deactivated_at = datetime.utcnow()
+        self.deactivated_at = Timestamp.now()
         if reason:
             self.rotation_reason = reason
 
@@ -135,13 +135,13 @@ class OrganizationKey:
         """Mark this key as compromised."""
         self.status = KeyStatus.COMPROMISED
         self.is_primary = False
-        self.deactivated_at = datetime.utcnow()
+        self.deactivated_at = Timestamp.now()
         self.rotation_reason = "Key compromised"
 
     def increment_usage(self) -> None:
         """Increment usage counter and update last used timestamp."""
         self.usage_count += 1
-        self.last_used_at = datetime.utcnow()
+        self.last_used_at = Timestamp.now()
 
     @classmethod
     def create_new(
@@ -168,10 +168,12 @@ class OrganizationKey:
         Returns:
             New OrganizationKey instance
         """
-        now = datetime.utcnow()
+        now = Timestamp.now()
         expires_at = None
         if expires_in_days:
-            expires_at = now + timedelta(days=expires_in_days)
+            expires_at = Timestamp.from_datetime(
+                now.value + timedelta(days=expires_in_days)
+            )
 
         return cls(
             id=None,
@@ -182,7 +184,6 @@ class OrganizationKey:
             key_version=1,
             is_primary=True,
             status=KeyStatus.ACTIVE,
-            created_at=now,
             expires_at=expires_at,
             rotated_at=None,
             deactivated_at=None,
@@ -192,4 +193,17 @@ class OrganizationKey:
             rotation_reason=None,
             created_by=created_by,
             description=description,
+            created_at=now,
+            updated_at=now,
+        )
+
+    def __str__(self) -> str:
+        """Human-readable string representation."""
+        return f"OrganizationKey({self.key_id} - {self.status.value})"
+
+    def __repr__(self) -> str:
+        """Developer-friendly string representation."""
+        return (
+            f"OrganizationKey(id={self.id}, key_id={self.key_id!r}, "
+            f"status={self.status.value}, is_primary={self.is_primary})"
         )

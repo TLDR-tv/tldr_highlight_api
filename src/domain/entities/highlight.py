@@ -161,6 +161,18 @@ class Highlight(Entity[int]):
         else:
             return "very_low"
 
+    def __str__(self) -> str:
+        """Human-readable string representation."""
+        return f"Highlight({self.title} - {self.confidence_score.value:.2f})"
+
+    def __repr__(self) -> str:
+        """Developer-friendly string representation."""
+        return (
+            f"Highlight(id={self.id}, stream_id={self.stream_id}, "
+            f"confidence={self.confidence_score.value:.2f}, "
+            f"duration={self.duration.seconds}s)"
+        )
+
 
 @dataclass
 class HighlightCandidate:
@@ -215,4 +227,15 @@ class HighlightCandidate:
             video_analysis=self.metadata.get("video_analysis", {}),
             dimension_scores=self.dimension_scores.copy(),
             processed_by=self.metadata.get("processed_by", "dimension_analysis"),
+        )
+
+    def __str__(self) -> str:
+        """Human-readable string representation."""
+        return f"HighlightCandidate({self.id} - {self.final_score:.2f})"
+
+    def __repr__(self) -> str:
+        """Developer-friendly string representation."""
+        return (
+            f"HighlightCandidate(id={self.id!r}, score={self.final_score:.2f}, "
+            f"duration={self.duration:.1f}s)"
         )

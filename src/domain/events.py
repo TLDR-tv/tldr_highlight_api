@@ -278,3 +278,129 @@ class DimensionSetValidationPassedEvent(DomainEvent):
 
     def __post_init__(self):
         self.event_type_name = self.__class__.__name__
+
+
+# Organization Events
+
+
+@dataclass
+class OrganizationCreatedEvent(DomainEvent):
+    """Event raised when a new organization is created."""
+
+    organization_id: int
+    name: str
+    owner_id: int
+    plan_type: str
+
+    def __post_init__(self):
+        self.event_type_name = self.__class__.__name__
+
+
+@dataclass
+class MemberAddedEvent(DomainEvent):
+    """Event raised when a member is added to an organization."""
+
+    organization_id: int
+    user_id: int
+    added_by_user_id: int
+
+    def __post_init__(self):
+        self.event_type_name = self.__class__.__name__
+
+
+@dataclass
+class MemberRemovedEvent(DomainEvent):
+    """Event raised when a member is removed from an organization."""
+
+    organization_id: int
+    user_id: int
+    removed_by_user_id: int
+
+    def __post_init__(self):
+        self.event_type_name = self.__class__.__name__
+
+
+@dataclass
+class PlanUpgradedEvent(DomainEvent):
+    """Event raised when an organization upgrades their plan."""
+
+    organization_id: int
+    old_plan: str
+    new_plan: str
+    upgraded_by_user_id: int
+
+    def __post_init__(self):
+        self.event_type_name = self.__class__.__name__
+
+
+@dataclass
+class OrganizationDeactivatedEvent(DomainEvent):
+    """Event raised when an organization is deactivated."""
+
+    organization_id: int
+    reason: Optional[str] = None
+
+    def __post_init__(self):
+        self.event_type_name = self.__class__.__name__
+
+
+# Stream Events
+
+
+@dataclass
+class StreamCreatedEvent(DomainEvent):
+    """Event raised when a new stream is created."""
+
+    stream_id: int
+    url: str
+    platform: str
+    user_id: int
+
+    def __post_init__(self):
+        self.event_type_name = self.__class__.__name__
+
+
+@dataclass
+class StreamProcessingStartedEvent(DomainEvent):
+    """Event raised when stream processing starts."""
+
+    stream_id: int
+    processing_options: Dict[str, Any]
+
+    def __post_init__(self):
+        self.event_type_name = self.__class__.__name__
+
+
+@dataclass
+class StreamProcessingCompletedEvent(DomainEvent):
+    """Event raised when stream processing completes."""
+
+    stream_id: int
+    duration_seconds: float
+    highlight_count: int
+
+    def __post_init__(self):
+        self.event_type_name = self.__class__.__name__
+
+
+@dataclass
+class StreamProcessingFailedEvent(DomainEvent):
+    """Event raised when stream processing fails."""
+
+    stream_id: int
+    error_message: str
+
+    def __post_init__(self):
+        self.event_type_name = self.__class__.__name__
+
+
+@dataclass
+class HighlightAddedToStreamEvent(DomainEvent):
+    """Event raised when a highlight is added to a stream."""
+
+    stream_id: int
+    highlight_id: int
+    confidence_score: float
+
+    def __post_init__(self):
+        self.event_type_name = self.__class__.__name__
