@@ -28,6 +28,7 @@ celery_app = Celery(
     include=[
         "src.infrastructure.async_processing.tasks",
         "src.infrastructure.async_processing.workflow",
+        "src.infrastructure.async_processing.stream_tasks",
     ],
 )
 
