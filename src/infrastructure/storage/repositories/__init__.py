@@ -1,4 +1,5 @@
 """Repository implementations."""
+
 from .organization import OrganizationRepository
 from .user import UserRepository
 from .stream import StreamRepository
@@ -8,9 +9,9 @@ from .wake_word import WakeWordRepository
 
 __all__ = [
     "OrganizationRepository",
-    "UserRepository", 
+    "UserRepository",
     "StreamRepository",
     "HighlightRepository",
     "APIKeyRepository",
-    "WakeWordRepository"
+    "WakeWordRepository",
 ]

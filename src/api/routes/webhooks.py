@@ -1,4 +1,5 @@
 """Webhook management endpoints."""
+
 from fastapi import APIRouter, Depends
 
 from ..dependencies import get_current_organization, require_scope
@@ -10,8 +11,8 @@ router = APIRouter()
 @router.post("/configure")
 async def configure_webhook(
     webhook_url: str,
-    organization = Depends(get_current_organization),
-    api_key = Depends(require_scope(APIScopes.WEBHOOKS_WRITE))
+    organization=Depends(get_current_organization),
+    api_key=Depends(require_scope(APIScopes.WEBHOOKS_WRITE)),
 ):
     """Configure webhook for the organization."""
     # TODO: Implement

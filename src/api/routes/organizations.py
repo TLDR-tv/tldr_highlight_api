@@ -1,4 +1,5 @@
 """Organization management endpoints."""
+
 from fastapi import APIRouter, Depends
 
 from ..dependencies import get_current_organization, require_scope
@@ -9,8 +10,8 @@ router = APIRouter()
 
 @router.get("/me")
 async def get_current_org(
-    organization = Depends(get_current_organization),
-    api_key = Depends(require_scope(APIScopes.ORG_READ))
+    organization=Depends(get_current_organization),
+    api_key=Depends(require_scope(APIScopes.ORG_READ)),
 ):
     """Get current organization details."""
     return {
@@ -20,6 +21,6 @@ async def get_current_org(
         "usage": {
             "total_streams": organization.total_streams_processed,
             "total_highlights": organization.total_highlights_generated,
-            "total_seconds": organization.total_processing_seconds
-        }
+            "total_seconds": organization.total_processing_seconds,
+        },
     }
