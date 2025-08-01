@@ -5,34 +5,29 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..dependencies import get_session, get_settings_dep, get_current_user, require_user, require_admin_user
-from ..models.user import (
+from ..dependencies import (
+    get_session, 
+    get_current_user, 
+    require_user, 
+    require_admin_user,
+    get_user_service,
+    get_user_repository,
+)
+from ..schemas.user import (
     UserResponse,
     UserCreateRequest,
     UserUpdateRequest,
     UserRoleUpdateRequest,
     UserListResponse,
 )
-from ..models.auth import PasswordChangeRequest
+from ..schemas.auth import PasswordChangeRequest, MessageResponse
 from ...application.services.user_service import UserService
-from ...infrastructure.security.password_service import PasswordService
-from ...infrastructure.security.jwt_service import JWTService
 from ...infrastructure.storage.repositories import UserRepository
-from ...infrastructure.config import Settings
 from ...domain.models.user import User
 
 router = APIRouter()
 
 
-def get_user_service(
-    session: AsyncSession = Depends(get_session),
-    settings: Settings = Depends(get_settings_dep),
-) -> UserService:
-    """Get user service instance."""
-    user_repository = UserRepository(session)
-    password_service = PasswordService()
-    jwt_service = JWTService(settings)
-    return UserService(user_repository, password_service, jwt_service)
 
 
 @router.get("/me", response_model=UserResponse)
@@ -64,7 +59,7 @@ async def update_current_user_profile(
         )
 
 
-@router.put("/me/password")
+@router.put("/me/password", response_model=MessageResponse)
 async def change_current_user_password(
     request: PasswordChangeRequest,
     current_user: User = Depends(require_user),
@@ -77,7 +72,7 @@ async def change_current_user_password(
             old_password=request.current_password,
             new_password=request.new_password,
         )
-        return {"message": "Password changed successfully"}
+        return MessageResponse(message="Password changed successfully")
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -127,8 +122,7 @@ async def create_user(
 async def get_user(
     user_id: UUID,
     current_user: User = Depends(require_user),
-    user_service: UserService = Depends(get_user_service),
-    session: AsyncSession = Depends(get_session),
+    user_repository: UserRepository = Depends(get_user_repository),
 ):
     """Get user details."""
     # Users can view their own profile or admins can view any user in their org
@@ -138,7 +132,6 @@ async def get_user(
             detail="Cannot view other users",
         )
     
-    user_repository = UserRepository(session)
     user = await user_repository.get(user_id)
     
     if not user:
@@ -217,7 +210,7 @@ async def update_user_role(
         )
 
 
-@router.delete("/{user_id}")
+@router.delete("/{user_id}", response_model=MessageResponse)
 async def deactivate_user(
     user_id: UUID,
     current_user: User = Depends(require_admin_user),
@@ -230,7 +223,7 @@ async def deactivate_user(
             user_id=user_id,
             admin_user_id=current_user.id,
         )
-        return {"message": "User deactivated successfully"}
+        return MessageResponse(message="User deactivated successfully")
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

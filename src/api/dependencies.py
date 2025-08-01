@@ -109,6 +109,37 @@ def get_api_key_service(
     return APIKeyService(repository)
 
 
+def get_highlight_service(
+    highlight_repository: HighlightRepository = Depends(get_highlight_repository),
+) -> "HighlightService":
+    """Get highlight service."""
+    from ..application.services.highlight_service import HighlightService
+    return HighlightService(highlight_repository)
+
+
+def get_user_service(
+    user_repository: UserRepository = Depends(get_user_repository),
+    settings: Settings = Depends(get_settings_dep),
+) -> "UserService":
+    """Get user service."""
+    from ..application.services.user_service import UserService
+    from ..infrastructure.security.password_service import PasswordService
+    from ..infrastructure.security.jwt_service import JWTService
+    
+    password_service = PasswordService()
+    jwt_service = JWTService(settings)
+    return UserService(user_repository, password_service, jwt_service)
+
+
+def get_organization_service(
+    organization_repository: OrganizationRepository = Depends(get_organization_repository),
+    user_service: "UserService" = Depends(get_user_service),
+) -> "OrganizationService":
+    """Get organization service."""
+    from ..application.services.organization_service import OrganizationService
+    return OrganizationService(organization_repository, user_service)
+
+
 def get_jwt_signer(settings: Settings = Depends(get_settings_dep)) -> JWTURLSigner:
     """Get JWT URL signer."""
     return JWTURLSigner(settings.jwt_secret_key)

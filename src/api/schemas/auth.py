@@ -1,9 +1,9 @@
-"""Authentication request and response models."""
+"""Authentication request and response schemas."""
 
 from datetime import datetime
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 from uuid import UUID
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, ConfigDict
 
 
 class LoginRequest(BaseModel):
@@ -49,10 +49,31 @@ class RegisterOrganizationRequest(BaseModel):
         return v
 
 
+class RegisterOrganizationResponse(BaseModel):
+    """Register organization response."""
+    
+    message: str
+    organization: dict  # Will be OrganizationResponse dict
+    user: dict  # Will be UserResponse dict
+
+
 class PasswordResetRequest(BaseModel):
     """Password reset request."""
     
     email: EmailStr
+
+
+class PasswordResetResponse(BaseModel):
+    """Password reset response."""
+    
+    message: str
+    reset_token: Optional[str] = Field(None, exclude=True)  # Only for development
+
+
+class PasswordResetWithTokenResponse(PasswordResetResponse):
+    """Password reset response with token (for development)."""
+    
+    reset_token: str = Field(..., description="Reset token for development")
 
 
 class PasswordResetConfirmRequest(BaseModel):
@@ -67,3 +88,11 @@ class PasswordChangeRequest(BaseModel):
     
     current_password: str = Field(..., min_length=1)
     new_password: str = Field(..., min_length=8)
+
+
+class MessageResponse(BaseModel):
+    """Generic message response."""
+    
+    message: str
+
+

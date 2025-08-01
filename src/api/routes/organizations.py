@@ -9,46 +9,34 @@ from ..dependencies import (
     get_current_organization,
     require_scope,
     get_session,
-    get_settings_dep,
     require_user,
     require_admin_user,
+    get_organization_service,
+    get_organization_repository,
+    get_user_repository,
+    get_api_key_repository,
 )
-from ..models.organization import (
+from ..schemas.organization import (
     OrganizationResponse,
     OrganizationUpdateRequest,
     OrganizationUsageResponse,
     WebhookSecretResponse,
     WakeWordRequest,
 )
-from ..models.user import UserListResponse, UserResponse
-from ..models.api_key import APIKeyResponse
+from ..schemas.user import UserListResponse, UserResponse
+from ..schemas.api_key import APIKeyResponse, APIKeyListResponse
 from ...domain.models.api_key import APIScopes
 from ...domain.models.user import User
 from ...application.services.organization_service import OrganizationService
-from ...application.services.user_service import UserService
 from ...infrastructure.storage.repositories import (
     OrganizationRepository,
     UserRepository,
     APIKeyRepository,
 )
-from ...infrastructure.security.password_service import PasswordService
-from ...infrastructure.security.jwt_service import JWTService
-from ...infrastructure.config import Settings
 
 router = APIRouter()
 
 
-def get_organization_service(
-    session: AsyncSession = Depends(get_session),
-) -> OrganizationService:
-    """Get organization service instance."""
-    org_repository = OrganizationRepository(session)
-    user_repository = UserRepository(session)
-    password_service = PasswordService()
-    settings = get_settings_dep()
-    jwt_service = JWTService(settings)
-    user_service = UserService(user_repository, password_service, jwt_service)
-    return OrganizationService(org_repository, user_service)
 
 
 # API key authenticated endpoints
@@ -65,10 +53,9 @@ async def get_current_org(
 @router.get("/current", response_model=OrganizationResponse)
 async def get_current_org_for_user(
     current_user: User = Depends(require_user),
-    session: AsyncSession = Depends(get_session),
+    org_repository: OrganizationRepository = Depends(get_organization_repository),
 ):
     """Get current organization details (user auth)."""
-    org_repository = OrganizationRepository(session)
     org = await org_repository.get(current_user.organization_id)
     
     if not org:
@@ -158,10 +145,9 @@ async def regenerate_webhook_secret(
 @router.get("/current/users", response_model=UserListResponse)
 async def list_organization_users(
     current_user: User = Depends(require_user),
-    session: AsyncSession = Depends(get_session),
+    user_repository: UserRepository = Depends(get_user_repository),
 ):
     """List all users in the organization."""
-    user_repository = UserRepository(session)
     users = await user_repository.list_by_organization(current_user.organization_id)
     
     return UserListResponse(
@@ -210,16 +196,15 @@ async def remove_wake_word(
         )
 
 
-@router.get("/current/api-keys", response_model=list[APIKeyResponse])
+@router.get("/current/api-keys", response_model=APIKeyListResponse)
 async def list_api_keys(
     current_user: User = Depends(require_admin_user),
-    session: AsyncSession = Depends(get_session),
+    api_key_repository: APIKeyRepository = Depends(get_api_key_repository),
 ):
     """List all API keys for the organization (admin only)."""
-    api_key_repository = APIKeyRepository(session)
     keys = await api_key_repository.list_by_organization(current_user.organization_id)
     
-    return [
+    api_key_responses = [
         APIKeyResponse(
             id=key.id,
             name=key.name,
@@ -231,3 +216,8 @@ async def list_api_keys(
         )
         for key in keys
     ]
+    
+    return APIKeyListResponse(
+        api_keys=api_key_responses,
+        total=len(keys),
+    )

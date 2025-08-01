@@ -505,13 +505,14 @@ class TestUsageAndAPIKeys:
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         
-        assert len(data) == 2
-        names = [key["name"] for key in data]
+        assert data["total"] == 2
+        assert len(data["api_keys"]) == 2
+        names = [key["name"] for key in data["api_keys"]]
         assert "Production Key" in names
         assert "Development Key" in names
         
         # Check API key structure
-        for key in data:
+        for key in data["api_keys"]:
             assert "id" in key
             assert "name" in key
             assert "prefix" in key

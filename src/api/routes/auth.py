@@ -2,52 +2,35 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.security import HTTPBearer
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..dependencies import get_session, get_settings_dep
-from ..models.auth import (
+from typing import Union
+from ..dependencies import get_user_service, get_organization_service, get_settings_dep
+from ..schemas.auth import (
     LoginRequest,
     TokenResponse,
     RefreshTokenRequest,
     RegisterOrganizationRequest,
+    RegisterOrganizationResponse,
     PasswordResetRequest,
+    PasswordResetResponse,
+    PasswordResetWithTokenResponse,
     PasswordResetConfirmRequest,
     PasswordChangeRequest,
+    MessageResponse,
 )
-from ..models.user import UserResponse
-from ..models.organization import OrganizationResponse
+from ..schemas.user import UserResponse
+from ..schemas.organization import OrganizationResponse
 from ...application.services.user_service import UserService
 from ...application.services.organization_service import OrganizationService
-from ...infrastructure.security.password_service import PasswordService
-from ...infrastructure.security.jwt_service import JWTService
-from ...infrastructure.storage.repositories import UserRepository, OrganizationRepository
 from ...infrastructure.config import Settings
 
 router = APIRouter()
 security = HTTPBearer(auto_error=False)
 
 
-def get_user_service(
-    session: AsyncSession = Depends(get_session),
-    settings: Settings = Depends(get_settings_dep),
-) -> UserService:
-    """Get user service instance."""
-    user_repository = UserRepository(session)
-    password_service = PasswordService()
-    jwt_service = JWTService(settings)
-    return UserService(user_repository, password_service, jwt_service)
 
 
-def get_organization_service(
-    session: AsyncSession = Depends(get_session),
-    user_service: UserService = Depends(get_user_service),
-) -> OrganizationService:
-    """Get organization service instance."""
-    org_repository = OrganizationRepository(session)
-    return OrganizationService(org_repository, user_service)
-
-
-@router.post("/register", response_model=dict)
+@router.post("/register", response_model=RegisterOrganizationResponse)
 async def register_organization(
     request: RegisterOrganizationRequest,
     org_service: OrganizationService = Depends(get_organization_service),
@@ -62,11 +45,11 @@ async def register_organization(
             webhook_url=request.webhook_url,
         )
         
-        return {
-            "message": "Organization registered successfully",
-            "organization": OrganizationResponse.model_validate(org),
-            "user": UserResponse.model_validate(user),
-        }
+        return RegisterOrganizationResponse(
+            message="Organization registered successfully",
+            organization=OrganizationResponse.model_validate(org).model_dump(),
+            user=UserResponse.model_validate(user).model_dump(),
+        )
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -145,14 +128,14 @@ async def refresh_tokens(
     )
 
 
-@router.post("/logout")
+@router.post("/logout", response_model=MessageResponse)
 async def logout(response: Response):
     """Logout user by clearing cookies."""
     response.delete_cookie("refresh_token")
-    return {"message": "Logged out successfully"}
+    return MessageResponse(message="Logged out successfully")
 
 
-@router.post("/forgot-password")
+@router.post("/forgot-password", response_model=Union[PasswordResetResponse, PasswordResetWithTokenResponse])
 async def forgot_password(
     request: PasswordResetRequest,
     user_service: UserService = Depends(get_user_service),
@@ -164,15 +147,15 @@ async def forgot_password(
     # In a real system, send email with reset token
     # For development, we'll return it in the response
     if reset_token:
-        return {
-            "message": "Password reset email sent",
-            "reset_token": reset_token,  # Remove this in production!
-        }
+        return PasswordResetWithTokenResponse(
+            message="Password reset email sent",
+            reset_token=reset_token,  # Remove this in production!
+        )
     
-    return {"message": "Password reset email sent"}
+    return PasswordResetResponse(message="Password reset email sent")
 
 
-@router.post("/reset-password")
+@router.post("/reset-password", response_model=MessageResponse)
 async def reset_password(
     request: PasswordResetConfirmRequest,
     user_service: UserService = Depends(get_user_service),
@@ -185,7 +168,7 @@ async def reset_password(
         )
         
         if success:
-            return {"message": "Password reset successfully"}
+            return MessageResponse(message="Password reset successfully")
         
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

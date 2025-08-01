@@ -1,13 +1,15 @@
-"""Organization request and response models."""
+"""Organization request and response schemas."""
 
 from datetime import datetime
 from typing import Optional
 from uuid import UUID
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 
 class OrganizationResponse(BaseModel):
     """Organization response model."""
+    
+    model_config = ConfigDict(from_attributes=True)
     
     id: UUID
     name: str
@@ -18,9 +20,6 @@ class OrganizationResponse(BaseModel):
     webhook_url: Optional[str] = None
     has_webhook_configured: bool
     wake_words: list[str]
-    
-    class Config:
-        from_attributes = True
     
     @field_validator('wake_words', mode='before')
     @classmethod
@@ -72,3 +71,9 @@ class OrganizationUsageResponse(BaseModel):
     avg_processing_seconds_per_stream: float
     created_at: str
     is_active: bool
+
+
+class MessageResponse(BaseModel):
+    """Generic message response."""
+    
+    message: str

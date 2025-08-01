@@ -1,15 +1,17 @@
-"""User request and response models."""
+"""User request and response schemas."""
 
 from datetime import datetime
 from typing import Optional
 from uuid import UUID
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, ConfigDict
 
 from ...domain.models.user import UserRole
 
 
 class UserResponse(BaseModel):
     """User response model."""
+    
+    model_config = ConfigDict(from_attributes=True)
     
     id: UUID
     organization_id: UUID
@@ -20,9 +22,6 @@ class UserResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     last_login_at: Optional[datetime] = None
-    
-    class Config:
-        from_attributes = True
 
 
 class UserCreateRequest(BaseModel):
