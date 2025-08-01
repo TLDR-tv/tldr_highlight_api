@@ -1,4 +1,4 @@
-"""Organization mapper for converting between API DTOs and domain objects."""
+"""Pythonic mapping functions for organization API DTOs and domain objects."""
 
 from typing import List
 from datetime import datetime, timezone
@@ -24,127 +24,134 @@ from src.domain.entities.organization import Organization
 from src.domain.entities.user import User
 
 
-class OrganizationMapper:
-    """Maps between organization API DTOs and domain entities."""
+def organization_to_response(organization: Organization) -> OrganizationResponse:
+    """Convert Organization domain entity to OrganizationResponse DTO."""
+    return OrganizationResponse(
+        id=organization.id,
+        company_name=str(organization.company_name),
+        plan=organization.plan,
+        is_active=organization.is_active,
+        webhook_url=str(organization.webhook_url) if organization.webhook_url else None,
+        webhook_secret=organization.webhook_secret,
+        settings=organization.settings,
+        created_at=organization.created_at.to_datetime(),
+        updated_at=organization.updated_at.to_datetime(),
+        member_count=len(organization.member_ids),
+        monthly_stream_limit=organization.get_monthly_stream_limit(),
+        concurrent_stream_limit=organization.get_concurrent_stream_limit(),
+        storage_quota_gb=organization.get_storage_quota_gb(),
+    )
 
-    @staticmethod
-    def to_get_organization_request(
-        organization_id: int, user_id: int
-    ) -> GetOrganizationRequest:
-        """Convert parameters to GetOrganizationRequest."""
-        return GetOrganizationRequest(
-            requester_id=user_id, organization_id=organization_id
-        )
 
-    @staticmethod
-    def to_organization_response(organization: Organization) -> OrganizationResponse:
-        """Convert Organization domain entity to response DTO."""
-        return OrganizationResponse(
-            id=organization.id,
-            name=organization.name.value,
-            owner_id=organization.owner_id,
-            plan_type=organization.plan_type.value,
-            created_at=organization.created_at.value,
-        )
+def organization_update_to_request(
+    org_id: int, dto: OrganizationUpdate
+) -> UpdateOrganizationRequest:
+    """Convert OrganizationUpdate DTO to UpdateOrganizationRequest."""
+    return UpdateOrganizationRequest(
+        organization_id=org_id,
+        company_name=dto.company_name,
+        webhook_url=dto.webhook_url,
+        webhook_secret=dto.webhook_secret,
+        settings=dto.settings,
+    )
 
-    @staticmethod
-    def to_update_organization_request(
-        organization_id: int, user_id: int, update_dto: OrganizationUpdate
-    ) -> UpdateOrganizationRequest:
-        """Convert update DTO to domain request."""
-        return UpdateOrganizationRequest(
-            requester_id=user_id,
-            organization_id=organization_id,
-            name=update_dto.name,
-            settings={"plan_type": update_dto.plan_type.value}
-            if update_dto.plan_type
-            else None,
-        )
 
-    @staticmethod
-    def to_add_member_request(
-        organization_id: int, user_id: int, add_user_dto: AddUserToOrganizationRequest
-    ) -> AddMemberRequest:
-        """Convert add user DTO to domain request."""
-        # Note: In the current implementation, we're using user_id instead of email
-        # This would need to be adjusted based on the actual domain service implementation
-        return AddMemberRequest(
-            requester_id=user_id,
-            organization_id=organization_id,
-            user_email=f"user_{add_user_dto.user_id}@example.com",  # Placeholder
-            role=add_user_dto.role or "member",
-        )
+def user_to_organization_user_response(user: User) -> OrganizationUserResponse:
+    """Convert User domain entity to OrganizationUserResponse DTO."""
+    return OrganizationUserResponse(
+        id=user.id,
+        email=str(user.email),
+        username=user.username,
+        first_name=user.first_name,
+        last_name=user.last_name,
+        is_active=user.is_active,
+        created_at=user.created_at.to_datetime(),
+        last_login=user.last_login.to_datetime() if user.last_login else None,
+    )
 
-    @staticmethod
-    def to_add_user_response(
-        user: User, organization_id: int, role: str
-    ) -> AddUserToOrganizationResponse:
-        """Convert domain result to add user response DTO."""
-        return AddUserToOrganizationResponse(
-            user_id=user.id,
-            organization_id=organization_id,
-            role=role,
-            added_at=datetime.now(timezone.utc),
-        )
 
-    @staticmethod
-    def to_remove_member_request(
-        organization_id: int, requester_id: int, user_id_to_remove: int
-    ) -> RemoveMemberRequest:
-        """Convert parameters to RemoveMemberRequest."""
-        return RemoveMemberRequest(
-            requester_id=requester_id,
-            organization_id=organization_id,
-            user_id=user_id_to_remove,
-        )
+def users_to_list_response(
+    users: List[User], total: int, page: int, per_page: int
+) -> OrganizationUsersListResponse:
+    """Convert list of users to paginated response."""
+    return OrganizationUsersListResponse(
+        users=[user_to_organization_user_response(user) for user in users],
+        total=total,
+        page=page,
+        per_page=per_page,
+        pages=(total + per_page - 1) // per_page if per_page > 0 else 0,
+    )
 
-    @staticmethod
-    def to_list_members_request(
-        organization_id: int, user_id: int
-    ) -> ListMembersRequest:
-        """Convert parameters to ListMembersRequest."""
-        return ListMembersRequest(requester_id=user_id, organization_id=organization_id)
 
-    @staticmethod
-    def to_organization_user_response(user: User) -> OrganizationUserResponse:
-        """Convert User domain entity to response DTO."""
-        return OrganizationUserResponse(
-            id=user.id,
-            email=user.email.value,
-            company_name=user.company_name.value,
-            created_at=user.created_at.value,
-        )
+def add_user_request_to_domain(
+    org_id: int, dto: AddUserToOrganizationRequest
+) -> AddMemberRequest:
+    """Convert AddUserToOrganizationRequest DTO to AddMemberRequest."""
+    return AddMemberRequest(
+        organization_id=org_id,
+        user_email=dto.user_email,
+        send_invitation=dto.send_invitation,
+    )
 
-    @staticmethod
-    def to_organization_users_list_response(
-        users: List[User],
-    ) -> OrganizationUsersListResponse:
-        """Convert list of users to response DTO."""
-        user_responses = [
-            OrganizationMapper.to_organization_user_response(user) for user in users
-        ]
-        return OrganizationUsersListResponse(total=len(users), users=user_responses)
 
-    @staticmethod
-    def to_get_usage_stats_request(
-        organization_id: int, user_id: int
-    ) -> GetUsageStatsRequest:
-        """Convert parameters to GetUsageStatsRequest."""
-        return GetUsageStatsRequest(
-            requester_id=user_id, organization_id=organization_id
-        )
+def user_to_add_response(user: User) -> AddUserToOrganizationResponse:
+    """Convert User to AddUserToOrganizationResponse."""
+    return AddUserToOrganizationResponse(
+        user=user_to_organization_user_response(user),
+        message="User successfully added to organization",
+    )
 
-    @staticmethod
-    def to_organization_usage_stats(usage_result: dict) -> OrganizationUsageStats:
-        """Convert usage result to response DTO (unlimited limits)."""
-        # Calculate current month usage
-        current_usage = {
-            "streams_processed": usage_result.get("total_streams", 0),
-            "batch_videos_processed": usage_result.get("total_batch_videos", 0),
-            "total_api_calls": usage_result.get("total_api_calls", 0),
-            "storage_used_gb": usage_result.get("storage_used_gb", 0),
-        }
 
-        return OrganizationUsageStats(
-            current_month=current_usage,
-        )
+def create_get_request(org_id: int) -> GetOrganizationRequest:
+    """Create GetOrganizationRequest."""
+    return GetOrganizationRequest(organization_id=org_id)
+
+
+def create_remove_member_request(org_id: int, user_id: int) -> RemoveMemberRequest:
+    """Create RemoveMemberRequest."""
+    return RemoveMemberRequest(organization_id=org_id, user_id=user_id)
+
+
+def create_list_members_request(
+    org_id: int, page: int, per_page: int
+) -> ListMembersRequest:
+    """Create ListMembersRequest."""
+    return ListMembersRequest(
+        organization_id=org_id,
+        page=page,
+        per_page=per_page,
+    )
+
+
+def create_usage_stats_request(
+    org_id: int, start_date: datetime = None, end_date: datetime = None
+) -> GetUsageStatsRequest:
+    """Create GetUsageStatsRequest with date range."""
+    if start_date is None:
+        # Default to current month
+        now = datetime.now(timezone.utc)
+        start_date = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+    if end_date is None:
+        end_date = datetime.now(timezone.utc)
+
+    return GetUsageStatsRequest(
+        organization_id=org_id,
+        start_date=start_date,
+        end_date=end_date,
+    )
+
+
+def usage_stats_to_response(stats: dict, org: Organization) -> OrganizationUsageStats:
+    """Convert usage stats dict to OrganizationUsageStats response."""
+    return OrganizationUsageStats(
+        organization_id=org.id,
+        current_month_streams=stats.get("current_month_streams", 0),
+        monthly_stream_limit=org.get_monthly_stream_limit(),
+        current_storage_gb=stats.get("current_storage_gb", 0.0),
+        storage_quota_gb=org.get_storage_quota_gb(),
+        active_streams=stats.get("active_streams", 0),
+        concurrent_stream_limit=org.get_concurrent_stream_limit(),
+        total_highlights=stats.get("total_highlights", 0),
+        total_processing_minutes=stats.get("total_processing_minutes", 0.0),
+    )

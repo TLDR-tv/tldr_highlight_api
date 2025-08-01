@@ -8,7 +8,18 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from src.api.dependencies.auth import get_current_user
 from src.api.dependencies.use_cases import get_organization_management_use_case
-from src.api.mappers.organization_mapper import OrganizationMapper
+from src.api.mappers.organization_mapper import (
+    organization_to_response,
+    organization_update_to_request,
+    user_to_add_response,
+    add_user_request_to_domain,
+    users_to_list_response,
+    create_get_request,
+    create_remove_member_request,
+    create_list_members_request,
+    create_usage_stats_request,
+    usage_stats_to_response,
+)
 from src.api.schemas.organizations import (
     AddUserToOrganizationRequest,
     AddUserToOrganizationResponse,
@@ -24,8 +35,6 @@ from src.application.use_cases.base import ResultStatus
 from src.domain.entities.user import User
 
 router = APIRouter(prefix="/api/v1/organizations", tags=["Organizations"])
-
-mapper = OrganizationMapper()
 
 
 @router.get("/{org_id}", response_model=OrganizationResponse)
@@ -45,7 +54,7 @@ async def get_organization(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="User ID not found"
         )
-    request = mapper.to_get_organization_request(org_id, current_user.id)
+    request = create_get_request(org_id)
     result = await use_case.get_organization(request)
 
     if result.status == ResultStatus.NOT_FOUND:
@@ -68,7 +77,7 @@ async def get_organization(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Organization data not available",
         )
-    return mapper.to_organization_response(result.organization)
+    return organization_to_response(result.organization)
 
 
 @router.put("/{org_id}", response_model=OrganizationResponse)
@@ -89,7 +98,7 @@ async def update_organization(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="User ID not found"
         )
-    request = mapper.to_update_organization_request(org_id, current_user.id, org_data)
+    request = organization_update_to_request(org_id, org_data)
     result = await use_case.update_organization(request)
 
     if result.status == ResultStatus.NOT_FOUND:
@@ -114,7 +123,7 @@ async def update_organization(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Organization data not available",
         )
-    return mapper.to_organization_response(result.organization)
+    return organization_to_response(result.organization)
 
 
 @router.get("/{org_id}/users", response_model=OrganizationUsersListResponse)
@@ -133,7 +142,7 @@ async def list_organization_users(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="User ID not found"
         )
-    request = mapper.to_list_members_request(org_id, current_user.id)
+    request = create_list_members_request(org_id, page=1, per_page=100)
     result = await use_case.list_members(request)
 
     if result.status == ResultStatus.NOT_FOUND:
@@ -153,7 +162,9 @@ async def list_organization_users(
             else "Failed to list organization users",
         )
 
-    return mapper.to_organization_users_list_response(result.members)
+    return users_to_list_response(
+        result.members, total=len(result.members), page=1, per_page=100
+    )
 
 
 @router.post("/{org_id}/users", response_model=AddUserToOrganizationResponse)
@@ -174,7 +185,7 @@ async def add_user_to_organization(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="User ID not found"
         )
-    request = mapper.to_add_member_request(org_id, current_user.id, user_data)
+    request = add_user_request_to_domain(org_id, user_data)
     result = await use_case.add_member(request)
 
     if result.status == ResultStatus.NOT_FOUND:
@@ -207,7 +218,7 @@ async def add_user_to_organization(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="User data not available",
         )
-    return mapper.to_add_user_response(result.user, org_id, user_data.role or "member")
+    return user_to_add_response(result.user)
 
 
 @router.delete("/{org_id}/users/{user_id}")
@@ -228,7 +239,7 @@ async def remove_user_from_organization(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="User ID not found"
         )
-    request = mapper.to_remove_member_request(org_id, current_user.id, user_id)
+    request = create_remove_member_request(org_id, user_id)
     result = await use_case.remove_member(request)
 
     if result.status == ResultStatus.NOT_FOUND:
@@ -277,7 +288,7 @@ async def get_organization_usage(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="User ID not found"
         )
-    org_request = mapper.to_get_organization_request(org_id, current_user.id)
+    org_request = create_get_request(org_id)
     org_result = await use_case.get_organization(org_request)
 
     if org_result.status == ResultStatus.NOT_FOUND:
@@ -298,7 +309,7 @@ async def get_organization_usage(
         )
 
     # Get usage statistics
-    usage_request = mapper.to_get_usage_stats_request(org_id, current_user.id)
+    usage_request = create_usage_stats_request(org_id)
     usage_result = await use_case.get_usage_stats(usage_request)
 
     if not usage_result.is_success:
@@ -311,10 +322,11 @@ async def get_organization_usage(
 
     # Collect usage data (no limits enforced)
     usage_data = {
-        "total_streams": usage_result.total_streams or 0,
-        "total_batch_videos": 0,  # Not implemented in use case yet
-        "total_api_calls": usage_result.total_api_calls or 0,
-        "storage_used_gb": usage_result.storage_used_gb or 0,
+        "current_month_streams": usage_result.total_streams or 0,
+        "current_storage_gb": usage_result.storage_used_gb or 0.0,
+        "active_streams": 0,  # Would need to be calculated separately
+        "total_highlights": usage_result.total_highlights or 0,
+        "total_processing_minutes": usage_result.total_processing_minutes or 0.0,
     }
 
-    return mapper.to_organization_usage_stats(usage_data)
+    return usage_stats_to_response(usage_data, org_result.organization)

@@ -1,14 +1,22 @@
 """Base repository implementation with mixin-based architecture."""
 
-from typing import TypeVar, Generic, Optional, List, Type, Protocol, runtime_checkable
+from typing import (
+    TypeVar,
+    Generic,
+    Optional,
+    List,
+    Type,
+    Protocol,
+    runtime_checkable,
+    Callable,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, exists, func
 from sqlalchemy.exc import IntegrityError
 
 from src.domain.entities.base import Entity
-from src.domain.exceptions import EntityNotFoundError, DuplicateEntityError
+from src.domain.exceptions import DuplicateEntityError
 from src.infrastructure.persistence.models.base import Base
-from src.infrastructure.persistence.mappers.base import Mapper
 
 
 DomainEntity = TypeVar("DomainEntity", bound=Entity)
@@ -22,7 +30,8 @@ class RepositoryComponents(Protocol):
 
     session: AsyncSession
     model_class: Type[PersistenceModel]
-    mapper: Mapper[DomainEntity, PersistenceModel]
+    to_domain: Callable[[PersistenceModel], DomainEntity]
+    to_persistence: Callable[[DomainEntity], PersistenceModel]
 
 
 class CRUDMixin:
@@ -30,12 +39,13 @@ class CRUDMixin:
 
     session: AsyncSession
     model_class: Type[PersistenceModel]
-    mapper: Mapper[DomainEntity, PersistenceModel]
+    to_domain: Callable[[PersistenceModel], DomainEntity]
+    to_persistence: Callable[[DomainEntity], PersistenceModel]
 
     async def get(self, id: ID) -> Optional[DomainEntity]:
         """Get entity by ID."""
         result = await self.session.get(self.model_class, id)
-        return self.mapper.to_domain(result) if result else None
+        return self.to_domain(result) if result else None
 
     async def get_many(self, ids: List[ID]) -> List[DomainEntity]:
         """Get multiple entities by IDs."""
@@ -45,57 +55,73 @@ class CRUDMixin:
         stmt = select(self.model_class).where(self.model_class.id.in_(ids))
         result = await self.session.execute(stmt)
         models = result.scalars().all()
-        return self.mapper.to_domain_list(list(models))
+        return [self.to_domain(model) for model in models]
 
     async def save(self, entity: DomainEntity) -> DomainEntity:
         """Save entity (create or update)."""
         try:
-            model = self.mapper.to_persistence(entity)
+            model = self.to_persistence(entity)
 
             if entity.id is None:
                 self.session.add(model)
             else:
-                model = await self.session.merge(model)
+                await self.session.merge(model)
 
             await self.session.flush()
             await self.session.refresh(model)
-            return self.mapper.to_domain(model)
+            return self.to_domain(model)
 
         except IntegrityError as e:
             await self.session.rollback()
             raise DuplicateEntityError(
-                f"Entity violates uniqueness constraint: {str(e)}"
+                entity_type=entity.__class__.__name__,
+                duplicate_field="unknown",
+                duplicate_value=str(e.orig),
             )
 
-    async def delete(self, id: ID) -> None:
+    async def delete(self, id: ID) -> bool:
         """Delete entity by ID."""
-        model = await self.session.get(self.model_class, id)
-        if model is None:
-            raise EntityNotFoundError(
-                f"{self.model_class.__name__} with id {id} not found"
-            )
-
-        await self.session.delete(model)
-        await self.session.flush()
+        result = await self.session.get(self.model_class, id)
+        if result:
+            await self.session.delete(result)
+            await self.session.flush()
+            return True
+        return False
 
 
 class QueryMixin:
-    """Mixin providing query operations."""
+    """Mixin providing query capabilities."""
 
     session: AsyncSession
     model_class: Type[PersistenceModel]
+    to_domain: Callable[[PersistenceModel], DomainEntity]
 
     async def exists(self, id: ID) -> bool:
         """Check if entity exists."""
         stmt = select(exists().where(self.model_class.id == id))
         result = await self.session.execute(stmt)
-        return result.scalar()
+        return result.scalar() or False
 
     async def count(self) -> int:
         """Count total entities."""
         stmt = select(func.count()).select_from(self.model_class)
         result = await self.session.execute(stmt)
         return result.scalar() or 0
+
+    async def find_all(
+        self, limit: Optional[int] = None, offset: Optional[int] = None
+    ) -> List[DomainEntity]:
+        """Find all entities with optional pagination."""
+        stmt = select(self.model_class)
+
+        if offset is not None:
+            stmt = stmt.offset(offset)
+        if limit is not None:
+            stmt = stmt.limit(limit)
+
+        result = await self.session.execute(stmt)
+        models = result.scalars().all()
+        return [self.to_domain(model) for model in models]
 
 
 class TransactionMixin:
@@ -111,29 +137,55 @@ class TransactionMixin:
         """Rollback the current transaction."""
         await self.session.rollback()
 
+    async def flush(self) -> None:
+        """Flush pending changes without committing."""
+        await self.session.flush()
+
 
 class BaseRepository(
     CRUDMixin, QueryMixin, TransactionMixin, Generic[DomainEntity, PersistenceModel, ID]
 ):
-    """Base repository with mixin-based architecture.
-
-    Combines CRUD, query, and transaction functionality through mixins
-    for better separation of concerns and reusability.
-    """
+    """Base repository with mixin-based architecture."""
 
     def __init__(
         self,
         session: AsyncSession,
         model_class: Type[PersistenceModel],
-        mapper: Mapper[DomainEntity, PersistenceModel],
+        to_domain: Optional[Callable[[PersistenceModel], DomainEntity]] = None,
+        to_persistence: Optional[Callable[[DomainEntity], PersistenceModel]] = None,
     ):
-        """Initialize repository with session, model class, and mapper."""
+        """Initialize repository with session, model class, and mapping functions."""
         self.session = session
         self.model_class = model_class
-        self.mapper = mapper
+
+        # Use provided mapping functions or default to entity methods
+        if to_domain is None:
+            # Assume entity has from_model class method
+            def default_to_domain(model):
+                entity_class = self._get_entity_class()
+                return entity_class.from_model(model)
+
+            self.to_domain = default_to_domain
+        else:
+            self.to_domain = to_domain
+
+        if to_persistence is None:
+            # Assume entity has to_model method
+            def default_to_persistence(entity):
+                return entity.to_model()
+
+            self.to_persistence = default_to_persistence
+        else:
+            self.to_persistence = to_persistence
+
+    def _get_entity_class(self):
+        """Get the entity class from generic type parameters."""
+        # This is a simplified version - in practice you might pass entity_class
+        # as a parameter or use more sophisticated type introspection
+        raise NotImplementedError("Subclasses must implement entity class detection")
 
     @classmethod
-    def create_with_entity_mapping(
+    def with_entity_mapping(
         cls,
         session: AsyncSession,
         model_class: Type[PersistenceModel],
@@ -144,12 +196,10 @@ class BaseRepository(
         This is the preferred Pythonic approach that eliminates mapper classes.
         """
 
-        # Create a simple functional mapper using entity methods
         def to_domain_func(model):
             return entity_class.from_model(model)
 
         def to_persistence_func(entity):
             return entity.to_model()
 
-        mapper = Mapper(to_domain_func, to_persistence_func)
-        return cls(session, model_class, mapper)
+        return cls(session, model_class, to_domain_func, to_persistence_func)

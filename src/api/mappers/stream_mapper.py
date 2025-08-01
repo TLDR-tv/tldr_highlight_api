@@ -1,4 +1,4 @@
-"""Mapper for stream DTOs to domain entities."""
+"""Pythonic mapping functions for stream DTOs to domain entities."""
 
 from src.api.schemas.streams import (
     StreamCreate,
@@ -13,133 +13,123 @@ from src.domain.value_objects.processing_options import ProcessingOptions
 from src.domain.enums import ProcessingPriority
 
 
-class StreamMapper:
-    """Maps between stream API DTOs and domain entities."""
+def stream_create_to_domain(dto: StreamCreate, user_id: int) -> Stream:
+    """Convert StreamCreate DTO to Stream domain entity.
 
-    @staticmethod
-    def stream_create_to_domain(dto: StreamCreate, user_id: int) -> Stream:
-        """Convert StreamCreate DTO to Stream domain entity.
+    Args:
+        dto: StreamCreate request data
+        user_id: ID of the user creating the stream
 
-        Args:
-            dto: StreamCreate request data
-            user_id: ID of the user creating the stream
+    Returns:
+        Stream domain entity ready for persistence
+    """
+    # Convert DTO processing options to domain value object
+    processing_options = _stream_options_to_processing_options(dto.options)
 
-        Returns:
-            Stream domain entity ready for persistence
-        """
-        # Convert DTO processing options to domain value object
-        processing_options = StreamMapper._stream_options_to_processing_options(
-            dto.options
+    return Stream(
+        id=None,  # Will be set by repository
+        url=Url(str(dto.source_url)),
+        platform=StreamPlatform(dto.platform.value),
+        status=StreamStatus.PENDING,
+        user_id=user_id,
+        processing_options=processing_options,
+        created_at=Timestamp.now(),
+        updated_at=Timestamp.now(),
+    )
+
+
+def stream_update_to_processing_options(dto: StreamUpdate) -> ProcessingOptions:
+    """Convert StreamUpdate DTO to ProcessingOptions value object.
+
+    Args:
+        dto: StreamUpdate request data
+
+    Returns:
+        ProcessingOptions value object
+    """
+    if dto.options is None:
+        raise ValueError("Stream update must include options")
+
+    return _stream_options_to_processing_options(dto.options)
+
+
+def stream_to_response(entity: Stream, highlight_count: int = 0) -> StreamResponse:
+    """Convert Stream domain entity to StreamResponse DTO.
+
+    Args:
+        entity: Stream domain entity
+        highlight_count: Number of highlights for this stream
+
+    Returns:
+        StreamResponse DTO for API response
+    """
+    # Convert processing options to dict for API response
+    options_dict = entity.processing_options.to_dict()
+
+    # Map to API field names
+    api_options = {
+        "dimension_set_id": options_dict.get("dimension_set_id"),
+        "min_confidence_threshold": options_dict.get("min_confidence_threshold", 0.5),
+        "target_confidence_threshold": options_dict.get(
+            "target_confidence_threshold", 0.7
+        ),
+        "exceptional_threshold": options_dict.get("exceptional_threshold", 0.85),
+        "min_duration": int(options_dict.get("min_highlight_duration", 10)),
+        "max_duration": int(options_dict.get("max_highlight_duration", 300)),
+        "output_format": "mp4",  # Default
+        "generate_thumbnails": options_dict.get("generate_thumbnails", True),
+        "generate_previews": options_dict.get("generate_previews", True),
+        "custom_tags": [],  # Default
+        "webhook_events": [],  # Default
+    }
+
+    # Calculate processing duration if available
+    processing_duration = None
+    if entity.processing_duration:
+        processing_duration = entity.processing_duration.total_seconds
+
+    return StreamResponse(
+        id=entity.id,
+        source_url=str(entity.url),
+        platform=entity.platform.value,
+        status=entity.status.value,
+        options=api_options,
+        user_id=entity.user_id,
+        created_at=entity.created_at.to_datetime(),
+        updated_at=entity.updated_at.to_datetime(),
+        completed_at=entity.completed_at.to_datetime() if entity.completed_at else None,
+        is_active=entity.status in [StreamStatus.PENDING, StreamStatus.PROCESSING],
+        processing_duration=processing_duration,
+        highlight_count=highlight_count,
+    )
+
+
+def _stream_options_to_processing_options(
+    options: StreamOptions,
+) -> ProcessingOptions:
+    """Convert StreamOptions DTO to ProcessingOptions value object.
+
+    Args:
+        options: StreamOptions from API request
+
+    Returns:
+        ProcessingOptions domain value object
+    """
+    return ProcessingOptions(
+        dimension_set_id=getattr(options, "dimension_set_id", None),
+        min_confidence_threshold=options.highlight_threshold,
+        target_confidence_threshold=options.highlight_threshold,
+        exceptional_threshold=min(0.9, options.highlight_threshold + 0.15),
+        min_highlight_duration=float(options.min_duration),
+        max_highlight_duration=float(options.max_duration),
+        typical_highlight_duration=(
+            float(options.min_duration) + float(options.max_duration)
         )
-
-        return Stream(
-            id=None,  # Will be set by repository
-            url=Url(str(dto.source_url)),
-            platform=StreamPlatform(dto.platform.value),
-            status=StreamStatus.PENDING,
-            user_id=user_id,
-            processing_options=processing_options,
-            created_at=Timestamp.now(),
-            updated_at=Timestamp.now(),
-        )
-
-    @staticmethod
-    def stream_update_to_processing_options(dto: StreamUpdate) -> ProcessingOptions:
-        """Convert StreamUpdate DTO to ProcessingOptions value object.
-
-        Args:
-            dto: StreamUpdate request data
-
-        Returns:
-            ProcessingOptions value object
-        """
-        if dto.options is None:
-            raise ValueError("Stream update must include options")
-
-        return StreamMapper._stream_options_to_processing_options(dto.options)
-
-    @staticmethod
-    def stream_to_response(entity: Stream, highlight_count: int = 0) -> StreamResponse:
-        """Convert Stream domain entity to StreamResponse DTO.
-
-        Args:
-            entity: Stream domain entity
-            highlight_count: Number of highlights for this stream
-
-        Returns:
-            StreamResponse DTO for API response
-        """
-        # Convert processing options to dict for API response
-        options_dict = entity.processing_options.to_dict()
-
-        # Map to API field names
-        api_options = {
-            "dimension_set_id": options_dict.get("dimension_set_id"),
-            "min_confidence_threshold": options_dict.get(
-                "min_confidence_threshold", 0.5
-            ),
-            "target_confidence_threshold": options_dict.get(
-                "target_confidence_threshold", 0.7
-            ),
-            "exceptional_threshold": options_dict.get("exceptional_threshold", 0.85),
-            "min_duration": int(options_dict.get("min_highlight_duration", 10)),
-            "max_duration": int(options_dict.get("max_highlight_duration", 300)),
-            "output_format": "mp4",  # Default
-            "generate_thumbnails": options_dict.get("generate_thumbnails", True),
-            "generate_previews": options_dict.get("generate_previews", True),
-            "custom_tags": [],  # Default
-            "webhook_events": [],  # Default
-        }
-
-        # Calculate processing duration if available
-        processing_duration = None
-        if entity.processing_duration:
-            processing_duration = entity.processing_duration.total_seconds
-
-        return StreamResponse(
-            id=entity.id,
-            source_url=str(entity.url),
-            platform=entity.platform.value,
-            status=entity.status.value,
-            options=api_options,
-            user_id=entity.user_id,
-            created_at=entity.created_at.to_datetime(),
-            updated_at=entity.updated_at.to_datetime(),
-            completed_at=entity.completed_at.to_datetime()
-            if entity.completed_at
-            else None,
-            is_active=entity.status in [StreamStatus.PENDING, StreamStatus.PROCESSING],
-            processing_duration=processing_duration,
-            highlight_count=highlight_count,
-        )
-
-    @staticmethod
-    def _stream_options_to_processing_options(
-        options: StreamOptions,
-    ) -> ProcessingOptions:
-        """Convert StreamOptions DTO to ProcessingOptions value object.
-
-        Args:
-            options: StreamOptions from API request
-
-        Returns:
-            ProcessingOptions domain value object
-        """
-        return ProcessingOptions(
-            dimension_set_id=getattr(options, "dimension_set_id", None),
-            min_confidence_threshold=options.highlight_threshold,
-            target_confidence_threshold=options.highlight_threshold,
-            exceptional_threshold=min(0.9, options.highlight_threshold + 0.15),
-            min_highlight_duration=float(options.min_duration),
-            max_highlight_duration=float(options.max_duration),
-            typical_highlight_duration=(
-                float(options.min_duration) + float(options.max_duration)
-            )
-            / 2,
-            enable_scene_detection=options.enable_scene_detection,
-            enable_silence_detection=getattr(options, "enable_audio_analysis", True),
-            enable_motion_detection=getattr(options, "enable_scene_detection", True),
-            processing_priority=ProcessingPriority.BALANCED,
-            generate_thumbnails=getattr(options, "generate_thumbnails", True),
-            generate_previews=getattr(options, "generate_previews", True),
-        )
+        / 2,
+        enable_scene_detection=options.enable_scene_detection,
+        enable_silence_detection=getattr(options, "enable_audio_analysis", True),
+        enable_motion_detection=getattr(options, "enable_scene_detection", True),
+        processing_priority=ProcessingPriority.BALANCED,
+        generate_thumbnails=getattr(options, "generate_thumbnails", True),
+        generate_previews=getattr(options, "generate_previews", True),
+    )

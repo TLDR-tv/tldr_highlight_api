@@ -12,7 +12,10 @@ from src.domain.value_objects.timestamp import Timestamp
 from src.infrastructure.persistence.repositories.base_repository import BaseRepository
 from src.infrastructure.persistence.models.stream import Stream as StreamModel
 from src.infrastructure.persistence.models.user import User as UserModel
-from src.infrastructure.persistence.mappers.stream_mapper import StreamMapper
+from src.infrastructure.persistence.mappers.stream_mapper import (
+    stream_to_domain,
+    stream_to_persistence,
+)
 
 
 class StreamRepository(BaseRepository[Stream, StreamModel, int], IStreamRepository):
@@ -21,7 +24,10 @@ class StreamRepository(BaseRepository[Stream, StreamModel, int], IStreamReposito
     def __init__(self, session):
         """Initialize StreamRepository with session."""
         super().__init__(
-            session=session, model_class=StreamModel, mapper=StreamMapper()
+            session=session,
+            model_class=StreamModel,
+            to_domain=stream_to_domain,
+            to_persistence=stream_to_persistence,
         )
 
     async def get_by_user(
