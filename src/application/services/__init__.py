@@ -1,17 +1,8 @@
-"""Application services for workflow orchestration.
-
-Application services coordinate between domain entities, repositories,
-and infrastructure services to implement business workflows.
-
-Note: Most services have been refactored to the workflows package.
-This module is kept for backward compatibility with existing imports.
-"""
-
-from .dimension_set_service import DimensionSetService
-from .stream_analysis_service import StreamAnalysisService, StreamAnalysisCoordinator
+"""Application services."""
+from .highlight_detector import HighlightDetector, VideoSegment, HighlightCandidate
 
 __all__ = [
-    "DimensionSetService",
-    "StreamAnalysisService",
-    "StreamAnalysisCoordinator",
+    "HighlightDetector",
+    "VideoSegment", 
+    "HighlightCandidate"
 ]
