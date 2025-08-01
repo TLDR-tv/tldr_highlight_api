@@ -12,11 +12,6 @@ from .stream_processing import (
     StreamStartResult,
     StreamStopResult,
 )
-from .batch_processing import (
-    BatchProcessingUseCase,
-    BatchCreateResult,
-    BatchStatusResult,
-)
 from .webhook_processing import (
     WebhookProcessingUseCase,
     ProcessWebhookRequest,
@@ -32,9 +27,6 @@ __all__ = [
     "StreamProcessingUseCase",
     "StreamStartResult",
     "StreamStopResult",
-    "BatchProcessingUseCase",
-    "BatchCreateResult",
-    "BatchStatusResult",
     "WebhookProcessingUseCase",
     "ProcessWebhookRequest",
     "ProcessWebhookResult",

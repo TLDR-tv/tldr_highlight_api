@@ -110,43 +110,6 @@ class HighlightAnalysisService:
             segment.fail_analysis(str(e))
             raise DomainError(f"Failed to analyze segment: {e}") from e
     
-    async def analyze_segments_batch(
-        self,
-        segments: List[VideoSegment],
-        dimension_set: DimensionSetAggregate,
-        agent_config: Optional[HighlightAgentConfig] = None,
-        max_concurrent: int = 3
-    ) -> Dict[int, List[DetectedHighlight]]:
-        """Analyze multiple segments in batch.
-        
-        Args:
-            segments: List of segments to analyze
-            dimension_set: The dimension set to use
-            agent_config: Optional agent configuration
-            max_concurrent: Maximum concurrent analyses
-            
-        Returns:
-            Dictionary mapping segment index to detected highlights
-        """
-        results = {}
-        
-        # Process segments with concurrency limit
-        semaphore = asyncio.Semaphore(max_concurrent)
-        
-        async def analyze_with_semaphore(segment: VideoSegment):
-            async with semaphore:
-                try:
-                    highlights = await self.analyze_segment(
-                        segment, dimension_set, agent_config
-                    )
-                    results[segment.segment_index] = highlights
-                except Exception as e:
-                    # Log error but continue with other segments
-                    results[segment.segment_index] = []
-        
-        # Analyze all segments
-        tasks = [analyze_with_semaphore(segment) for segment in segments]
-        await asyncio.gather(*tasks, return_exceptions=True)
         
         return results
     

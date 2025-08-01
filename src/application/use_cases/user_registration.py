@@ -12,9 +12,7 @@ from src.domain.value_objects.timestamp import Timestamp
 from src.domain.repositories.user_repository import UserRepository
 from src.domain.repositories.api_key_repository import APIKeyRepository
 from src.domain.repositories.organization_repository import OrganizationRepository
-from src.domain.services.organization_management_service import (
-    OrganizationManagementService,
-)
+from src.application.workflows import OrganizationManager
 from src.domain.services.security_services import (
     PasswordHashingService,
     APIKeyHashingService,
@@ -49,7 +47,7 @@ class UserRegistrationUseCase:
         user_repo: UserRepository,
         api_key_repo: APIKeyRepository,
         org_repo: OrganizationRepository,
-        org_service: OrganizationManagementService,
+        org_service: OrganizationManager,
         password_service: PasswordHashingService,
         api_key_service: APIKeyHashingService,
     ) -> None:

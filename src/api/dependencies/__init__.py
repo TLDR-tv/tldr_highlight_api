@@ -40,7 +40,6 @@ from .repositories import (
     get_organization_repository,
     get_stream_repository,
     get_highlight_repository,
-    get_batch_repository,
     get_webhook_repository,
     get_webhook_event_repository,
     get_usage_record_repository,
@@ -48,18 +47,21 @@ from .repositories import (
 
 # Import service dependencies
 from .services import (
-    get_organization_management_service,
+    get_organization_manager,
     get_stream_processing_service,
     get_highlight_detection_service,
     get_webhook_delivery_service,
-    get_usage_tracking_service,
+    get_usage_tracker,
+    get_stream_processor,
+    get_dimension_manager,
+    get_webhook_notifier,
+    get_authenticator,
 )
 
 # Import use case dependencies
 from .use_cases import (
     get_authentication_use_case,
     get_stream_processing_use_case,
-    get_batch_processing_use_case,
     get_webhook_processing_use_case,
 )
 
@@ -83,7 +85,6 @@ __all__ = [
     "read_required",
     "write_required",
     "streams_required",
-    "batches_required",
     "webhooks_required",
     "analytics_required",
     # Rate limiting
@@ -95,19 +96,21 @@ __all__ = [
     "get_organization_repository",
     "get_stream_repository",
     "get_highlight_repository",
-    "get_batch_repository",
     "get_webhook_repository",
     "get_webhook_event_repository",
     "get_usage_record_repository",
     # Services
-    "get_organization_management_service",
+    "get_organization_manager",
     "get_stream_processing_service",
     "get_highlight_detection_service",
     "get_webhook_delivery_service",
-    "get_usage_tracking_service",
+    "get_usage_tracker",
+    "get_stream_processor",
+    "get_dimension_manager",
+    "get_webhook_notifier",
+    "get_authenticator",
     # Use cases
     "get_authentication_use_case",
     "get_stream_processing_use_case",
-    "get_batch_processing_use_case",
     "get_webhook_processing_use_case",
 ]

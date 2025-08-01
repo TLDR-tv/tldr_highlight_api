@@ -5,13 +5,17 @@ This module provides clean FastAPI dependency injection for domain services.
 
 from fastapi import Depends
 
-from src.domain.services.organization_management_service import (
-    OrganizationManagementService,
+from src.application.workflows import (
+    OrganizationManager,
+    UsageTracker,
+    StreamProcessor,
+    DimensionManager,
+    WebhookNotifier,
+    Authenticator,
 )
 from src.domain.services.stream_processing_service import StreamProcessingService
 from src.domain.services.highlight_detection_service import HighlightDetectionService
 from src.domain.services.webhook_delivery_service import WebhookDeliveryService
-from src.domain.services.usage_tracking_service import UsageTrackingService
 
 from .repositories import (
     get_user_repository,
@@ -55,14 +59,16 @@ from src.infrastructure.persistence.repositories.highlight_type_registry_reposit
 # Domain Service Dependencies - clean FastAPI dependency injection
 
 
-def get_organization_management_service(
+def get_organization_manager(
     user_repo: UserRepository = Depends(get_user_repository),
     org_repo: OrganizationRepository = Depends(get_organization_repository),
     api_key_repo: APIKeyRepository = Depends(get_api_key_repository),
-) -> OrganizationManagementService:
-    """Get organization management service instance."""
-    return OrganizationManagementService(
-        user_repo=user_repo, org_repo=org_repo, api_key_repo=api_key_repo
+) -> OrganizationManager:
+    """Get organization manager instance."""
+    return OrganizationManager(
+        user_repo=user_repo,
+        organization_repo=org_repo,
+        api_key_repo=api_key_repo,
     )
 
 
@@ -113,12 +119,68 @@ def get_webhook_delivery_service(
     )
 
 
-def get_usage_tracking_service(
+def get_usage_tracker(
     usage_repo: UsageRecordRepository = Depends(get_usage_record_repository),
-    org_repo: OrganizationRepository = Depends(get_organization_repository),
     user_repo: UserRepository = Depends(get_user_repository),
-) -> UsageTrackingService:
-    """Get usage tracking service instance."""
-    return UsageTrackingService(
-        usage_repo=usage_repo, org_repo=org_repo, user_repo=user_repo
+) -> UsageTracker:
+    """Get usage tracker instance."""
+    return UsageTracker(
+        usage_repo=usage_repo,
+        user_repo=user_repo,
+    )
+
+
+def get_stream_processor(
+    stream_repo: StreamRepository = Depends(get_stream_repository),
+    user_repo: UserRepository = Depends(get_user_repository),
+    org_repo: OrganizationRepository = Depends(get_organization_repository),
+    usage_repo: UsageRecordRepository = Depends(get_usage_record_repository),
+    highlight_repo: HighlightRepository = Depends(get_highlight_repository),
+) -> StreamProcessor:
+    """Get stream processor instance."""
+    # TODO: Add missing dependencies like task_service, platform_detector, agent_config_repo
+    return StreamProcessor(
+        stream_repo=stream_repo,
+        user_repo=user_repo,
+        org_repo=org_repo,
+        usage_repo=usage_repo,
+        highlight_repo=highlight_repo,
+        agent_config_repo=None,  # TODO: Implement
+        platform_detector=None,  # TODO: Implement
+        task_service=None,  # TODO: Implement
+    )
+
+
+def get_dimension_manager(
+    dimension_repo: DimensionSetRepository = Depends(get_dimension_set_repository),
+    registry_repo: HighlightTypeRegistryRepository = Depends(get_highlight_type_registry_repository),
+    org_repo: OrganizationRepository = Depends(get_organization_repository),
+) -> DimensionManager:
+    """Get dimension manager instance."""
+    return DimensionManager(
+        dimension_repo=dimension_repo,
+        registry_repo=registry_repo,
+        organization_repo=org_repo,
+    )
+
+
+def get_webhook_notifier(
+    webhook_repo: WebhookRepository = Depends(get_webhook_repository),
+    event_repo: WebhookEventRepository = Depends(get_webhook_event_repository),
+) -> WebhookNotifier:
+    """Get webhook notifier instance."""
+    return WebhookNotifier(
+        webhook_repo=webhook_repo,
+        event_repo=event_repo,
+    )
+
+
+def get_authenticator(
+    user_repo: UserRepository = Depends(get_user_repository),
+    api_key_repo: APIKeyRepository = Depends(get_api_key_repository),
+) -> Authenticator:
+    """Get authenticator instance."""
+    return Authenticator(
+        user_repo=user_repo,
+        api_key_repo=api_key_repo,
     )

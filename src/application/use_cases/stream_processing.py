@@ -19,7 +19,7 @@ from src.domain.services.highlight_detection_service import (
     DetectionResult,
 )
 from src.domain.services.webhook_delivery_service import WebhookDeliveryService
-from src.domain.services.usage_tracking_service import UsageTrackingService
+from src.application.workflows import UsageTracker
 from src.domain.exceptions import (
     BusinessRuleViolation,
     InvalidResourceStateError,
@@ -118,7 +118,7 @@ class StreamProcessingUseCase(UseCase[StreamStartRequest, StreamStartResult]):
         stream_service: StreamProcessingService,
         highlight_service: HighlightDetectionService,
         webhook_service: WebhookDeliveryService,
-        usage_service: UsageTrackingService,
+        usage_service: UsageTracker,
     ):
         """Initialize stream processing use case.
 
@@ -227,9 +227,7 @@ class StreamProcessingUseCase(UseCase[StreamStartRequest, StreamStartResult]):
                     user_id=request.user_id,
                     api_key_id=1,  # Would come from auth context
                     endpoint="/streams",
-                    method="POST",
                     response_time_ms=100,  # Would be measured
-                    status_code=201,
                 )
 
                 # Track use case metrics
@@ -352,11 +350,10 @@ class StreamProcessingUseCase(UseCase[StreamStartRequest, StreamStartResult]):
                     usage_span.set_attribute("highlights_count", len(highlights))
 
                     # Track stream processing usage
-                    await self.usage_service.track_stream_processing(
+                    await self.usage_service.track_stream_minutes(
                         user_id=request.user_id,
                         stream_id=request.stream_id,
-                        duration_minutes=duration_minutes,
-                        highlights_generated=len(highlights),
+                        minutes=duration_minutes,
                     )
 
                     # Track completion metrics

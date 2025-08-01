@@ -77,7 +77,6 @@ class APIKey(Entity[int]):
             "write": False,
             "delete": False,
             "streams": False,
-            "batches": False,
             "webhooks": False,
             "analytics": False,
             "admin": False,

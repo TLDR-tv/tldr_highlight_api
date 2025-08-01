@@ -28,13 +28,11 @@ from src.infrastructure.persistence.repositories.webhook_event_repository import
 )
 
 # Import domain services
-from src.domain.services.organization_management_service import (
-    OrganizationManagementService,
-)
+from src.application.workflows import OrganizationManager
 from src.domain.services.stream_processing_service import StreamProcessingService
 from src.domain.services.highlight_detection_service import HighlightDetectionService
 from src.domain.services.webhook_delivery_service import WebhookDeliveryService
-from src.domain.services.usage_tracking_service import UsageTrackingService
+from src.application.workflows import UsageTracker
 
 # Import use cases
 from src.application.use_cases.user_registration import UserRegistrationUseCase
@@ -70,11 +68,11 @@ from .repositories import (
 )
 
 from .services import (
-    get_organization_management_service,
+    get_organization_manager,
     get_stream_processing_service,
     get_highlight_detection_service,
     get_webhook_delivery_service,
-    get_usage_tracking_service,
+    get_usage_tracker,
 )
 
 
@@ -85,9 +83,7 @@ async def get_user_registration_use_case(
     user_repo: UserRepository = Depends(get_user_repository),
     api_key_repo: APIKeyRepository = Depends(get_api_key_repository),
     org_repo: OrganizationRepository = Depends(get_organization_repository),
-    org_service: OrganizationManagementService = Depends(
-        get_organization_management_service
-    ),
+    org_manager: OrganizationManager = Depends(get_organization_manager),
     password_service: PasswordHashingService = Depends(get_password_hashing_service),
     api_key_service: APIKeyHashingService = Depends(get_api_key_hashing_service),
 ) -> UserRegistrationUseCase:
@@ -96,7 +92,7 @@ async def get_user_registration_use_case(
         user_repo=user_repo,
         api_key_repo=api_key_repo,
         org_repo=org_repo,
-        org_service=org_service,
+        org_service=org_manager,
         password_service=password_service,
         api_key_service=api_key_service,
     )
@@ -156,7 +152,7 @@ async def get_stream_processing_use_case(
         get_highlight_detection_service
     ),
     webhook_service: WebhookDeliveryService = Depends(get_webhook_delivery_service),
-    usage_service: UsageTrackingService = Depends(get_usage_tracking_service),
+    usage_tracker: UsageTracker = Depends(get_usage_tracker),
 ) -> StreamProcessingUseCase:
     """Get stream processing use case instance."""
     # For now, use a mock agent config repository
@@ -171,7 +167,7 @@ async def get_stream_processing_use_case(
         stream_service=stream_service,
         highlight_service=highlight_service,
         webhook_service=webhook_service,
-        usage_service=usage_service,
+        usage_service=usage_tracker,
     )
 
 
@@ -218,9 +214,7 @@ async def get_user_management_use_case(
 async def get_organization_management_use_case(
     org_repo: OrganizationRepository = Depends(get_organization_repository),
     user_repo: UserRepository = Depends(get_user_repository),
-    org_service: OrganizationManagementService = Depends(
-        get_organization_management_service
-    ),
+    org_manager: OrganizationManager = Depends(get_organization_manager),
 ) -> OrganizationManagementUseCase:
     """Get organization management use case instance."""
     return OrganizationManagementUseCase(

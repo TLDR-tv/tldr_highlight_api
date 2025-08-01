@@ -9,9 +9,7 @@ from src.domain.entities.user import User
 from src.domain.value_objects.company_name import CompanyName
 from src.domain.repositories.organization_repository import OrganizationRepository
 from src.domain.repositories.user_repository import UserRepository
-from src.domain.services.organization_management_service import (
-    OrganizationManagementService,
-)
+from src.application.workflows import OrganizationManager
 from src.domain.exceptions import (
     EntityNotFoundError,
     DuplicateEntityError,
@@ -150,7 +148,7 @@ class OrganizationManagementUseCase(
         self,
         org_repo: OrganizationRepository,
         user_repo: UserRepository,
-        org_service: OrganizationManagementService,
+        org_service: OrganizationManager,
     ):
         """Initialize organization management use case.
 

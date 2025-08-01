@@ -57,7 +57,7 @@ async def get_organization_info(org=Depends(get_current_organization)):
 
 @app.get("/custom-scope")
 async def custom_scope_endpoint(
-    _=Depends(require_authenticated_scope(["streams", "batches"])),
+    _=Depends(require_authenticated_scope(["streams", "webhooks"])),
 ):
     """Endpoint that requires custom scopes."""
     return {"message": "Custom scope access granted"}
