@@ -38,8 +38,8 @@ class DimensionSetConfig:
     require_normalized_weights: bool = True
 
 
-@dataclass
-class DimensionSetAggregate(AggregateRoot):
+@dataclass(kw_only=True)
+class DimensionSetAggregate(AggregateRoot[int]):
     """Aggregate root for managing dimension sets.
 
     This aggregate ensures all business rules are enforced and maintains

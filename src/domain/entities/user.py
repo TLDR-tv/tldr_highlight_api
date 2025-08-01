@@ -9,7 +9,7 @@ from src.domain.value_objects.company_name import CompanyName
 from src.domain.value_objects.timestamp import Timestamp
 
 
-@dataclass
+@dataclass(kw_only=True)
 class User(Entity[int]):
     """Domain entity representing a user.
 

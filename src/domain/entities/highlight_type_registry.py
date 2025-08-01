@@ -101,7 +101,7 @@ class HighlightTypeDefinition:
         }
 
 
-@dataclass
+@dataclass(kw_only=True)
 class HighlightTypeRegistry(Entity[int]):
     """Registry of highlight types for an organization.
 

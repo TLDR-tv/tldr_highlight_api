@@ -34,7 +34,7 @@ class KeyStatus(str, Enum):
     COMPROMISED = "compromised"
 
 
-@dataclass
+@dataclass(kw_only=True)
 class OrganizationKey(Entity[int]):
     """Organization signing key domain model."""
 

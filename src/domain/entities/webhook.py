@@ -42,7 +42,7 @@ class WebhookDelivery:
         return 200 <= self.status_code < 300
 
 
-@dataclass
+@dataclass(kw_only=True)
 class Webhook(Entity[int]):
     """Domain entity representing a webhook endpoint.
 

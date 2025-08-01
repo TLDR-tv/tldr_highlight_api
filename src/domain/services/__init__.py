@@ -1,24 +1,21 @@
-"""Domain services for the TL;DR Highlight API.
+"""Domain services have been refactored following Pythonic DDD principles.
 
-Domain services orchestrate complex business operations that involve
-multiple aggregates or entities. They contain business logic that doesn't
-naturally fit within a single entity.
+Pure domain logic has been moved to function modules:
+- src/domain/scoring.py - Dimension scoring functions
+- src/domain/calibration.py - Dimension calibration functions  
+- src/domain/validation.py - Dimension validation functions
+
+Application services have been moved to:
+- src/application/services/ - Workflow orchestration services
+
+Infrastructure services have been moved to:
+- src/infrastructure/webhooks/ - Webhook delivery
+- src/infrastructure/agents/ - AI agent integrations
+- src/infrastructure/evaluation/ - Evaluation strategies
+
+This follows the principle that domain services should contain only
+pure business logic without infrastructure or orchestration concerns.
 """
 
-from .base import DomainService, BaseDomainService
-from .stream_processing_service import StreamProcessingService
-from .highlight_detection_service import HighlightDetectionService, DetectionResult
-from .organization_management_service import OrganizationManagementService
-from .usage_tracking_service import UsageTrackingService
-from .webhook_delivery_service import WebhookDeliveryService
-
-__all__ = [
-    "DomainService",
-    "BaseDomainService",
-    "StreamProcessingService",
-    "HighlightDetectionService",
-    "DetectionResult",
-    "OrganizationManagementService",
-    "UsageTrackingService",
-    "WebhookDeliveryService",
-]
+# This directory is kept for backward compatibility
+# New code should import from the appropriate modules directly

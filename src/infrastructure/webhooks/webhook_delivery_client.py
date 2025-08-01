@@ -13,7 +13,7 @@ from datetime import datetime
 import aiohttp
 from aiohttp import ClientTimeout
 
-from src.domain.services.base import BaseDomainService
+import logfire
 from src.domain.entities.webhook import (
     Webhook,
     WebhookEvent,
@@ -27,11 +27,11 @@ from src.domain.repositories.highlight_repository import HighlightRepository
 from src.domain.exceptions import EntityNotFoundError
 
 
-class WebhookDeliveryService(BaseDomainService):
-    """Domain service for webhook delivery and management.
+class WebhookDeliveryClient:
+    """Infrastructure client for webhook delivery.
 
-    Handles queuing webhook events, delivery with retries,
-    signature generation, and delivery tracking.
+    Handles HTTP delivery of webhooks to external endpoints with
+    retries, signature generation, and delivery tracking.
     """
 
     # Delivery configuration
@@ -55,11 +55,11 @@ class WebhookDeliveryService(BaseDomainService):
             highlight_repo: Repository for highlight operations
             http_client: Optional HTTP client for deliveries
         """
-        super().__init__()
         self.webhook_repo = webhook_repo
         self.stream_repo = stream_repo
         self.highlight_repo = highlight_repo
         self._http_client = http_client
+        self.logger = logfire.get_logger(__name__)
 
     async def trigger_event(
         self,

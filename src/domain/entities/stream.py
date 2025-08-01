@@ -45,7 +45,7 @@ class StreamPlatform(Enum):
     CUSTOM = "custom"  # Any other FFmpeg-supported format
 
 
-@dataclass
+@dataclass(kw_only=True)
 class Stream(AggregateRoot[int]):
     """Domain entity representing a stream processing job.
 

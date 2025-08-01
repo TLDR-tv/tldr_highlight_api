@@ -29,7 +29,7 @@ class WebhookEventType(Enum):
     CUSTOM = "custom"
 
 
-@dataclass
+@dataclass(kw_only=True)
 class WebhookEvent(Entity[int]):
     """Domain entity representing a received webhook event."""
 

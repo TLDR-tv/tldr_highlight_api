@@ -6,7 +6,7 @@ configurable dimensions and analysis strategies.
 
 from typing import List, Dict, Any, Optional
 
-from src.domain.services.base import BaseDomainService
+import logfire
 from src.domain.entities.highlight import Highlight
 from src.domain.value_objects.confidence_score import ConfidenceScore
 from src.domain.value_objects.timestamp import Timestamp
@@ -40,7 +40,7 @@ class DetectionResult:
         self.metadata = metadata
 
 
-class HighlightDetectionService(BaseDomainService):
+class HighlightDetectionService:
     """Domain service for highlight detection orchestration.
 
     Simplified service that coordinates highlight detection using B2BStreamAgent.
@@ -61,11 +61,11 @@ class HighlightDetectionService(BaseDomainService):
             dimension_set_repo: Optional repository for dimension sets
             type_registry_repo: Optional repository for highlight type registries
         """
-        super().__init__()
         self.highlight_repo = highlight_repo
         self.stream_repo = stream_repo
         self.dimension_set_repo = dimension_set_repo
         self.type_registry_repo = type_registry_repo
+        self.logger = logfire.get_logger(__name__)
 
     async def process_stream_segment(
         self,

@@ -11,7 +11,7 @@ from .base import Entity
 from ..value_objects.timestamp import Timestamp
 
 
-@dataclass
+@dataclass(kw_only=True)
 class StreamProcessingConfig(Entity[int]):
     """Simplified configuration for stream processing.
 

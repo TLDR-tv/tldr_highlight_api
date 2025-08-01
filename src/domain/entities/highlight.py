@@ -11,7 +11,7 @@ from src.domain.value_objects.url import Url
 from src.domain.value_objects.dimension_score import DimensionScore
 
 
-@dataclass
+@dataclass(kw_only=True)
 class Highlight(Entity[int]):
     """Domain entity representing a detected highlight.
 

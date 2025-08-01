@@ -82,7 +82,7 @@ class PlanLimits:
         return limits[plan_type]
 
 
-@dataclass
+@dataclass(kw_only=True)
 class Organization(AggregateRoot[int]):
     """Domain entity representing an organization.
 

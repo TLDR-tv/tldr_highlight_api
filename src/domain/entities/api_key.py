@@ -39,7 +39,7 @@ class APIKeyScope(Enum):
     ADMIN = "admin"
 
 
-@dataclass
+@dataclass(kw_only=True)
 class APIKey(Entity[int]):
     """Domain entity representing an API key.
 

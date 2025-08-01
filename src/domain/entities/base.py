@@ -10,7 +10,7 @@ from src.domain.value_objects.timestamp import Timestamp
 T = TypeVar("T")
 
 
-@dataclass
+@dataclass(kw_only=True)
 class Entity(Generic[T]):
     """Base class for all domain entities.
 
@@ -18,7 +18,7 @@ class Entity(Generic[T]):
     not by their attributes.
     """
 
-    id: Optional[T]
+    id: Optional[T] = None
 
     # Audit timestamps
     created_at: Timestamp = field(default_factory=Timestamp.now)
@@ -47,7 +47,7 @@ class Entity(Generic[T]):
         return hash((self.__class__.__name__, self.id))
 
 
-@dataclass
+@dataclass(kw_only=True)
 class AggregateRoot(Entity[T]):
     """Base class for aggregate roots.
 

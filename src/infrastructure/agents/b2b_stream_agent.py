@@ -13,12 +13,12 @@ from datetime import datetime
 from enum import Enum
 from typing import Dict, List, Optional, Any
 
-from ..entities.stream import Stream
-from ..entities.highlight import Highlight, HighlightCandidate
-from ..entities.highlight_agent_config import HighlightAgentConfig
-from ..entities.stream_processing_config import StreamProcessingConfig
-from ..value_objects.processing_options import ProcessingOptions
-from ..exceptions import BusinessRuleViolation, ProcessingError
+from src.domain.entities.stream import Stream
+from src.domain.entities.highlight import Highlight, HighlightCandidate
+from src.domain.entities.highlight_agent_config import HighlightAgentConfig
+from src.domain.entities.stream_processing_config import StreamProcessingConfig
+from src.domain.value_objects.processing_options import ProcessingOptions
+from src.domain.exceptions import BusinessRuleViolation, ProcessingError
 from src.infrastructure.observability import traced_service_method, metrics
 import logfire
 

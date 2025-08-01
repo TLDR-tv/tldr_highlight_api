@@ -19,7 +19,7 @@ class UsageType(Enum):
     BANDWIDTH = "bandwidth"
 
 
-@dataclass
+@dataclass(kw_only=True)
 class UsageRecord(Entity[int]):
     """Domain entity representing resource usage.
 
