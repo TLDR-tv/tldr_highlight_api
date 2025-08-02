@@ -127,24 +127,11 @@ def sample_user_id() -> UUID:
 
 
 @pytest.fixture
-def auth_headers(sample_user_id: UUID, sample_org_id: UUID) -> dict:
-    """Create auth headers with valid JWT token."""
-    from shared.infrastructure.security.jwt_service import JWTService
-
-    settings = Settings(
-        jwt_secret_key="test_secret_key_for_testing_only",
-        jwt_expiry_seconds=3600,
-    )
-    jwt_service = JWTService(settings)
-
-    token = jwt_service.create_access_token(
-        user_id=sample_user_id,
-        organization_id=sample_org_id,
-        email="test@example.com",
-        role="admin",
-    )
-
-    return {"Authorization": f"Bearer {token}"}
+def auth_headers():
+    """Create auth headers with JWT token."""
+    def _headers(token: str) -> dict:
+        return {"Authorization": f"Bearer {token}"}
+    return _headers
 
 
 @pytest.fixture

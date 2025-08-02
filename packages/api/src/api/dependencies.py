@@ -212,7 +212,7 @@ async def get_jwt_service(
     settings: Settings = Depends(get_settings_dep),
 ) -> JWTURLSigner:
     """Get JWT service for user authentication."""
-    from ..infrastructure.security.jwt_service import JWTService
+    from shared.infrastructure.security.jwt_service import JWTService
 
     return JWTService(settings)
 
