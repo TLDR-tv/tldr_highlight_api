@@ -26,17 +26,24 @@ async def process_segment_for_highlights(
     processing_options: Dict,
     context_segments: List[Dict],
 ) -> List[Dict]:
-    """
-    Process a segment to detect highlights using Gemini File API.
+    """Process a segment to detect highlights using Gemini File API.
+    
+    Analyzes a video segment using multi-dimensional scoring to identify
+    potential highlights. Uses context from previous segments to improve
+    accuracy and reduce false positives.
     
     Args:
-        stream_id: UUID of the stream
-        segment_data: Current segment information with video_path
-        processing_options: Processing configuration
-        context_segments: Previous segments for context
+        stream_id: UUID of the stream being processed.
+        segment_data: Current segment information including video_path, 
+            start_time, end_time, and audio_path.
+        processing_options: Processing configuration including dimension_set_id,
+            type_registry_id, fusion_strategy, and confidence thresholds.
+        context_segments: Previous segments for temporal context.
         
     Returns:
-        List of detected highlights
+        List of dictionaries containing detected highlight information
+        including scores, timing, and confidence values.
+
     """
     settings = get_settings()
     database = Database(settings.database_url)

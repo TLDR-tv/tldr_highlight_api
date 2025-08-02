@@ -28,6 +28,7 @@ class HighlightService:
 
         Returns:
             Highlight if found and belongs to organization, None otherwise
+
         """
         highlight = await self.highlight_repository.get(highlight_id)
 
@@ -66,6 +67,7 @@ class HighlightService:
 
         Returns:
             Dictionary with highlights and metadata
+
         """
         # Build filters
         filters = {
@@ -117,6 +119,7 @@ class HighlightService:
 
         Returns:
             List of highlights for the stream
+
         """
         # In production, would verify stream belongs to organization
         highlights = await self.highlight_repository.list_by_stream(stream_id)

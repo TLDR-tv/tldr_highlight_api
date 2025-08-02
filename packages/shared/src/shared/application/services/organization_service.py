@@ -48,6 +48,7 @@ class OrganizationService:
 
         Raises:
             ValueError: If validation fails
+
         """
         # Check if organization name already exists
         existing_org = await self.organization_repository.get_by_slug(
@@ -108,6 +109,7 @@ class OrganizationService:
 
         Raises:
             ValueError: If organization not found
+
         """
         org = await self.organization_repository.get(organization_id)
         if not org:
@@ -158,6 +160,7 @@ class OrganizationService:
 
         Raises:
             ValueError: If organization not found
+
         """
         org = await self.organization_repository.get(organization_id)
         if not org:
@@ -202,6 +205,7 @@ class OrganizationService:
 
         Raises:
             ValueError: If organization not found or no webhook configured
+
         """
         org = await self.organization_repository.get(organization_id)
         if not org:
@@ -238,6 +242,7 @@ class OrganizationService:
 
         Raises:
             ValueError: If organization not found
+
         """
         org = await self.organization_repository.get(organization_id)
         if not org:
@@ -274,6 +279,7 @@ class OrganizationService:
 
         Raises:
             ValueError: If organization not found
+
         """
         org = await self.organization_repository.get(organization_id)
         if not org:
@@ -304,6 +310,7 @@ class OrganizationService:
             organization_id: Organization ID
             processing_seconds: Seconds of processing time
             highlights_count: Number of highlights generated
+
         """
         org = await self.organization_repository.get(organization_id)
         if not org:

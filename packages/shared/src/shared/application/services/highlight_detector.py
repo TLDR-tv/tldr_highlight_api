@@ -95,6 +95,7 @@ class HighlightDetector:
             min_highlight_duration: Minimum duration for a highlight
             max_highlight_duration: Maximum duration for a highlight
             overlap_threshold: Threshold for merging overlapping highlights
+
         """
         self.scoring_strategy = scoring_strategy
         self.min_highlight_duration = min_highlight_duration
@@ -113,6 +114,7 @@ class HighlightDetector:
 
         Returns:
             List of highlight candidates
+
         """
         if not segments:
             logger.warning(f"No segments provided for stream {stream.id}")
@@ -208,6 +210,7 @@ class HighlightDetector:
 
         Returns:
             List of highlight candidates
+
         """
         candidates = []
         current_highlight = None
@@ -262,6 +265,7 @@ class HighlightDetector:
 
         Returns:
             HighlightCandidate or None if duration constraints not met
+
         """
         segments = highlight_data["segments"]
         scores = highlight_data["scores"]
@@ -332,6 +336,7 @@ class HighlightDetector:
 
         Returns:
             List of merged candidates
+
         """
         if not candidates:
             return []
@@ -377,6 +382,7 @@ class HighlightDetector:
 
         Returns:
             Merged candidate
+
         """
         # Merge time range
         start_time = min(c1.start_time, c2.start_time)

@@ -7,7 +7,11 @@ from collections import defaultdict
 
 
 class DimensionType(Enum):
-    """Types of scoring dimensions."""
+    """Types of scoring dimensions for evaluation.
+    
+    Defines the different formats and ranges for dimensional scoring
+    to optimize LLM evaluation performance.
+    """
 
     NUMERIC = "numeric"  # 0-1 continuous scale
     BINARY = "binary"  # Yes/No
@@ -17,7 +21,11 @@ class DimensionType(Enum):
 
 
 class AggregationMethod(Enum):
-    """How to aggregate scores across time/segments."""
+    """Methods for aggregating scores across time segments.
+    
+    Defines how individual segment scores should be combined
+    to create an overall score for the entire content.
+    """
 
     MEAN = "mean"
     MAX = "max"
@@ -28,7 +36,11 @@ class AggregationMethod(Enum):
 
 @dataclass
 class DimensionExample:
-    """Example for few-shot prompting."""
+    """Example for few-shot prompting.
+    
+    Provides concrete examples to improve LLM understanding
+    and consistency in dimensional scoring.
+    """
 
     input_description: str
     expected_score: float
@@ -37,7 +49,11 @@ class DimensionExample:
 
 @dataclass
 class DimensionDefinition:
-    """Definition of a scoring dimension."""
+    """Definition of a scoring dimension.
+    
+    Represents a single dimension for evaluation including its type,
+    scoring criteria, examples, and aggregation method.
+    """
 
     name: str
     description: str
@@ -59,7 +75,15 @@ class DimensionDefinition:
     requires_context: bool = False  # If true, needs previous segments
 
     def __post_init__(self) -> None:
-        """Validate dimension definition."""
+        """Validate dimension definition.
+        
+        Ensures weight is within valid range and sets appropriate
+        score bounds for binary dimensions.
+        
+        Raises:
+            ValueError: If weight is outside the valid range [0, 10].
+
+        """
         if not 0 <= self.weight <= 10:
             raise ValueError(f"Weight must be between 0 and 10, got {self.weight}")
         if self.type == DimensionType.BINARY:
@@ -68,12 +92,16 @@ class DimensionDefinition:
 
     def build_evaluation_prompt(self, video_timestamp: str = "") -> str:
         """Build optimized evaluation prompt for Gemini video analysis.
+        
+        Creates a structured prompt following Gemini best practices including
+        clear task definition, evaluation criteria, examples, and output format.
 
         Args:
-            video_timestamp: Optional timestamp in MM:SS format for specific moments
+            video_timestamp: Optional timestamp in MM:SS format for specific moments.
 
         Returns:
-            Structured prompt optimized for Gemini
+            Structured prompt optimized for Gemini with JSON output format.
+
         """
         # Build structured prompt following Gemini best practices
         prompt_parts = []
@@ -167,7 +195,11 @@ class DimensionDefinition:
 
 @dataclass
 class ScoringRubric:
-    """Complete rubric for multi-dimensional scoring."""
+    """Complete rubric for multi-dimensional scoring.
+    
+    Contains a collection of dimensions with global settings for
+    normalization, thresholds, and highlight detection criteria.
+    """
 
     name: str
     description: str
@@ -183,18 +215,36 @@ class ScoringRubric:
     highlight_confidence_threshold: float = 0.6  # Minimum confidence
 
     def __post_init__(self) -> None:
-        """Validate rubric."""
+        """Validate rubric configuration.
+        
+        Ensures all dimension names are unique within the rubric.
+        
+        Raises:
+            ValueError: If dimension names are not unique.
+
+        """
         dimension_names = [d.name for d in self.dimensions]
         if len(dimension_names) != len(set(dimension_names)):
             raise ValueError("Dimension names must be unique")
 
     @property
     def total_weight(self) -> float:
-        """Calculate total weight of all dimensions."""
+        """Calculate total weight of all dimensions.
+        
+        Returns:
+            Sum of all dimension weights in the rubric.
+
+        """
         return sum(d.weight for d in self.dimensions)
 
     def get_normalized_weights(self) -> dict[str, float]:
-        """Get normalized weights for each dimension."""
+        """Get normalized weights for each dimension.
+        
+        Returns:
+            Dictionary mapping dimension names to normalized weights.
+            If normalization is disabled, returns raw weights.
+
+        """
         if not self.normalization_enabled:
             return {d.name: d.weight for d in self.dimensions}
 
@@ -307,8 +357,7 @@ class ScoringStrategy(Protocol):
     async def score(
         self, content: Any, rubric: ScoringRubric, context: Optional[list[Any]] = None
     ) -> dict[str, tuple[float, float]]:
-        """
-        Score content against rubric dimensions.
+        """Score content against rubric dimensions.
         Returns dict of dimension_name -> (score, confidence)
         """
         ...

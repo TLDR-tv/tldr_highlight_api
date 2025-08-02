@@ -49,6 +49,7 @@ class UserService:
 
         Raises:
             ValueError: If email already exists or password is invalid
+
         """
         # Check if email already exists
         existing_user = await self.user_repository.get_by_email(email)
@@ -95,6 +96,7 @@ class UserService:
 
         Returns:
             Tuple of (user, access_token, refresh_token) or (None, None, None) if auth fails
+
         """
         # Get user by email
         user = await self.user_repository.get_by_email(email.lower().strip())
@@ -144,6 +146,7 @@ class UserService:
 
         Returns:
             Tuple of (new_access_token, new_refresh_token) or (None, None) if invalid
+
         """
         # Verify refresh token
         payload = self.jwt_service.verify_refresh_token(refresh_token)
@@ -190,6 +193,7 @@ class UserService:
 
         Raises:
             ValueError: If user not found or email already exists
+
         """
         user = await self.user_repository.get(user_id)
         if not user:
@@ -231,6 +235,7 @@ class UserService:
 
         Raises:
             ValueError: If validation fails
+
         """
         user = await self.user_repository.get(user_id)
         if not user:
@@ -266,6 +271,7 @@ class UserService:
 
         Returns:
             Reset token if user exists, None otherwise
+
         """
         user = await self.user_repository.get_by_email(email.lower().strip())
         if not user or not user.is_active:
@@ -297,6 +303,7 @@ class UserService:
 
         Raises:
             ValueError: If token invalid or password weak
+
         """
         # Verify reset token
         payload = self.jwt_service.verify_password_reset_token(token)
@@ -333,6 +340,7 @@ class UserService:
 
         Returns:
             List of users
+
         """
         return await self.user_repository.list_by_organization(organization_id)
 
@@ -351,6 +359,7 @@ class UserService:
 
         Raises:
             ValueError: If validation fails
+
         """
         # Get admin user
         admin_user = await self.user_repository.get(admin_user_id)
@@ -406,6 +415,7 @@ class UserService:
 
         Raises:
             ValueError: If validation fails
+
         """
         # Get admin user
         admin_user = await self.user_repository.get(admin_user_id)

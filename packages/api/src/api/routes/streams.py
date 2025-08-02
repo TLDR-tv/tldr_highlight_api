@@ -34,7 +34,18 @@ async def create_stream(
     stream_repository: StreamRepository = Depends(get_stream_repository),
     _=Depends(require_scope(APIScopes.STREAMS_WRITE)),
 ):
-    """Create a new stream for processing."""
+    """Create a new stream for processing.
+    
+    Args:
+        request: Stream creation parameters including URL, name, and type.
+        organization: Current organization from API key.
+        stream_repository: Stream data repository.
+        _: API scope validation dependency.
+        
+    Returns:
+        StreamResponse with the created stream details.
+
+    """
     # Create stream record
     stream = Stream(
         organization_id=organization.id,
@@ -57,7 +68,21 @@ async def get_stream(
     stream_repository: StreamRepository = Depends(get_stream_repository),
     _=Depends(require_scope(APIScopes.STREAMS_READ)),
 ):
-    """Get stream details."""
+    """Get stream details by ID.
+    
+    Args:
+        stream_id: UUID of the stream to retrieve.
+        organization: Current organization from API key.
+        stream_repository: Stream data repository.
+        _: API scope validation dependency.
+        
+    Returns:
+        StreamResponse with stream details.
+        
+    Raises:
+        HTTPException: 404 if stream not found or access denied.
+
+    """
     stream = await stream_repository.get(stream_id)
     
     if not stream or stream.organization_id != organization.id:
@@ -77,7 +102,25 @@ async def process_stream(
     stream_repository: StreamRepository = Depends(get_stream_repository),
     _=Depends(require_scope(APIScopes.STREAMS_WRITE)),
 ):
-    """Start processing a stream."""
+    """Start processing a stream for highlight detection.
+    
+    Queues the stream for asynchronous processing using Celery.
+    The stream status is updated to QUEUED and a task ID is returned.
+    
+    Args:
+        stream_id: UUID of the stream to process.
+        request: Processing configuration parameters.
+        organization: Current organization from API key.
+        stream_repository: Stream data repository.
+        _: API scope validation dependency.
+        
+    Returns:
+        StreamProcessResponse with task ID and status.
+        
+    Raises:
+        HTTPException: 404 if stream not found, 409 if already processing.
+
+    """
     stream = await stream_repository.get(stream_id)
     
     if not stream or stream.organization_id != organization.id:

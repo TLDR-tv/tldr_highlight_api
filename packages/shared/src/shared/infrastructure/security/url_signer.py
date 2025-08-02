@@ -31,8 +31,7 @@ class JWTURLSigner:
         highlight_ids: Optional[list[UUID]] = None,
         additional_claims: Optional[dict[str, Any]] = None,
     ) -> str:
-        """
-        Create a JWT token for resource access with flexible claims.
+        """Create a JWT token for resource access with flexible claims.
 
         Access patterns:
         1. Single clip: resource_type="clip", highlight_ids=[single_id]
@@ -82,8 +81,7 @@ class JWTURLSigner:
         requested_stream_id: Optional[UUID] = None,
         requested_stream_fingerprint: Optional[str] = None,
     ) -> Optional[dict[str, Any]]:
-        """
-        Verify JWT token and check if it grants access to requested resource.
+        """Verify JWT token and check if it grants access to requested resource.
         Returns decoded claims if valid, None otherwise.
         """
         try:
@@ -185,8 +183,7 @@ class SecureContentDelivery:
         stream_fingerprint: Optional[str] = None,
         expiry_seconds: int = 3600,
     ) -> str:
-        """
-        Generate token for accessing all clips from a stream.
+        """Generate token for accessing all clips from a stream.
         This token can be used to access any clip from the specified stream.
         """
         return self.jwt_signer.create_access_token(
@@ -203,8 +200,7 @@ class SecureContentDelivery:
         organization_id: UUID,
         expiry_seconds: int = 3600,
     ) -> str:
-        """
-        Generate token for accessing multiple specific clips.
+        """Generate token for accessing multiple specific clips.
         This token can be used to access any of the specified clips.
         """
         return self.jwt_signer.create_access_token(
@@ -217,8 +213,7 @@ class SecureContentDelivery:
     async def generate_streamer_clips_token(
         self, stream_fingerprint: str, organization_id: UUID, expiry_seconds: int = 3600
     ) -> str:
-        """
-        Generate token for accessing all clips from a specific streamer.
+        """Generate token for accessing all clips from a specific streamer.
         This token can be used to access any clip from the specified streamer
         across all their streams.
         """
@@ -234,8 +229,7 @@ class SecureContentDelivery:
         organization_id: UUID,
         expiry_seconds: int = 86400,  # 24 hours default
     ) -> str:
-        """
-        Generate token for accessing all clips in an organization.
+        """Generate token for accessing all clips in an organization.
         This is typically for admin users who can see everything.
         """
         return self.jwt_signer.create_access_token(

@@ -1,0 +1,1 @@
+"""Celery worker package for asynchronous stream processing and highlight detection."""

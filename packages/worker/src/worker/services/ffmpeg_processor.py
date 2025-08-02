@@ -97,6 +97,7 @@ class FFmpegStreamProcessor:
             stream_url: URL of the stream to process
             output_dir: Directory for output segments
             config: FFmpeg configuration
+
         """
         self.stream_url = stream_url
         self.output_dir = output_dir
@@ -345,6 +346,7 @@ class FFmpegStreamProcessor:
 
         Yields:
             Completed stream segments
+
         """
         while self._running:
             try:

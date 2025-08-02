@@ -1,0 +1,1 @@
+"""Domain model classes for core business entities."""

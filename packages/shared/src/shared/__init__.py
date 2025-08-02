@@ -1,0 +1,1 @@
+"""Shared package containing domain models, infrastructure, and common utilities."""

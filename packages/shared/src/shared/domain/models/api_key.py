@@ -10,7 +10,12 @@ import string
 
 @dataclass
 class APIKey:
-    """API key for accessing the system."""
+    """API key for secure system access.
+    
+    Represents an API key with associated permissions, usage tracking,
+    and lifecycle management. Keys have scopes that define what operations
+    they can perform and can be expired or revoked.
+    """
 
     id: UUID = field(default_factory=uuid4)
     organization_id: UUID = field(default_factory=uuid4)
@@ -39,10 +44,15 @@ class APIKey:
 
     @classmethod
     def generate_key(cls) -> tuple[str, str]:
-        """
-        Generate a new API key.
-        Returns (full_key, key_hash) tuple.
-        The full key is only shown once and should be given to the user.
+        """Generate a new API key with secure random string.
+        
+        Creates a cryptographically secure API key with a prefix for identification.
+        The full key should only be shown to the user once during creation.
+        
+        Returns:
+            Tuple of (full_key, key_hash) where full_key includes prefix
+            and key_hash is the hashed version for storage.
+
         """
         # Generate a secure random key
         alphabet = string.ascii_letters + string.digits
@@ -60,38 +70,74 @@ class APIKey:
 
     @property
     def is_expired(self) -> bool:
-        """Check if key has expired."""
+        """Check if the API key has expired.
+        
+        Returns:
+            True if the key has passed its expiration date, False otherwise.
+            Keys with no expiration date never expire.
+
+        """
         if not self.expires_at:
             return False
         return datetime.now(timezone.utc) > self.expires_at
 
     @property
     def is_valid(self) -> bool:
-        """Check if key is valid for use."""
+        """Check if the API key is valid for use.
+        
+        Returns:
+            True if the key is active, not expired, and not revoked.
+
+        """
         return self.is_active and not self.is_expired and not self.revoked_at
 
     def has_scope(self, scope: str) -> bool:
-        """Check if key has a specific scope."""
+        """Check if the API key has a specific permission scope.
+        
+        Args:
+            scope: The permission scope to check (e.g., 'streams:read').
+            
+        Returns:
+            True if the key has the requested scope or all permissions (*),
+            False otherwise.
+
+        """
         return scope in self.scopes or "*" in self.scopes  # * = all permissions
 
     def record_usage(self) -> None:
-        """Record that the key was used."""
+        """Record that the API key was used.
+        
+        Updates the last_used_at timestamp and increments the usage counter.
+        """
         self.last_used_at = datetime.now(timezone.utc)
         self.usage_count += 1
 
     def revoke(self) -> None:
-        """Revoke the API key."""
+        """Revoke the API key.
+        
+        Marks the key as inactive and sets the revoked timestamp.
+        Revoked keys cannot be reactivated.
+        """
         self.is_active = False
         self.revoked_at = datetime.now(timezone.utc)
 
     def set_expiration(self, days: int) -> None:
-        """Set key to expire after specified days."""
+        """Set the API key to expire after the specified number of days.
+        
+        Args:
+            days: Number of days from now when the key should expire.
+
+        """
         self.expires_at = datetime.now(timezone.utc) + timedelta(days=days)
 
 
 # Common scopes
 class APIScopes:
-    """Standard API scopes."""
+    """Standard API permission scopes.
+    
+    Defines the available permission scopes that can be assigned to API keys.
+    Each scope controls access to specific resources and operations.
+    """
 
     # Streams
     STREAMS_READ = "streams:read"
@@ -114,7 +160,13 @@ class APIScopes:
 
     @classmethod
     def default_scopes(cls) -> set[str]:
-        """Get default scopes for new API keys."""
+        """Get the default permission scopes for new API keys.
+        
+        Returns:
+            Set of scope strings representing standard permissions
+            for typical API key usage.
+
+        """
         return {
             cls.STREAMS_READ,
             cls.STREAMS_WRITE,

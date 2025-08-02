@@ -51,6 +51,7 @@ class GeminiFileManager:
         Raises:
             ValueError: If file doesn't exist or is too large
             RuntimeError: If upload fails
+
         """
         if not video_path.exists():
             raise ValueError(f"Video file not found: {video_path}")
@@ -95,6 +96,7 @@ class GeminiFileManager:
 
         Args:
             video_file: VideoFile to delete
+
         """
         try:
             await asyncio.to_thread(self.client.files.delete, name=video_file.name)
@@ -145,6 +147,7 @@ async def gemini_video_file(
         async with gemini_video_file(client, Path("video.mp4")) as video:
             # Use video.file_data in Gemini API calls
             response = await client.models.generate_content(...)
+
     """
     manager = GeminiFileManager(client)
     video_file = await manager.upload_video(video_path)
@@ -173,6 +176,7 @@ class GeminiVideoScorer(ScoringStrategy):
             model_name: Model to use (default: gemini-2.0-flash)
             temperature: Sampling temperature (lower = more deterministic)
             max_tokens: Maximum output tokens
+
         """
         self.client = genai.Client(api_key=api_key)
         self.model_name = model_name
@@ -192,6 +196,7 @@ class GeminiVideoScorer(ScoringStrategy):
 
         Returns:
             Dictionary mapping dimension_name -> (score, confidence)
+
         """
         video_path = Path(content) if isinstance(content, str) else content
 
@@ -243,6 +248,7 @@ class GeminiVideoScorer(ScoringStrategy):
 
         Returns:
             Dictionary mapping dimension_name -> (score, confidence)
+
         """
         try:
             # Extract JSON from response
@@ -294,6 +300,7 @@ class GeminiVideoScorer(ScoringStrategy):
 
         Returns:
             Tuple of (score, confidence, reasoning)
+
         """
         video_path = Path(content) if isinstance(content, str) else content
 

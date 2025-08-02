@@ -84,7 +84,6 @@ async def list_organization_users(
     user_service: UserService = Depends(get_user_service),
 ):
     """List all users in the organization (admin only)."""
-
     users = await user_service.list_organization_users(current_user.organization_id)
     return UserListResponse(
         users=[UserResponse.model_validate(u) for u in users],
@@ -99,7 +98,6 @@ async def create_user(
     user_service: UserService = Depends(get_user_service),
 ):
     """Create a new user in the organization (admin only)."""
-
     try:
         new_user = await user_service.create_user(
             organization_id=current_user.organization_id,
@@ -193,7 +191,6 @@ async def update_user_role(
     user_service: UserService = Depends(get_user_service),
 ):
     """Update user role (admin only)."""
-
     try:
         updated_user = await user_service.update_user_role(
             user_id=user_id,
@@ -215,7 +212,6 @@ async def deactivate_user(
     user_service: UserService = Depends(get_user_service),
 ):
     """Deactivate user (admin only)."""
-
     try:
         success = await user_service.deactivate_user(
             user_id=user_id,

@@ -11,13 +11,24 @@ router = APIRouter()
 
 @router.get("/health")
 async def health_check():
-    """Basic health check."""
+    """Perform basic health check.
+    
+    Returns:
+        Dictionary with status and service name.
+    """
     return {"status": "healthy", "service": "tldr-highlight-api"}
 
 
 @router.get("/health/db")
 async def database_health(session: AsyncSession = Depends(get_session)):
-    """Check database connectivity."""
+    """Check database connectivity.
+    
+    Args:
+        session: Database session for testing connectivity.
+        
+    Returns:
+        Dictionary with database connection status.
+    """
     try:
         # Execute simple query
         result = await session.execute(text("SELECT 1"))

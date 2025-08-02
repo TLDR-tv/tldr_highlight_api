@@ -19,6 +19,7 @@ class ScoringRubricFactory:
 
         Returns:
             ScoringRubric configured for gaming highlights
+
         """
         rubric = ScoringRubric(
             name=name,
@@ -44,6 +45,7 @@ class ScoringRubricFactory:
 
         Returns:
             ScoringRubric configured for sports highlights
+
         """
         rubric = ScoringRubric(
             name=name,
@@ -69,6 +71,7 @@ class ScoringRubricFactory:
 
         Returns:
             ScoringRubric configured for educational highlights
+
         """
         rubric = ScoringRubric(
             name=name,
@@ -94,6 +97,7 @@ class ScoringRubricFactory:
 
         Returns:
             ScoringRubric configured for corporate highlights
+
         """
         rubric = ScoringRubric(
             name=name,
@@ -119,6 +123,7 @@ class ScoringRubricFactory:
 
         Returns:
             ScoringRubric configured for general content
+
         """
         rubric = ScoringRubric(
             name=name,
@@ -159,6 +164,7 @@ class ScoringRubricFactory:
 
         Returns:
             Custom ScoringRubric
+
         """
         rubric = ScoringRubric(
             name=name,
@@ -189,6 +195,7 @@ class ScoringRubricFactory:
 
         Raises:
             ValueError: If template name not found
+
         """
         dimensions = []
 

@@ -155,8 +155,7 @@ class VideoAnalyzer(Protocol):
     async def analyze_segment(
         self, video_path: Path, dimensions: list[str], context: Optional[dict] = None
     ) -> dict[str, tuple[float, float]]:
-        """
-        Analyze video segment and return dimension scores.
+        """Analyze video segment and return dimension scores.
         Returns dict of dimension_name -> (score, confidence)
         """
         ...
@@ -168,8 +167,7 @@ class VideoAnalyzer(Protocol):
     async def identify_timestamps(
         self, video_path: Path, target_content: str
     ) -> list[tuple[float, float]]:
-        """
-        Identify timestamps for specific content.
+        """Identify timestamps for specific content.
         Returns list of (start_time, end_time) tuples.
         """
         ...
@@ -179,8 +177,7 @@ class StreamProcessor(Protocol):
     """Stream processing service protocol."""
 
     async def process_stream(self, stream_url: str) -> AsyncIterator[Path]:
-        """
-        Process stream and yield segment paths.
+        """Process stream and yield segment paths.
         Implements ring buffer internally.
         """
         ...

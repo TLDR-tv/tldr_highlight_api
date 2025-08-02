@@ -24,8 +24,7 @@ def send_highlight_webhook(
     organization_id: str,
     highlight_data: Dict,
 ) -> Dict:
-    """
-    Send webhook notification for detected highlight.
+    """Send webhook notification for detected highlight.
     
     Args:
         organization_id: UUID of the organization
@@ -33,6 +32,7 @@ def send_highlight_webhook(
         
     Returns:
         Webhook delivery result
+
     """
     import asyncio
     
@@ -72,8 +72,7 @@ def send_stream_webhook(
     event_type: str,
     stream_data: Dict,
 ) -> Dict:
-    """
-    Send webhook notification for stream events.
+    """Send webhook notification for stream events.
     
     Args:
         organization_id: UUID of the organization
@@ -82,6 +81,7 @@ def send_stream_webhook(
         
     Returns:
         Webhook delivery result
+
     """
     import asyncio
     
@@ -114,12 +114,12 @@ def send_stream_webhook(
     ignore_result=True,
 )
 def send_progress_update(stream_id: str, segments_processed: int) -> None:
-    """
-    Send progress update webhook.
+    """Send progress update webhook.
     
     Args:
         stream_id: UUID of the stream
         segments_processed: Number of segments processed
+
     """
     import asyncio
     

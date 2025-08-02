@@ -65,8 +65,7 @@ def process_stream_task(
     stream_id: str,
     processing_options: Dict,
 ) -> Dict:
-    """
-    Process a livestream or video file.
+    """Process a livestream or video file.
     
     Args:
         stream_id: UUID of the stream to process
@@ -79,6 +78,7 @@ def process_stream_task(
             
     Returns:
         Dictionary with processing results
+
     """
     try:
         # Run async processing in sync context
@@ -195,8 +195,7 @@ def detect_highlights_task(
     processing_options: Dict,
     context_segments: List[Dict],
 ) -> Dict:
-    """
-    Detect highlights in a stream segment.
+    """Detect highlights in a stream segment.
     
     Args:
         stream_id: UUID of the stream
@@ -206,6 +205,7 @@ def detect_highlights_task(
         
     Returns:
         Dictionary with detected highlights
+
     """
     from worker.tasks.highlight_detection import process_segment_for_highlights
     

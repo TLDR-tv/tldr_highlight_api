@@ -28,8 +28,7 @@ class APIKeyService(AuthenticationService):
         description: Optional[str] = None,
         created_by_user_id: Optional[UUID] = None,
     ) -> Tuple[str, APIKey]:
-        """
-        Generate new API key.
+        """Generate new API key.
         Returns (raw_key, key_entity) tuple.
         The raw key is only available at creation time.
         """

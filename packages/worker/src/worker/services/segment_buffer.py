@@ -36,6 +36,7 @@ class SegmentRingBuffer:
 
         Args:
             max_size: Maximum number of segments to keep in buffer
+
         """
         self.max_size = max_size
         self._buffer: Deque[StreamSegment] = deque(maxlen=max_size)
@@ -49,6 +50,7 @@ class SegmentRingBuffer:
 
         Args:
             segment: Segment to add
+
         """
         async with self._lock:
             if self._closed:
@@ -87,6 +89,7 @@ class SegmentRingBuffer:
 
         Returns:
             Oldest segment or None if buffer is empty/closed
+
         """
         end_time = asyncio.get_event_loop().time() + timeout if timeout else None
 
@@ -128,6 +131,7 @@ class SegmentRingBuffer:
 
         Returns:
             List of segments (may be less than n if buffer is smaller)
+
         """
         async with self._lock:
             return list(self._buffer)[:n]
@@ -137,6 +141,7 @@ class SegmentRingBuffer:
 
         Returns:
             All segments in the buffer (oldest first)
+
         """
         async with self._lock:
             segments = list(self._buffer)
@@ -184,6 +189,7 @@ class SegmentRingBuffer:
 
         Yields:
             Segments as they become available
+
         """
         while True:
             segment = await self.get_segment(timeout=1.0)
@@ -203,6 +209,7 @@ class SegmentFileManager:
         Args:
             storage_dir: Directory for storing segments
             max_segments: Maximum segments to keep on disk
+
         """
         self.storage_dir = storage_dir
         self.max_segments = max_segments
@@ -220,6 +227,7 @@ class SegmentFileManager:
 
         Returns:
             Path where segment was stored
+
         """
         async with self._lock:
             # Generate storage path
@@ -250,6 +258,7 @@ class SegmentFileManager:
 
         Args:
             segment: Segment to clean up
+
         """
         async with self._lock:
             if segment.path in self._segment_paths:
@@ -288,6 +297,7 @@ class ProcessingQueue:
 
         Args:
             max_size: Maximum queue size (None for unlimited)
+
         """
         self.max_size = max_size
         self._queue: asyncio.Queue[StreamSegment] = asyncio.Queue(maxsize=max_size or 0)
@@ -300,6 +310,7 @@ class ProcessingQueue:
 
         Args:
             segment: Segment to process
+
         """
         await self._queue.put(segment)
 
@@ -308,6 +319,7 @@ class ProcessingQueue:
 
         Returns:
             Next segment to process
+
         """
         segment = await self._queue.get()
         self._processing.add(segment.segment_id)
@@ -318,6 +330,7 @@ class ProcessingQueue:
 
         Args:
             segment_id: ID of completed segment
+
         """
         self._processing.discard(segment_id)
         self._completed.add(segment_id)
@@ -328,6 +341,7 @@ class ProcessingQueue:
         Args:
             segment_id: ID of failed segment
             error: Error message
+
         """
         self._processing.discard(segment_id)
         self._failed[segment_id] = error

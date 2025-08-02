@@ -161,6 +161,7 @@ def create_test_user(
 
     Returns:
         Tuple of (user, plain_password)
+
     """
     if not organization_id:
         organization_id = uuid4()
@@ -189,6 +190,7 @@ def create_test_api_key(
 
     Returns:
         Tuple of (api_key, raw_key)
+
     """
     if not organization_id:
         organization_id = uuid4()

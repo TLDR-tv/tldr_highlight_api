@@ -22,6 +22,7 @@ class PasswordService:
 
         Returns:
             Hashed password string
+
         """
         return self.pwd_context.hash(password)
 
@@ -34,6 +35,7 @@ class PasswordService:
 
         Returns:
             True if password matches, False otherwise
+
         """
         return self.pwd_context.verify(plain_password, hashed_password)
 
@@ -47,6 +49,7 @@ class PasswordService:
 
         Returns:
             True if hash should be regenerated
+
         """
         return self.pwd_context.needs_update(hashed_password)
 
@@ -66,6 +69,7 @@ class PasswordService:
 
         Returns:
             Tuple of (is_valid, error_messages)
+
         """
         errors = []
 
