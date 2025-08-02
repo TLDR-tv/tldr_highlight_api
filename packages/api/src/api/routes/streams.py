@@ -58,7 +58,7 @@ async def get_stream(
     _=Depends(require_scope(APIScopes.STREAMS_READ)),
 ):
     """Get stream details."""
-    stream = await stream_repository.get_by_id(stream_id)
+    stream = await stream_repository.get(stream_id)
     
     if not stream or stream.organization_id != organization.id:
         raise HTTPException(
@@ -69,7 +69,7 @@ async def get_stream(
     return StreamResponse.model_validate(stream)
 
 
-@router.post("/{stream_id}/process", response_model=StreamProcessResponse)
+@router.post("/{stream_id}/process", response_model=StreamProcessResponse, status_code=status.HTTP_202_ACCEPTED)
 async def process_stream(
     stream_id: UUID,
     request: StreamProcessRequest,
@@ -78,7 +78,7 @@ async def process_stream(
     _=Depends(require_scope(APIScopes.STREAMS_WRITE)),
 ):
     """Start processing a stream."""
-    stream = await stream_repository.get_by_id(stream_id)
+    stream = await stream_repository.get(stream_id)
     
     if not stream or stream.organization_id != organization.id:
         raise HTTPException(

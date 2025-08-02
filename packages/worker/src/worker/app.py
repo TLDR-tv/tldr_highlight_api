@@ -1,7 +1,7 @@
 """Celery application configuration."""
 
 from celery import Celery
-from shared.infrastructure.config import get_settings
+from shared.infrastructure.config.config import get_settings
 
 settings = get_settings()
 

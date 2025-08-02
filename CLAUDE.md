@@ -2,66 +2,94 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Multipackage Repository Structure
+
+This is a uv workspace monorepo with three packages:
+- **packages/shared**: Core domain models, infrastructure, and shared utilities
+- **packages/api**: FastAPI application and HTTP endpoints
+- **packages/worker**: Celery workers for async processing
+
 ## Development Setup and Commands
 
 ### IMPORTANT: Always Use uv for Python
 **ALL Python commands must be run through uv. Never run Python or Python packages directly.**
 
-### Dependency Management with uv
+### Working with uv Workspaces
 ```bash
-# Install dependencies
-uv pip install -e .
+# Install all workspace dependencies
+uv sync
 
-# Add a new dependency
-uv pip install <package>
+# Run commands in specific package directories
+uv --directory packages/api run pytest
+uv --directory packages/worker run celery worker
 
-# Install development dependencies
-uv pip install -e ".[dev]"
+# Or navigate to package and run commands
+cd packages/api && uv run pytest
+```
+
+### Dependency Management
+```bash
+# Add dependency to specific package
+cd packages/api && uv add fastapi
+
+# Add dev dependency
+cd packages/shared && uv add --dev pytest
+
+# Sync all workspace dependencies
+uv sync
 ```
 
 ### Code Quality Tools
 ```bash
-# Format code with ruff (through uv)
+# Format code with ruff (from root)
 uv run ruff format .
 
-# Lint code with ruff (through uv)
+# Lint code with ruff
 uv run ruff check .
 uv run ruff check --fix .  # Auto-fix when possible
 
-# Type checking with mypy (through uv)
-uv run mypy src/
+# Type checking with mypy
+uv run mypy packages/
 ```
 
 ### Test-Driven Development
 This project follows TDD practices. Always write tests first before implementing features.
 
 ```bash
-# Run all tests (through uv)
+# Run all tests across workspace
 uv run pytest
 
-# Run a specific test file
-uv run pytest tests/unit/test_stream_processor.py
+# Run tests for specific package
+uv --directory packages/api run pytest
+uv --directory packages/worker run pytest
+uv --directory packages/shared run pytest
 
-# Run a specific test
-uv run pytest tests/unit/test_stream_processor.py::test_stream_creation
+# Run specific test file
+uv run pytest packages/api/tests/integration/test_stream_processing.py
 
 # Run tests with coverage
-uv run pytest --cov=src --cov-report=html
+uv run pytest --cov=packages --cov-report=html
 
 # Run tests in watch mode
 uv run pytest-watch
 ```
 
-### Running Python Scripts
+### Running Services
 ```bash
-# Run any Python script (through uv)
-uv run python script.py
-
-# Run the application
-uv run python -m src.api.main
-
 # Run FastAPI development server
-uv run uvicorn src.api.main:app --reload
+uv --directory packages/api run uvicorn api.main:app --reload
+
+# Run Celery worker
+uv --directory packages/worker run celery -A worker.app worker --loglevel=info
+
+# Run Celery beat scheduler
+uv --directory packages/worker run celery -A worker.app beat --loglevel=info
+
+# Run Redis (required for Celery)
+docker-compose up redis
+
+# Run all services with Docker Compose
+docker-compose up
 ```
 
 ## Pythonic Code Conventions

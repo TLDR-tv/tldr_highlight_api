@@ -12,7 +12,7 @@ from worker.services.ffmpeg_processor import FFmpegProcessor
 from worker.services.segment_buffer import SegmentBuffer
 from shared.infrastructure.storage.repositories import StreamRepository, HighlightRepository
 from shared.infrastructure.database.database import Database
-from shared.infrastructure.config import get_settings
+from shared.infrastructure.config.config import get_settings
 from shared.domain.models.stream import StreamStatus
 
 logger = get_logger()

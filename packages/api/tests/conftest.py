@@ -9,6 +9,7 @@ import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from testcontainers.postgres import PostgresContainer
+from testcontainers.redis import RedisContainer
 
 from api.main import app
 from api.dependencies import get_session, get_settings_dep
@@ -36,8 +37,19 @@ def postgres_container():
     container.stop()
 
 
+@pytest.fixture(scope="session")
+def redis_container():
+    """Create Redis container for testing."""
+    container = RedisContainer("redis:7-alpine")
+    container.start()
+    
+    yield container
+    
+    container.stop()
+
+
 @pytest.fixture
-def test_settings(postgres_container) -> Settings:
+def test_settings(postgres_container, redis_container) -> Settings:
     """Test settings with overrides."""
     # Get PostgreSQL connection URL and convert to async
     postgres_url = postgres_container.get_connection_url()
@@ -47,10 +59,15 @@ def test_settings(postgres_container) -> Settings:
     elif "postgresql://" in postgres_url:
         postgres_url = postgres_url.replace("postgresql://", "postgresql+asyncpg://")
 
+    # Get Redis connection URL
+    redis_host = redis_container.get_container_host_ip()
+    redis_port = redis_container.get_exposed_port(6379)
+    redis_url = f"redis://{redis_host}:{redis_port}/0"
+    
     return Settings(
         environment="test",
         database_url=postgres_url,
-        redis_url="redis://localhost:6379/15",  # Use test database
+        redis_url=redis_url,
         jwt_secret_key="test_secret_key_for_testing_only",
         jwt_expiry_seconds=3600,
         cors_origins=["http://testserver"],
