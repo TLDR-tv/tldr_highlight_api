@@ -4,33 +4,17 @@ version = "0.1.0"
 description = "Enterprise B2B API for AI-powered highlight extraction from livestreams and video content"
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = [
-    "fastapi[all]>=0.115.0",
-    "uvicorn[standard]>=0.32.0",
-    "pydantic>=2.9.0",
-    "pydantic-settings>=2.6.0",
-    "sqlalchemy>=2.0.36",
-    "asyncpg>=0.30.0",
-    "psycopg2-binary>=2.9.0",
-    "alembic>=1.14.0",
-    "redis>=5.2.0",
-    "celery[redis]>=5.4.0",
-    "httpx>=0.28.0",
-    "boto3>=1.35.0",
-    "python-multipart>=0.0.18",
-    "python-jose[cryptography]>=3.3.0",
-    "passlib[bcrypt]>=1.7.4",
-    "tenacity>=9.0.0",
-    "structlog>=24.4.0",
-    "logfire>=2.0.0",  # Pydantic Logfire for observability
-    # AI and content processing
-    "google-genai>=1.0.0", # Google GenAI SDK for Gemini
-    "pillow>=10.0.0",  # For thumbnails
-    "ffmpeg-python>=0.2.0",
-    "aiofiles>=23.0.0",
-    # Security
-    "cryptography>=44.0.0",
+dependencies = []
+
+[tool.uv.workspace]
+members = [
+    "packages/shared",
+    "packages/api", 
+    "packages/worker"
 ]
+
+[tool.uv.sources]
+shared = { workspace = true }
 
 [project.optional-dependencies]
 dev = [

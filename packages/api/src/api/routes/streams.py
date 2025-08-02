@@ -1,0 +1,112 @@
+"""Stream management endpoints."""
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from uuid import UUID
+from typing import Optional
+
+from ..dependencies import (
+    get_current_organization,
+    require_scope,
+    get_stream_repository,
+    get_organization_repository,
+)
+from ..schemas.streams import (
+    StreamCreateRequest,
+    StreamProcessRequest,
+    StreamResponse,
+    StreamListResponse,
+    StreamProcessResponse,
+    StreamTaskStatusResponse,
+)
+from shared.domain.models.api_key import APIScopes
+from shared.domain.models.stream import Stream, StreamStatus
+from shared.domain.models.organization import Organization
+from shared.infrastructure.storage.repositories import StreamRepository
+from ..celery_client import celery_app
+
+router = APIRouter()
+
+
+@router.post("/", response_model=StreamResponse)
+async def create_stream(
+    request: StreamCreateRequest,
+    organization: Organization = Depends(get_current_organization),
+    stream_repository: StreamRepository = Depends(get_stream_repository),
+    _=Depends(require_scope(APIScopes.STREAMS_WRITE)),
+):
+    """Create a new stream for processing."""
+    # Create stream record
+    stream = Stream(
+        organization_id=organization.id,
+        url=request.url,
+        name=request.name or f"Stream {request.url[:50]}",
+        type=request.type,
+        status=StreamStatus.PENDING,
+        metadata=request.metadata or {},
+    )
+    
+    await stream_repository.create(stream)
+    
+    return StreamResponse.model_validate(stream)
+
+
+@router.get("/{stream_id}", response_model=StreamResponse)
+async def get_stream(
+    stream_id: UUID,
+    organization: Organization = Depends(get_current_organization),
+    stream_repository: StreamRepository = Depends(get_stream_repository),
+    _=Depends(require_scope(APIScopes.STREAMS_READ)),
+):
+    """Get stream details."""
+    stream = await stream_repository.get_by_id(stream_id)
+    
+    if not stream or stream.organization_id != organization.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Stream not found",
+        )
+    
+    return StreamResponse.model_validate(stream)
+
+
+@router.post("/{stream_id}/process", response_model=StreamProcessResponse)
+async def process_stream(
+    stream_id: UUID,
+    request: StreamProcessRequest,
+    organization: Organization = Depends(get_current_organization),
+    stream_repository: StreamRepository = Depends(get_stream_repository),
+    _=Depends(require_scope(APIScopes.STREAMS_WRITE)),
+):
+    """Start processing a stream."""
+    stream = await stream_repository.get_by_id(stream_id)
+    
+    if not stream or stream.organization_id != organization.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Stream not found",
+        )
+    
+    if stream.status == StreamStatus.PROCESSING:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Stream is already being processed",
+        )
+    
+    # Queue processing task using send_task
+    task = celery_app.send_task(
+        "process_stream",
+        args=[str(stream_id)],
+        kwargs={"processing_options": {}},  # Empty for now, will add incrementally
+    )
+    
+    # Update stream with task ID
+    stream.celery_task_id = task.id
+    stream.status = StreamStatus.QUEUED
+    await stream_repository.update(stream)
+    
+    return StreamProcessResponse(
+        stream_id=stream_id,
+        task_id=task.id,
+        status="queued",
+        message="Stream processing has been queued",
+    )

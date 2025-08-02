@@ -1,0 +1,22 @@
+[project]
+name = "worker"
+version = "0.1.0"
+description = "Celery worker for stream processing and highlight detection"
+requires-python = ">=3.13"
+dependencies = [
+    "shared",
+    "celery[redis]>=5.4.0",
+    "ffmpeg-python>=0.2.0",
+    "google-genai>=0.8.0",
+    "pillow>=10.0.0",
+    "aiofiles>=23.0.0",
+    "numpy>=1.26.0",
+    "opencv-python>=4.10.0",
+]
+
+[tool.uv.sources]
+shared = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

@@ -75,6 +75,68 @@ services:
     networks:
       - tldr_network
 
+  celery_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: worker
+    container_name: tldr_celery_worker
+    command: uv run --package worker celery -A worker.app worker --loglevel=info --concurrency=2
+    environment:
+      DATABASE_URL: postgresql+asyncpg://tldr_user:tldr_password@postgres:5432/tldr_highlights
+      REDIS_URL: redis://:tldr_redis_password@redis:6379/0
+      AWS_ENDPOINT_URL: http://minio:9000
+      AWS_ACCESS_KEY_ID: tldr_minio_admin
+      AWS_SECRET_ACCESS_KEY: tldr_minio_password
+      S3_BUCKET_NAME: tldr-highlights
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    volumes:
+      - ./packages:/app/packages
+    networks:
+      - tldr_network
+
+  celery_beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: worker
+    container_name: tldr_celery_beat
+    command: uv run --package worker celery -A worker.app beat --loglevel=info
+    environment:
+      DATABASE_URL: postgresql+asyncpg://tldr_user:tldr_password@postgres:5432/tldr_highlights
+      REDIS_URL: redis://:tldr_redis_password@redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./packages:/app/packages
+    networks:
+      - tldr_network
+
+  flower:
+    image: mher/flower:2.0
+    container_name: tldr_flower
+    command: celery flower --broker=redis://:tldr_redis_password@redis:6379/0 --port=5555
+    environment:
+      CELERY_BROKER_URL: redis://:tldr_redis_password@redis:6379/0
+      CELERY_RESULT_BACKEND: redis://:tldr_redis_password@redis:6379/0
+    ports:
+      - "5556:5555"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - tldr_network
+
 volumes:
   postgres_data:
   redis_data:
