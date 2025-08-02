@@ -44,7 +44,7 @@ from .api_key import (
 __all__ = [
     # Highlights
     "HighlightResponse",
-    "HighlightListResponse", 
+    "HighlightListResponse",
     "StreamHighlightResponse",
     "StreamHighlightListResponse",
     "DimensionScoreResponse",

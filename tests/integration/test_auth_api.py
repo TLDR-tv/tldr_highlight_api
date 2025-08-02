@@ -6,13 +6,16 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.domain.models.user import UserRole
-from src.infrastructure.storage.repositories import UserRepository, OrganizationRepository
+from src.infrastructure.storage.repositories import (
+    UserRepository,
+    OrganizationRepository,
+)
 from tests.factories import create_test_organization, create_test_user
 
 
 class TestRegistration:
     """Test organization registration endpoint."""
-    
+
     @pytest.mark.asyncio
     async def test_register_organization_success(
         self,
@@ -29,27 +32,27 @@ class TestRegistration:
                 "owner_password": "SecurePass123!",
             },
         )
-        
+
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
-        
+
         assert data["message"] == "Organization registered successfully"
         assert data["organization"]["name"] == "Test Company"
         assert data["user"]["email"] == "admin@testcompany.com"
         assert data["user"]["name"] == "Admin User"
         assert data["user"]["role"] == UserRole.ADMIN.value
-        
+
         # Verify in database
         org_repo = OrganizationRepository(db_session)
         user_repo = UserRepository(db_session)
-        
+
         org = await org_repo.get_by_slug("test-company")
         assert org is not None
-        
+
         user = await user_repo.get_by_email("admin@testcompany.com")
         assert user is not None
         assert user.organization_id == org.id
-    
+
     @pytest.mark.asyncio
     async def test_register_with_webhook_url(
         self,
@@ -66,11 +69,11 @@ class TestRegistration:
                 "owner_password": "SecurePass123!",
             },
         )
-        
+
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["organization"]["webhook_url"] == "https://example.com/webhook"
-    
+
     @pytest.mark.asyncio
     async def test_register_duplicate_email(
         self,
@@ -80,17 +83,14 @@ class TestRegistration:
         """Test registration with duplicate email."""
         # Create existing user
         org = create_test_organization()
-        user, _ = create_test_user(
-            organization_id=org.id,
-            email="existing@test.com"
-        )
-        
+        user, _ = create_test_user(organization_id=org.id, email="existing@test.com")
+
         org_repo = OrganizationRepository(db_session)
         user_repo = UserRepository(db_session)
         await org_repo.create(org)
         await user_repo.create(user)
         await db_session.commit()
-        
+
         # Try to register with same email
         response = await client.post(
             "/api/v1/auth/register",
@@ -101,10 +101,10 @@ class TestRegistration:
                 "owner_password": "SecurePass123!",
             },
         )
-        
+
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "already exists" in response.json()["detail"]
-    
+
     @pytest.mark.asyncio
     async def test_register_invalid_password(
         self,
@@ -120,9 +120,9 @@ class TestRegistration:
                 "owner_password": "short",  # Too short
             },
         )
-        
+
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
-    
+
     @pytest.mark.asyncio
     async def test_register_invalid_webhook_url(
         self,
@@ -139,14 +139,14 @@ class TestRegistration:
                 "owner_password": "SecurePass123!",
             },
         )
-        
+
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
         assert "Webhook URL must start with" in response.json()["detail"][0]["msg"]
 
 
 class TestLogin:
     """Test user login endpoint."""
-    
+
     @pytest.mark.asyncio
     async def test_login_success(
         self,
@@ -157,17 +157,15 @@ class TestLogin:
         # Create test user
         org = create_test_organization()
         user, password = create_test_user(
-            organization_id=org.id,
-            email="test@example.com",
-            password="TestPass123!"
+            organization_id=org.id, email="test@example.com", password="TestPass123!"
         )
-        
+
         org_repo = OrganizationRepository(db_session)
         user_repo = UserRepository(db_session)
         await org_repo.create(org)
         await user_repo.create(user)
         await db_session.commit()
-        
+
         # Login
         response = await client.post(
             "/api/v1/auth/login",
@@ -176,18 +174,18 @@ class TestLogin:
                 "password": "TestPass123!",
             },
         )
-        
+
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
-        
+
         assert "access_token" in data
         assert "refresh_token" in data
         assert data["token_type"] == "Bearer"
         assert data["expires_in"] == 3600
-        
+
         # Check cookie
         assert "refresh_token" in response.cookies
-    
+
     @pytest.mark.asyncio
     async def test_login_incorrect_password(
         self,
@@ -200,15 +198,15 @@ class TestLogin:
         user, _ = create_test_user(
             organization_id=org.id,
             email="test@example.com",
-            password="CorrectPassword123!"
+            password="CorrectPassword123!",
         )
-        
+
         org_repo = OrganizationRepository(db_session)
         user_repo = UserRepository(db_session)
         await org_repo.create(org)
         await user_repo.create(user)
         await db_session.commit()
-        
+
         # Login with wrong password
         response = await client.post(
             "/api/v1/auth/login",
@@ -217,10 +215,10 @@ class TestLogin:
                 "password": "WrongPassword123!",
             },
         )
-        
+
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
         assert response.json()["detail"] == "Invalid email or password"
-    
+
     @pytest.mark.asyncio
     async def test_login_nonexistent_user(
         self,
@@ -234,10 +232,10 @@ class TestLogin:
                 "password": "AnyPassword123!",
             },
         )
-        
+
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
         assert response.json()["detail"] == "Invalid email or password"
-    
+
     @pytest.mark.asyncio
     async def test_login_deactivated_user(
         self,
@@ -251,15 +249,15 @@ class TestLogin:
             organization_id=org.id,
             email="deactivated@example.com",
             password="TestPass123!",
-            is_active=False
+            is_active=False,
         )
-        
+
         org_repo = OrganizationRepository(db_session)
         user_repo = UserRepository(db_session)
         await org_repo.create(org)
         await user_repo.create(user)
         await db_session.commit()
-        
+
         # Try to login
         response = await client.post(
             "/api/v1/auth/login",
@@ -268,13 +266,13 @@ class TestLogin:
                 "password": "TestPass123!",
             },
         )
-        
+
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
 
 class TestTokenRefresh:
     """Test token refresh endpoint."""
-    
+
     @pytest.mark.asyncio
     async def test_refresh_token_success(
         self,
@@ -285,17 +283,15 @@ class TestTokenRefresh:
         # Create and login user
         org = create_test_organization()
         user, password = create_test_user(
-            organization_id=org.id,
-            email="test@example.com",
-            password="TestPass123!"
+            organization_id=org.id, email="test@example.com", password="TestPass123!"
         )
-        
+
         org_repo = OrganizationRepository(db_session)
         user_repo = UserRepository(db_session)
         await org_repo.create(org)
         await user_repo.create(user)
         await db_session.commit()
-        
+
         # Login to get tokens
         login_response = await client.post(
             "/api/v1/auth/login",
@@ -304,13 +300,14 @@ class TestTokenRefresh:
                 "password": "TestPass123!",
             },
         )
-        
+
         tokens = login_response.json()
-        
+
         # Wait a moment to ensure different timestamp
         import asyncio
+
         await asyncio.sleep(0.1)
-        
+
         # Refresh token
         response = await client.post(
             "/api/v1/auth/refresh",
@@ -318,20 +315,20 @@ class TestTokenRefresh:
                 "refresh_token": tokens["refresh_token"],
             },
         )
-        
+
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
-        
+
         assert "access_token" in data
         assert "refresh_token" in data
         # Note: JWT timestamps are in seconds, so tokens may be identical if created within same second
         # Just ensure we got valid tokens back
         assert len(data["access_token"]) > 50  # Valid JWT token
         assert len(data["refresh_token"]) > 50  # Valid JWT token
-        
+
         # Check cookie updated
         assert "refresh_token" in response.cookies
-    
+
     @pytest.mark.asyncio
     async def test_refresh_invalid_token(
         self,
@@ -344,14 +341,14 @@ class TestTokenRefresh:
                 "refresh_token": "invalid-token",
             },
         )
-        
+
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
         assert response.json()["detail"] == "Invalid refresh token"
 
 
 class TestPasswordReset:
     """Test password reset endpoints."""
-    
+
     @pytest.mark.asyncio
     async def test_request_password_reset(
         self,
@@ -361,17 +358,14 @@ class TestPasswordReset:
         """Test password reset request."""
         # Create test user
         org = create_test_organization()
-        user, _ = create_test_user(
-            organization_id=org.id,
-            email="test@example.com"
-        )
-        
+        user, _ = create_test_user(organization_id=org.id, email="test@example.com")
+
         org_repo = OrganizationRepository(db_session)
         user_repo = UserRepository(db_session)
         await org_repo.create(org)
         await user_repo.create(user)
         await db_session.commit()
-        
+
         # Request reset
         response = await client.post(
             "/api/v1/auth/forgot-password",
@@ -379,12 +373,12 @@ class TestPasswordReset:
                 "email": "test@example.com",
             },
         )
-        
+
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["message"] == "Password reset email sent"
         assert "reset_token" in data  # In dev mode
-    
+
     @pytest.mark.asyncio
     async def test_request_password_reset_nonexistent_user(
         self,
@@ -397,13 +391,13 @@ class TestPasswordReset:
                 "email": "nonexistent@example.com",
             },
         )
-        
+
         # Always returns success to prevent email enumeration
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["message"] == "Password reset email sent"
         assert "reset_token" not in data
-    
+
     @pytest.mark.asyncio
     async def test_reset_password_with_token(
         self,
@@ -414,17 +408,15 @@ class TestPasswordReset:
         # Create test user
         org = create_test_organization()
         user, old_password = create_test_user(
-            organization_id=org.id,
-            email="test@example.com",
-            password="OldPassword123!"
+            organization_id=org.id, email="test@example.com", password="OldPassword123!"
         )
-        
+
         org_repo = OrganizationRepository(db_session)
         user_repo = UserRepository(db_session)
         await org_repo.create(org)
         await user_repo.create(user)
         await db_session.commit()
-        
+
         # Request reset token
         reset_response = await client.post(
             "/api/v1/auth/forgot-password",
@@ -432,9 +424,9 @@ class TestPasswordReset:
                 "email": "test@example.com",
             },
         )
-        
+
         reset_token = reset_response.json()["reset_token"]
-        
+
         # Reset password
         response = await client.post(
             "/api/v1/auth/reset-password",
@@ -443,10 +435,10 @@ class TestPasswordReset:
                 "new_password": "NewPassword123!",
             },
         )
-        
+
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["message"] == "Password reset successfully"
-        
+
         # Verify can login with new password
         login_response = await client.post(
             "/api/v1/auth/login",
@@ -455,9 +447,9 @@ class TestPasswordReset:
                 "password": "NewPassword123!",
             },
         )
-        
+
         assert login_response.status_code == status.HTTP_200_OK
-    
+
     @pytest.mark.asyncio
     async def test_reset_password_invalid_token(
         self,
@@ -471,9 +463,9 @@ class TestPasswordReset:
                 "new_password": "NewPassword123!",
             },
         )
-        
+
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-    
+
     @pytest.mark.asyncio
     async def test_reset_password_weak_password(
         self,
@@ -483,17 +475,14 @@ class TestPasswordReset:
         """Test password reset with weak password."""
         # Create test user
         org = create_test_organization()
-        user, _ = create_test_user(
-            organization_id=org.id,
-            email="test@example.com"
-        )
-        
+        user, _ = create_test_user(organization_id=org.id, email="test@example.com")
+
         org_repo = OrganizationRepository(db_session)
         user_repo = UserRepository(db_session)
         await org_repo.create(org)
         await user_repo.create(user)
         await db_session.commit()
-        
+
         # Request reset token
         reset_response = await client.post(
             "/api/v1/auth/forgot-password",
@@ -501,9 +490,9 @@ class TestPasswordReset:
                 "email": "test@example.com",
             },
         )
-        
+
         reset_token = reset_response.json()["reset_token"]
-        
+
         # Try to reset with weak password
         response = await client.post(
             "/api/v1/auth/reset-password",
@@ -512,13 +501,13 @@ class TestPasswordReset:
                 "new_password": "weak",  # Too short
             },
         )
-        
+
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
 
 class TestLogout:
     """Test logout endpoint."""
-    
+
     @pytest.mark.asyncio
     async def test_logout(
         self,
@@ -526,9 +515,9 @@ class TestLogout:
     ):
         """Test logout clears refresh token cookie."""
         response = await client.post("/api/v1/auth/logout")
-        
+
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["message"] == "Logged out successfully"
-        
+
         # Check cookie is deleted
         assert response.cookies.get("refresh_token") is None

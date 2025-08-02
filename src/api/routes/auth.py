@@ -28,8 +28,6 @@ router = APIRouter()
 security = HTTPBearer(auto_error=False)
 
 
-
-
 @router.post("/register", response_model=RegisterOrganizationResponse)
 async def register_organization(
     request: RegisterOrganizationRequest,
@@ -44,7 +42,7 @@ async def register_organization(
             owner_password=request.owner_password,
             webhook_url=request.webhook_url,
         )
-        
+
         return RegisterOrganizationResponse(
             message="Organization registered successfully",
             organization=OrganizationResponse.model_validate(org).model_dump(),
@@ -69,13 +67,13 @@ async def login(
         email=request.email,
         password=request.password,
     )
-    
+
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
         )
-    
+
     # Set refresh token as httpOnly cookie
     response.set_cookie(
         key="refresh_token",
@@ -85,7 +83,7 @@ async def login(
         samesite="lax",
         max_age=86400 * 7,  # 7 days
     )
-    
+
     return TokenResponse(
         access_token=access_token,
         refresh_token=refresh_token,
@@ -104,13 +102,13 @@ async def refresh_tokens(
     new_access_token, new_refresh_token = await user_service.refresh_tokens(
         refresh_token=request.refresh_token,
     )
-    
+
     if not new_access_token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid refresh token",
         )
-    
+
     # Update refresh token cookie
     response.set_cookie(
         key="refresh_token",
@@ -120,7 +118,7 @@ async def refresh_tokens(
         samesite="lax",
         max_age=86400 * 7,  # 7 days
     )
-    
+
     return TokenResponse(
         access_token=new_access_token,
         refresh_token=new_refresh_token,
@@ -135,7 +133,10 @@ async def logout(response: Response):
     return MessageResponse(message="Logged out successfully")
 
 
-@router.post("/forgot-password", response_model=Union[PasswordResetResponse, PasswordResetWithTokenResponse])
+@router.post(
+    "/forgot-password",
+    response_model=Union[PasswordResetResponse, PasswordResetWithTokenResponse],
+)
 async def forgot_password(
     request: PasswordResetRequest,
     user_service: UserService = Depends(get_user_service),
@@ -143,7 +144,7 @@ async def forgot_password(
     """Request password reset."""
     # Always return success to prevent email enumeration
     reset_token = await user_service.request_password_reset(email=request.email)
-    
+
     # In a real system, send email with reset token
     # For development, we'll return it in the response
     if reset_token:
@@ -151,7 +152,7 @@ async def forgot_password(
             message="Password reset email sent",
             reset_token=reset_token,  # Remove this in production!
         )
-    
+
     return PasswordResetResponse(message="Password reset email sent")
 
 
@@ -166,10 +167,10 @@ async def reset_password(
             token=request.token,
             new_password=request.new_password,
         )
-        
+
         if success:
             return MessageResponse(message="Password reset successfully")
-        
+
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Failed to reset password",

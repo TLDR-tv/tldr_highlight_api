@@ -35,9 +35,9 @@ def postgres_container():
     """Create PostgreSQL container for testing."""
     container = PostgresContainer("postgres:16-alpine")
     container.start()
-    
+
     yield container
-    
+
     container.stop()
 
 
@@ -48,10 +48,14 @@ def test_settings(postgres_container) -> Settings:
     postgres_url = postgres_container.get_connection_url()
     # Replace both possible formats
     if "postgresql+psycopg2://" in postgres_url:
-        async_postgres_url = postgres_url.replace("postgresql+psycopg2://", "postgresql+asyncpg://")
+        async_postgres_url = postgres_url.replace(
+            "postgresql+psycopg2://", "postgresql+asyncpg://"
+        )
     else:
-        async_postgres_url = postgres_url.replace("postgresql://", "postgresql+asyncpg://")
-    
+        async_postgres_url = postgres_url.replace(
+            "postgresql://", "postgresql+asyncpg://"
+        )
+
     return Settings(
         environment="test",
         database_url=async_postgres_url,
@@ -76,23 +80,23 @@ async def test_db(test_settings):
         test_settings.database_url,
         echo=False,
     )
-    
+
     # Create all tables
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    
+
     # Create session factory
     async_session_maker = async_sessionmaker(
         engine,
         expire_on_commit=False,
     )
-    
+
     yield async_session_maker
-    
+
     # Clean up - drop all tables
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
-    
+
     await engine.dispose()
 
 
@@ -114,22 +118,23 @@ async def test_session(db_session) -> AsyncGenerator[AsyncSession, None]:
 @pytest_asyncio.fixture
 async def client(test_db, test_settings) -> AsyncGenerator[AsyncClient, None]:
     """Create test client with database override."""
+
     # Override dependencies
     async def override_get_session():
         async with test_db() as session:
             yield session
-    
+
     def override_get_settings():
         return test_settings
-    
+
     app.dependency_overrides[get_session] = override_get_session
     app.dependency_overrides[get_settings_dep] = override_get_settings
-    
+
     # Create client
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
-    
+
     # Clean up
     app.dependency_overrides.clear()
 
@@ -144,25 +149,32 @@ async def async_client(client) -> AsyncGenerator[AsyncClient, None]:
 @pytest.fixture
 def auth_headers():
     """Helper to create authorization headers."""
+
     def _auth_headers(token: str) -> dict[str, str]:
         return {"Authorization": f"Bearer {token}"}
+
     return _auth_headers
 
 
 @pytest.fixture
 def api_key_headers():
     """Helper to create API key headers."""
+
     def _api_key_headers(api_key: str) -> dict[str, str]:
         return {"X-API-Key": api_key}
+
     return _api_key_headers
 
 
 @pytest_asyncio.fixture
 async def create_auth_token(client: AsyncClient, db_session: AsyncSession):
     """Helper to create authenticated user and return token."""
-    from src.infrastructure.storage.repositories import OrganizationRepository, UserRepository
+    from src.infrastructure.storage.repositories import (
+        OrganizationRepository,
+        UserRepository,
+    )
     from tests.factories import create_test_organization, create_test_user
-    
+
     async def _create_auth_token(
         email: str = "test@example.com",
         password: str = "TestPass123!",
@@ -178,20 +190,20 @@ async def create_auth_token(client: AsyncClient, db_session: AsyncSession):
             password=password,
             role=role,
         )
-        
+
         org_repo = OrganizationRepository(db_session)
         user_repo = UserRepository(db_session)
         await org_repo.create(org)
         await user_repo.create(user)
         await db_session.commit()
-        
+
         # Login
         response = await client.post(
             "/api/v1/auth/login",
             json={"email": email, "password": password},
         )
         token = response.json()["access_token"]
-        
+
         return token, user.id, org.id
-    
+
     return _create_auth_token

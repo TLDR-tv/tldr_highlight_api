@@ -26,7 +26,7 @@ class BufferStats:
 
 class SegmentRingBuffer:
     """Thread-safe ring buffer for video segments.
-    
+
     Maintains a fixed-size buffer of video segments, automatically
     removing old segments when the buffer is full.
     """
@@ -53,7 +53,7 @@ class SegmentRingBuffer:
         async with self._lock:
             if self._closed:
                 raise RuntimeError("Buffer is closed")
-            
+
             # Check if buffer is full
             if len(self._buffer) >= self.max_size:
                 dropped = self._buffer[0]
@@ -62,22 +62,24 @@ class SegmentRingBuffer:
                     f"to make room for {segment.segment_number}"
                 )
                 self._stats.dropped_segments += 1
-            
+
             # Add segment
             self._buffer.append(segment)
             self._stats.total_segments += 1
             self._stats.current_size = len(self._buffer)
             self._stats.total_bytes += segment.size_bytes
-            
+
             # Notify waiters
             self._new_segment_event.set()
-            
+
             logger.debug(
                 f"Added segment {segment.segment_number} to buffer "
                 f"(size: {len(self._buffer)}/{self.max_size})"
             )
 
-    async def get_segment(self, timeout: Optional[float] = None) -> Optional[StreamSegment]:
+    async def get_segment(
+        self, timeout: Optional[float] = None
+    ) -> Optional[StreamSegment]:
         """Get the oldest segment from the buffer.
 
         Args:
@@ -87,21 +89,23 @@ class SegmentRingBuffer:
             Oldest segment or None if buffer is empty/closed
         """
         end_time = asyncio.get_event_loop().time() + timeout if timeout else None
-        
+
         while True:
             async with self._lock:
                 if self._buffer:
                     segment = self._buffer.popleft()
                     self._stats.current_size = len(self._buffer)
-                    logger.debug(f"Retrieved segment {segment.segment_number} from buffer")
+                    logger.debug(
+                        f"Retrieved segment {segment.segment_number} from buffer"
+                    )
                     return segment
-                
+
                 if self._closed:
                     return None
-                
+
                 # Clear event for next wait
                 self._new_segment_event.clear()
-            
+
             # Wait for new segment
             try:
                 remaining = None
@@ -109,10 +113,9 @@ class SegmentRingBuffer:
                     remaining = end_time - asyncio.get_event_loop().time()
                     if remaining <= 0:
                         return None
-                
+
                 await asyncio.wait_for(
-                    self._new_segment_event.wait(),
-                    timeout=remaining
+                    self._new_segment_event.wait(), timeout=remaining
                 )
             except asyncio.TimeoutError:
                 return None
@@ -205,7 +208,7 @@ class SegmentFileManager:
         self.max_segments = max_segments
         self._segment_paths: Deque[Path] = deque(maxlen=max_segments)
         self._lock = asyncio.Lock()
-        
+
         # Ensure directory exists
         self.storage_dir.mkdir(parents=True, exist_ok=True)
 
@@ -222,24 +225,24 @@ class SegmentFileManager:
             # Generate storage path
             filename = f"stream_{segment.segment_id}_{segment.segment_number:05d}.mp4"
             storage_path = self.storage_dir / filename
-            
+
             # Copy segment to storage
             if segment.path != storage_path:
                 # Use async file operations
                 await asyncio.to_thread(self._copy_file, segment.path, storage_path)
-            
+
             # Track path
             if len(self._segment_paths) >= self.max_segments:
                 # Remove oldest segment
                 old_path = self._segment_paths[0]
                 await self._delete_file(old_path)
                 logger.debug(f"Deleted old segment: {old_path}")
-            
+
             self._segment_paths.append(storage_path)
-            
+
             # Update segment path
             segment.path = storage_path
-            
+
             return storage_path
 
     async def cleanup_segment(self, segment: StreamSegment) -> None:
@@ -251,7 +254,7 @@ class SegmentFileManager:
         async with self._lock:
             if segment.path in self._segment_paths:
                 self._segment_paths.remove(segment.path)
-            
+
             await self._delete_file(segment.path)
 
     async def cleanup_all(self) -> None:
@@ -265,6 +268,7 @@ class SegmentFileManager:
     def _copy_file(src: Path, dst: Path) -> None:
         """Copy file (sync operation for thread)."""
         import shutil
+
         shutil.copy2(str(src), str(dst))
 
     @staticmethod

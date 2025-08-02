@@ -23,7 +23,7 @@ __all__ = [
     "SegmentHandler",
     # Buffer management
     "ProcessingQueue",
-    "SegmentFileManager", 
+    "SegmentFileManager",
     "SegmentRingBuffer",
     "BufferStats",
 ]

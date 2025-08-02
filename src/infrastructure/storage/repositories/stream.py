@@ -38,13 +38,13 @@ class StreamRepository:
             error_message=entity.error_message,
             retry_count=entity.retry_count,
         )
-        
+
         self.session.add(model)
         await self.session.commit()
         await self.session.refresh(model)
-        
+
         return self._to_entity(model)
-    
+
     # Alias for compatibility with tests
     async def create(self, entity: Stream) -> Stream:
         """Create new stream (alias for add)."""
@@ -90,7 +90,7 @@ class StreamRepository:
     async def list(self, **filters) -> list[Stream]:
         """List streams with optional filters."""
         return []
-    
+
     def _to_entity(self, model: StreamModel) -> Stream:
         """Convert model to entity."""
         return Stream(

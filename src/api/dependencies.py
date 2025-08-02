@@ -114,6 +114,7 @@ def get_highlight_service(
 ) -> "HighlightService":
     """Get highlight service."""
     from ..application.services.highlight_service import HighlightService
+
     return HighlightService(highlight_repository)
 
 
@@ -125,18 +126,21 @@ def get_user_service(
     from ..application.services.user_service import UserService
     from ..infrastructure.security.password_service import PasswordService
     from ..infrastructure.security.jwt_service import JWTService
-    
+
     password_service = PasswordService()
     jwt_service = JWTService(settings)
     return UserService(user_repository, password_service, jwt_service)
 
 
 def get_organization_service(
-    organization_repository: OrganizationRepository = Depends(get_organization_repository),
+    organization_repository: OrganizationRepository = Depends(
+        get_organization_repository
+    ),
     user_service: "UserService" = Depends(get_user_service),
 ) -> "OrganizationService":
     """Get organization service."""
     from ..application.services.organization_service import OrganizationService
+
     return OrganizationService(organization_repository, user_service)
 
 
@@ -199,27 +203,30 @@ def require_scope(required_scope: str):
                 detail=f"API key missing required scope: {required_scope}",
             )
         return api_key
-    
+
     return check_scope
 
 
 # JWT authentication dependencies
-async def get_jwt_service(settings: Settings = Depends(get_settings_dep)) -> JWTURLSigner:
+async def get_jwt_service(
+    settings: Settings = Depends(get_settings_dep),
+) -> JWTURLSigner:
     """Get JWT service for user authentication."""
     from ..infrastructure.security.jwt_service import JWTService
+
     return JWTService(settings)
 
 
 # User authentication (for web interface)
 async def get_current_user(
     authorization: Annotated[Optional[str], Header()] = None,
-    jwt_service = Depends(get_jwt_service),
+    jwt_service=Depends(get_jwt_service),
     user_repository: UserRepository = Depends(get_user_repository),
 ) -> Optional[User]:
     """Get current authenticated user from JWT token."""
     if not authorization:
         return None
-    
+
     # Extract token from "Bearer <token>"
     try:
         scheme, token = authorization.split()
@@ -227,21 +234,21 @@ async def get_current_user(
             return None
     except ValueError:
         return None
-    
+
     # Verify token
     token_payload = jwt_service.verify_access_token(token)
     if not token_payload:
         return None
-    
+
     # Get user
     user_id = UUID(token_payload.sub)
     user = await user_repository.get(user_id)
-    
+
     # Set in context
     if user and user.is_active:
         current_user.set(user)
         return user
-    
+
     return None
 
 

@@ -43,7 +43,9 @@ class WakeWord:
         if not self.last_triggered_at:
             return True
 
-        time_since_last = (datetime.now(timezone.utc) - self.last_triggered_at).total_seconds()
+        time_since_last = (
+            datetime.now(timezone.utc) - self.last_triggered_at
+        ).total_seconds()
         return time_since_last >= self.cooldown_seconds
 
     def record_trigger(self) -> None:

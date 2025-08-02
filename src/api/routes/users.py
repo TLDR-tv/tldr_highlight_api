@@ -6,9 +6,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..dependencies import (
-    get_session, 
-    get_current_user, 
-    require_user, 
+    get_session,
+    get_current_user,
+    require_user,
     require_admin_user,
     get_user_service,
     get_user_repository,
@@ -26,8 +26,6 @@ from ...infrastructure.storage.repositories import UserRepository
 from ...domain.models.user import User
 
 router = APIRouter()
-
-
 
 
 @router.get("/me", response_model=UserResponse)
@@ -86,7 +84,7 @@ async def list_organization_users(
     user_service: UserService = Depends(get_user_service),
 ):
     """List all users in the organization (admin only)."""
-    
+
     users = await user_service.list_organization_users(current_user.organization_id)
     return UserListResponse(
         users=[UserResponse.model_validate(u) for u in users],
@@ -101,7 +99,7 @@ async def create_user(
     user_service: UserService = Depends(get_user_service),
 ):
     """Create a new user in the organization (admin only)."""
-    
+
     try:
         new_user = await user_service.create_user(
             organization_id=current_user.organization_id,
@@ -131,22 +129,22 @@ async def get_user(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Cannot view other users",
         )
-    
+
     user = await user_repository.get(user_id)
-    
+
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found",
         )
-    
+
     # Ensure user is from same organization
     if user.organization_id != current_user.organization_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User not found",
         )
-    
+
     return UserResponse.model_validate(user)
 
 
@@ -164,21 +162,21 @@ async def update_user(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Cannot update other users",
         )
-    
+
     try:
         updated_user = await user_service.update_profile(
             user_id=user_id,
             name=request.name,
             email=request.email,
         )
-        
+
         # Ensure user is from same organization
         if updated_user.organization_id != current_user.organization_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="User not found",
             )
-        
+
         return UserResponse.model_validate(updated_user)
     except ValueError as e:
         raise HTTPException(
@@ -195,7 +193,7 @@ async def update_user_role(
     user_service: UserService = Depends(get_user_service),
 ):
     """Update user role (admin only)."""
-    
+
     try:
         updated_user = await user_service.update_user_role(
             user_id=user_id,
@@ -217,7 +215,7 @@ async def deactivate_user(
     user_service: UserService = Depends(get_user_service),
 ):
     """Deactivate user (admin only)."""
-    
+
     try:
         success = await user_service.deactivate_user(
             user_id=user_id,

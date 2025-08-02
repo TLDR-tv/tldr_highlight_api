@@ -34,18 +34,25 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+    # Testing
     "pytest>=8.3.0",
     "pytest-asyncio>=0.25.0",
     "pytest-cov>=6.0.0",
     "pytest-mock>=3.14.0",
     "pytest-watch>=4.2.0",
+    # Code quality and formatting
     "ruff>=0.8.0",
     "mypy>=1.13.0",
+    "bandit>=1.7.0",
+    "safety>=3.0.0",
+    "radon>=6.0.0",
+    # Type stubs
     "types-redis>=4.6.0",
     "types-passlib>=1.7.7",
     "types-aiofiles>=24.0.0",
     "scipy-stubs>=1.16.0",
     "types-psutil>=6.1.0",
+    # Test utilities
     "factory-boy>=3.3.0",
     "faker>=33.0.0",
     "moto[s3]>=5.0.0",

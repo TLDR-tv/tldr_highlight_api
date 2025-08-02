@@ -33,9 +33,10 @@ class OrganizationRepository:
         )
 
         self.session.add(model)
-        
+
         # Add wake words as separate entities
         from ..models import WakeWordModel
+
         for word in entity.wake_words:
             wake_word = WakeWordModel(
                 organization_id=entity.id,
@@ -43,7 +44,7 @@ class OrganizationRepository:
                 is_active=True,
             )
             self.session.add(wake_word)
-        
+
         await self.session.commit()
         await self.session.refresh(model)
 
@@ -57,7 +58,7 @@ class OrganizationRepository:
     async def get(self, id: UUID) -> Optional[Organization]:
         """Get organization by ID."""
         from sqlalchemy.orm import selectinload
-        
+
         result = await self.session.execute(
             select(OrganizationModel)
             .where(OrganizationModel.id == id)
@@ -84,7 +85,7 @@ class OrganizationRepository:
         """Update existing organization."""
         from sqlalchemy.orm import selectinload
         from ..models import WakeWordModel
-        
+
         # Load organization with wake words eagerly
         result = await self.session.execute(
             select(OrganizationModel)
@@ -92,7 +93,7 @@ class OrganizationRepository:
             .options(selectinload(OrganizationModel.wake_word_configs))
         )
         model = result.scalar_one_or_none()
-        
+
         if not model:
             raise ValueError(f"Organization {entity.id} not found")
 
@@ -110,12 +111,14 @@ class OrganizationRepository:
         # Update wake words - only add/remove changed ones
         existing_words = {ww.word for ww in model.wake_word_configs if ww.is_active}
         new_words = entity.wake_words
-        
+
         # Remove words that are no longer in the set
-        for ww in model.wake_word_configs[:]:  # Use slice to avoid modifying during iteration
+        for ww in model.wake_word_configs[
+            :
+        ]:  # Use slice to avoid modifying during iteration
             if ww.word not in new_words:
                 model.wake_word_configs.remove(ww)
-        
+
         # Add new words that don't exist
         for word in new_words:
             if word not in existing_words:
@@ -156,9 +159,9 @@ class OrganizationRepository:
         # Extract wake words from relationship
         wake_words = set()
         # Only access wake_word_configs if it's already loaded
-        if 'wake_word_configs' in model.__dict__:
+        if "wake_word_configs" in model.__dict__:
             wake_words = {ww.word for ww in model.wake_word_configs if ww.is_active}
-        
+
         return Organization(
             id=model.id,
             name=model.name,

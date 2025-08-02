@@ -12,12 +12,16 @@ from src.infrastructure.storage.repositories import (
     OrganizationRepository,
     APIKeyRepository,
 )
-from tests.factories import create_test_organization, create_test_user, create_test_api_key
+from tests.factories import (
+    create_test_organization,
+    create_test_user,
+    create_test_api_key,
+)
 
 
 class TestOrganizationProfile:
     """Test organization profile endpoints."""
-    
+
     @pytest.mark.asyncio
     async def test_get_organization_user_auth(
         self,
@@ -29,34 +33,33 @@ class TestOrganizationProfile:
         # Create organization and user
         org = create_test_organization(name="Test Corp")
         user, password = create_test_user(
-            organization_id=org.id,
-            email="user@testcorp.com"
+            organization_id=org.id, email="user@testcorp.com"
         )
-        
+
         org_repo = OrganizationRepository(test_session)
         user_repo = UserRepository(test_session)
         await org_repo.create(org)
         await user_repo.create(user)
         await test_session.commit()
-        
+
         # Login
         login_response = await async_client.post(
             "/api/v1/auth/login",
             json={"email": "user@testcorp.com", "password": password},
         )
         token = login_response.json()["access_token"]
-        
+
         # Get organization
         response = await async_client.get(
             "/api/v1/organizations/current",
             headers=auth_headers(token),
         )
-        
+
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["name"] == "Test Corp"
         assert data["id"] == str(org.id)
-    
+
     @pytest.mark.asyncio
     async def test_get_organization_api_key_auth(
         self,
@@ -68,27 +71,26 @@ class TestOrganizationProfile:
         # Create organization and API key
         org = create_test_organization(name="API Corp")
         api_key, raw_key = create_test_api_key(
-            organization_id=org.id,
-            scopes={APIScopes.ORG_READ}
+            organization_id=org.id, scopes={APIScopes.ORG_READ}
         )
-        
+
         org_repo = OrganizationRepository(test_session)
         api_key_repo = APIKeyRepository(test_session)
         await org_repo.create(org)
         await api_key_repo.create(api_key)
         await test_session.commit()
-        
+
         # Get organization with API key
         response = await async_client.get(
             "/api/v1/organizations/me",
             headers=api_key_headers(raw_key),
         )
-        
+
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["name"] == "API Corp"
         assert data["id"] == str(org.id)
-    
+
     @pytest.mark.asyncio
     async def test_update_organization(
         self,
@@ -99,28 +101,25 @@ class TestOrganizationProfile:
         """Test updating organization details."""
         # Create organization and admin
         org = create_test_organization(
-            name="Old Name",
-            webhook_url="https://old.webhook.com"
+            name="Old Name", webhook_url="https://old.webhook.com"
         )
         admin, password = create_test_user(
-            organization_id=org.id,
-            email="admin@example.com",
-            role=UserRole.ADMIN
+            organization_id=org.id, email="admin@example.com", role=UserRole.ADMIN
         )
-        
+
         org_repo = OrganizationRepository(test_session)
         user_repo = UserRepository(test_session)
         await org_repo.create(org)
         await user_repo.create(admin)
         await test_session.commit()
-        
+
         # Login as admin
         login_response = await async_client.post(
             "/api/v1/auth/login",
             json={"email": "admin@example.com", "password": password},
         )
         token = login_response.json()["access_token"]
-        
+
         # Update organization
         response = await async_client.put(
             "/api/v1/organizations/current",
@@ -130,12 +129,12 @@ class TestOrganizationProfile:
                 "webhook_url": "https://new.webhook.com",
             },
         )
-        
+
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["name"] == "New Name"
         assert data["webhook_url"] == "https://new.webhook.com"
-    
+
     @pytest.mark.asyncio
     async def test_update_organization_non_admin_forbidden(
         self,
@@ -147,37 +146,35 @@ class TestOrganizationProfile:
         # Create organization and member
         org = create_test_organization()
         member, password = create_test_user(
-            organization_id=org.id,
-            email="member@example.com",
-            role=UserRole.MEMBER
+            organization_id=org.id, email="member@example.com", role=UserRole.MEMBER
         )
-        
+
         org_repo = OrganizationRepository(test_session)
         user_repo = UserRepository(test_session)
         await org_repo.create(org)
         await user_repo.create(member)
         await test_session.commit()
-        
+
         # Login as member
         login_response = await async_client.post(
             "/api/v1/auth/login",
             json={"email": "member@example.com", "password": password},
         )
         token = login_response.json()["access_token"]
-        
+
         # Try to update organization
         response = await async_client.put(
             "/api/v1/organizations/current",
             headers=auth_headers(token),
             json={"name": "New Name"},
         )
-        
+
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
 
 class TestWebhookManagement:
     """Test webhook configuration endpoints."""
-    
+
     @pytest.mark.asyncio
     async def test_configure_webhook(
         self,
@@ -189,35 +186,33 @@ class TestWebhookManagement:
         # Create organization and admin
         org = create_test_organization(webhook_url=None)
         admin, password = create_test_user(
-            organization_id=org.id,
-            email="admin@example.com",
-            role=UserRole.ADMIN
+            organization_id=org.id, email="admin@example.com", role=UserRole.ADMIN
         )
-        
+
         org_repo = OrganizationRepository(test_session)
         user_repo = UserRepository(test_session)
         await org_repo.create(org)
         await user_repo.create(admin)
         await test_session.commit()
-        
+
         # Login as admin
         login_response = await async_client.post(
             "/api/v1/auth/login",
             json={"email": "admin@example.com", "password": password},
         )
         token = login_response.json()["access_token"]
-        
+
         # Configure webhook
         response = await async_client.put(
             "/api/v1/organizations/current/webhook",
             headers=auth_headers(token),
             params={"webhook_url": "https://example.com/webhook"},
         )
-        
+
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["webhook_url"] == "https://example.com/webhook"
-    
+
     @pytest.mark.asyncio
     async def test_regenerate_webhook_secret(
         self,
@@ -228,34 +223,31 @@ class TestWebhookManagement:
         """Test regenerating webhook secret."""
         # Create organization with webhook
         org = create_test_organization(
-            webhook_url="https://example.com/webhook",
-            webhook_secret="old-secret"
+            webhook_url="https://example.com/webhook", webhook_secret="old-secret"
         )
         admin, password = create_test_user(
-            organization_id=org.id,
-            email="admin@example.com",
-            role=UserRole.ADMIN
+            organization_id=org.id, email="admin@example.com", role=UserRole.ADMIN
         )
-        
+
         org_repo = OrganizationRepository(test_session)
         user_repo = UserRepository(test_session)
         await org_repo.create(org)
         await user_repo.create(admin)
         await test_session.commit()
-        
+
         # Login as admin
         login_response = await async_client.post(
             "/api/v1/auth/login",
             json={"email": "admin@example.com", "password": password},
         )
         token = login_response.json()["access_token"]
-        
+
         # Regenerate secret
         response = await async_client.post(
             "/api/v1/organizations/current/webhook/secret",
             headers=auth_headers(token),
         )
-        
+
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert "webhook_secret" in data
@@ -265,7 +257,7 @@ class TestWebhookManagement:
 
 class TestWakeWordManagement:
     """Test wake word management endpoints."""
-    
+
     @pytest.mark.asyncio
     async def test_add_wake_word(
         self,
@@ -277,35 +269,33 @@ class TestWakeWordManagement:
         # Create organization and admin
         org = create_test_organization(wake_words=set())
         admin, password = create_test_user(
-            organization_id=org.id,
-            email="admin@example.com",
-            role=UserRole.ADMIN
+            organization_id=org.id, email="admin@example.com", role=UserRole.ADMIN
         )
-        
+
         org_repo = OrganizationRepository(test_session)
         user_repo = UserRepository(test_session)
         await org_repo.create(org)
         await user_repo.create(admin)
         await test_session.commit()
-        
+
         # Login as admin
         login_response = await async_client.post(
             "/api/v1/auth/login",
             json={"email": "admin@example.com", "password": password},
         )
         token = login_response.json()["access_token"]
-        
+
         # Add wake word
         response = await async_client.post(
             "/api/v1/organizations/current/wake-words",
             headers=auth_headers(token),
             json={"wake_word": "custom_trigger"},
         )
-        
+
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert "custom_trigger" in data["wake_words"]
-    
+
     @pytest.mark.asyncio
     async def test_add_duplicate_wake_word(
         self,
@@ -317,41 +307,39 @@ class TestWakeWordManagement:
         # Create organization without wake words first
         org = create_test_organization(wake_words=set())
         admin, password = create_test_user(
-            organization_id=org.id,
-            email="admin@example.com",
-            role=UserRole.ADMIN
+            organization_id=org.id, email="admin@example.com", role=UserRole.ADMIN
         )
-        
+
         org_repo = OrganizationRepository(test_session)
         user_repo = UserRepository(test_session)
         await org_repo.create(org)
         await user_repo.create(admin)
         await test_session.commit()
-        
+
         # Login
         login_response = await async_client.post(
             "/api/v1/auth/login",
             json={"email": "admin@example.com", "password": password},
         )
         token = login_response.json()["access_token"]
-        
+
         # Add a wake word first
         await async_client.post(
             "/api/v1/organizations/current/wake-words",
             headers=auth_headers(token),
             json={"wake_word": "existing_word"},
         )
-        
+
         # Try to add duplicate
         response = await async_client.post(
             "/api/v1/organizations/current/wake-words",
             headers=auth_headers(token),
             json={"wake_word": "existing_word"},
         )
-        
+
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "already exists" in response.json()["detail"]
-    
+
     @pytest.mark.asyncio
     async def test_remove_wake_word(
         self,
@@ -363,24 +351,22 @@ class TestWakeWordManagement:
         # Create organization without wake words
         org = create_test_organization(wake_words=set())
         admin, password = create_test_user(
-            organization_id=org.id,
-            email="admin@example.com",
-            role=UserRole.ADMIN
+            organization_id=org.id, email="admin@example.com", role=UserRole.ADMIN
         )
-        
+
         org_repo = OrganizationRepository(test_session)
         user_repo = UserRepository(test_session)
         await org_repo.create(org)
         await user_repo.create(admin)
         await test_session.commit()
-        
+
         # Login
         login_response = await async_client.post(
             "/api/v1/auth/login",
             json={"email": "admin@example.com", "password": password},
         )
         token = login_response.json()["access_token"]
-        
+
         # Add wake words first
         await async_client.post(
             "/api/v1/organizations/current/wake-words",
@@ -392,13 +378,13 @@ class TestWakeWordManagement:
             headers=auth_headers(token),
             json={"wake_word": "word2"},
         )
-        
+
         # Remove wake word
         response = await async_client.delete(
             "/api/v1/organizations/current/wake-words/word1",
             headers=auth_headers(token),
         )
-        
+
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert "word1" not in data["wake_words"]
@@ -407,7 +393,7 @@ class TestWakeWordManagement:
 
 class TestUsageAndAPIKeys:
     """Test usage statistics and API key management."""
-    
+
     @pytest.mark.asyncio
     async def test_get_usage_statistics(
         self,
@@ -419,32 +405,31 @@ class TestUsageAndAPIKeys:
         # Create organization and user
         org = create_test_organization()
         user, password = create_test_user(
-            organization_id=org.id,
-            email="user@example.com"
+            organization_id=org.id, email="user@example.com"
         )
-        
+
         org_repo = OrganizationRepository(test_session)
         user_repo = UserRepository(test_session)
         await org_repo.create(org)
         await user_repo.create(user)
         await test_session.commit()
-        
+
         # Login
         login_response = await async_client.post(
             "/api/v1/auth/login",
             json={"email": "user@example.com", "password": password},
         )
         token = login_response.json()["access_token"]
-        
+
         # Get usage stats
         response = await async_client.get(
             "/api/v1/organizations/current/usage",
             headers=auth_headers(token),
         )
-        
+
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
-        
+
         # Check expected fields
         assert "total_streams_processed" in data
         assert "total_highlights_generated" in data
@@ -452,7 +437,7 @@ class TestUsageAndAPIKeys:
         assert "total_processing_hours" in data
         assert "avg_highlights_per_stream" in data
         assert "avg_processing_seconds_per_stream" in data
-    
+
     @pytest.mark.asyncio
     async def test_list_api_keys(
         self,
@@ -464,53 +449,49 @@ class TestUsageAndAPIKeys:
         # Create organization with API keys
         org = create_test_organization()
         admin, password = create_test_user(
-            organization_id=org.id,
-            email="admin@example.com",
-            role=UserRole.ADMIN
+            organization_id=org.id, email="admin@example.com", role=UserRole.ADMIN
         )
-        
+
         # Create multiple API keys
         api_key1, raw_key1 = create_test_api_key(
-            organization_id=org.id,
-            name="Production Key"
+            organization_id=org.id, name="Production Key"
         )
         api_key2, raw_key2 = create_test_api_key(
-            organization_id=org.id,
-            name="Development Key"
+            organization_id=org.id, name="Development Key"
         )
-        
+
         org_repo = OrganizationRepository(test_session)
         user_repo = UserRepository(test_session)
         api_key_repo = APIKeyRepository(test_session)
-        
+
         await org_repo.create(org)
         await user_repo.create(admin)
         await api_key_repo.create(api_key1)
         await api_key_repo.create(api_key2)
         await test_session.commit()
-        
+
         # Login as admin
         login_response = await async_client.post(
             "/api/v1/auth/login",
             json={"email": "admin@example.com", "password": password},
         )
         token = login_response.json()["access_token"]
-        
+
         # List API keys
         response = await async_client.get(
             "/api/v1/organizations/current/api-keys",
             headers=auth_headers(token),
         )
-        
+
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
-        
+
         assert data["total"] == 2
         assert len(data["api_keys"]) == 2
         names = [key["name"] for key in data["api_keys"]]
         assert "Production Key" in names
         assert "Development Key" in names
-        
+
         # Check API key structure
         for key in data["api_keys"]:
             assert "id" in key
@@ -520,7 +501,7 @@ class TestUsageAndAPIKeys:
             assert "created_at" in key
             assert "is_active" in key
             assert "key" not in key  # Full key should not be exposed
-    
+
     @pytest.mark.asyncio
     async def test_list_users_in_organization(
         self,
@@ -530,21 +511,14 @@ class TestUsageAndAPIKeys:
     ):
         """Test listing users in organization via organization endpoint."""
         org = create_test_organization()
-        
+
         # Create multiple users
         user1, password = create_test_user(
-            organization_id=org.id,
-            email="user1@example.com"
+            organization_id=org.id, email="user1@example.com"
         )
-        user2, _ = create_test_user(
-            organization_id=org.id,
-            email="user2@example.com"
-        )
-        user3, _ = create_test_user(
-            organization_id=org.id,
-            email="user3@example.com"
-        )
-        
+        user2, _ = create_test_user(organization_id=org.id, email="user2@example.com")
+        user3, _ = create_test_user(organization_id=org.id, email="user3@example.com")
+
         org_repo = OrganizationRepository(test_session)
         user_repo = UserRepository(test_session)
         await org_repo.create(org)
@@ -552,23 +526,23 @@ class TestUsageAndAPIKeys:
         await user_repo.create(user2)
         await user_repo.create(user3)
         await test_session.commit()
-        
+
         # Login
         login_response = await async_client.post(
             "/api/v1/auth/login",
             json={"email": "user1@example.com", "password": password},
         )
         token = login_response.json()["access_token"]
-        
+
         # List users
         response = await async_client.get(
             "/api/v1/organizations/current/users",
             headers=auth_headers(token),
         )
-        
+
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
-        
+
         assert data["total"] == 3
         emails = [u["email"] for u in data["users"]]
         assert "user1@example.com" in emails
@@ -578,7 +552,7 @@ class TestUsageAndAPIKeys:
 
 class TestAPIKeyScopes:
     """Test API key scope requirements."""
-    
+
     @pytest.mark.asyncio
     async def test_api_key_insufficient_scope(
         self,
@@ -591,20 +565,20 @@ class TestAPIKeyScopes:
         org = create_test_organization()
         api_key, raw_key = create_test_api_key(
             organization_id=org.id,
-            scopes={APIScopes.STREAMS_READ}  # No ORG_READ scope
+            scopes={APIScopes.STREAMS_READ},  # No ORG_READ scope
         )
-        
+
         org_repo = OrganizationRepository(test_session)
         api_key_repo = APIKeyRepository(test_session)
         await org_repo.create(org)
         await api_key_repo.create(api_key)
         await test_session.commit()
-        
+
         # Try to get organization (requires ORG_READ)
         response = await async_client.get(
             "/api/v1/organizations/me",
             headers=api_key_headers(raw_key),
         )
-        
+
         assert response.status_code == status.HTTP_403_FORBIDDEN
         assert "scope" in response.json()["detail"].lower()

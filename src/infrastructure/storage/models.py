@@ -44,9 +44,16 @@ class OrganizationModel(Base):
     webhook_secret = Column(String(255), nullable=True)
 
     # Timestamps
-    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
     updated_at = Column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
     )
 
     # Relationships
@@ -82,9 +89,16 @@ class UserModel(Base):
     hashed_password = Column(String(255), nullable=False)
 
     # Timestamps
-    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
     updated_at = Column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
     )
     last_login_at = Column(DateTime(timezone=True), nullable=True)
 
@@ -129,9 +143,16 @@ class StreamModel(Base):
     retry_count = Column(Integer, default=0, nullable=False)
 
     # Timestamps
-    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
     updated_at = Column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
     )
 
     # Relationships
@@ -165,7 +186,9 @@ class HighlightModel(Base):
     # Content
     title = Column(String(500), nullable=False)
     description = Column(Text, nullable=True)
-    tags = Column(JSON, default=list, nullable=False)  # Use JSON for SQLite compatibility
+    tags = Column(
+        JSON, default=list, nullable=False
+    )  # Use JSON for SQLite compatibility
 
     # Scoring (stored as JSON for flexibility)
     dimension_scores = Column(JSON, default=dict, nullable=False)
@@ -181,9 +204,16 @@ class HighlightModel(Base):
     wake_word_detected = Column(String(255), nullable=True)
 
     # Timestamps
-    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
     updated_at = Column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
     )
 
     # Relationships
@@ -210,7 +240,9 @@ class APIKeyModel(Base):
     prefix = Column(String(50), unique=True, nullable=False, index=True)
 
     # Permissions
-    scopes = Column(JSON, default=list, nullable=False)  # Use JSON for SQLite compatibility
+    scopes = Column(
+        JSON, default=list, nullable=False
+    )  # Use JSON for SQLite compatibility
 
     # Usage tracking
     last_used_at = Column(DateTime(timezone=True), nullable=True)
@@ -226,7 +258,11 @@ class APIKeyModel(Base):
     description = Column(Text, nullable=True)
 
     # Timestamps
-    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
 
     # Relationships
     organization = relationship("OrganizationModel", back_populates="api_keys")
@@ -259,9 +295,16 @@ class WakeWordModel(Base):
     last_triggered_at = Column(DateTime(timezone=True), nullable=True)
 
     # Timestamps
-    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
     updated_at = Column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
     )
 
     # Relationships
@@ -297,7 +340,12 @@ class UsageRecordModel(Base):
     usage_metadata = Column("metadata", JSON, default=dict, nullable=False)
 
     # Timestamp
-    recorded_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False, index=True)
+    recorded_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+        index=True,
+    )
 
     __table_args__ = (
         Index("idx_usage_org_time", "organization_id", "recorded_at"),

@@ -37,8 +37,6 @@ from ...infrastructure.storage.repositories import (
 router = APIRouter()
 
 
-
-
 # API key authenticated endpoints
 @router.get("/me", response_model=OrganizationResponse)
 async def get_current_org(
@@ -57,13 +55,13 @@ async def get_current_org_for_user(
 ):
     """Get current organization details (user auth)."""
     org = await org_repository.get(current_user.organization_id)
-    
+
     if not org:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Organization not found",
         )
-    
+
     return OrganizationResponse.model_validate(org)
 
 
@@ -149,7 +147,7 @@ async def list_organization_users(
 ):
     """List all users in the organization."""
     users = await user_repository.list_by_organization(current_user.organization_id)
-    
+
     return UserListResponse(
         users=[UserResponse.model_validate(u) for u in users],
         total=len(users),
@@ -203,7 +201,7 @@ async def list_api_keys(
 ):
     """List all API keys for the organization (admin only)."""
     keys = await api_key_repository.list_by_organization(current_user.organization_id)
-    
+
     api_key_responses = [
         APIKeyResponse(
             id=key.id,
@@ -216,7 +214,7 @@ async def list_api_keys(
         )
         for key in keys
     ]
-    
+
     return APIKeyListResponse(
         api_keys=api_key_responses,
         total=len(keys),
