@@ -8,17 +8,25 @@ from uuid import UUID, uuid4
 
 @dataclass
 class WakeWord:
-    """Custom wake word configuration."""
+    """Custom wake word configuration supporting multi-word phrases."""
 
     id: UUID = field(default_factory=uuid4)
     organization_id: UUID = field(default_factory=uuid4)
-    word: str = ""
+    phrase: str = ""  # Can be single word or multi-word phrase
     is_active: bool = True
 
     # Configuration
     case_sensitive: bool = False
     exact_match: bool = True  # If false, allows partial matches
     cooldown_seconds: int = 30  # Minimum time between triggers
+    
+    # Fuzzy matching configuration
+    max_edit_distance: int = 2  # Maximum Levenshtein-Damerau distance
+    similarity_threshold: float = 0.8  # Minimum similarity score (0.0-1.0)
+    
+    # Clip configuration
+    pre_roll_seconds: int = 10  # Seconds before wake word to include
+    post_roll_seconds: int = 30  # Seconds after wake word to include
 
     # Usage tracking
     trigger_count: int = 0
@@ -29,10 +37,10 @@ class WakeWord:
     updated_at: datetime = field(default_factory=datetime.utcnow)
 
     def __post_init__(self) -> None:
-        """Normalize wake word."""
+        """Normalize wake phrase."""
         if not self.case_sensitive:
-            self.word = self.word.lower()
-        self.word = self.word.strip()
+            self.phrase = self.phrase.lower()
+        self.phrase = self.phrase.strip()
 
     @property
     def can_trigger(self) -> bool:
@@ -54,15 +62,15 @@ class WakeWord:
         self.last_triggered_at = datetime.now(timezone.utc)
 
     def matches(self, text: str) -> bool:
-        """Check if text contains this wake word."""
+        """Check if text contains this wake phrase."""
         if not self.case_sensitive:
             text = text.lower()
 
         if self.exact_match:
-            # Look for word boundaries
+            # Look for phrase boundaries
             import re
 
-            pattern = rf"\b{re.escape(self.word)}\b"
+            pattern = rf"\b{re.escape(self.phrase)}\b"
             return bool(re.search(pattern, text))
         else:
-            return self.word in text
+            return self.phrase in text

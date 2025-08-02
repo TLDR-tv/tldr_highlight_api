@@ -10,6 +10,7 @@ from structlog import get_logger
 from worker.app import celery_app
 from worker.services.ffmpeg_processor import FFmpegProcessor
 from worker.services.segment_buffer import SegmentBuffer
+from worker.tasks.wake_word_detection import detect_wake_words_task
 from shared.infrastructure.storage.repositories import StreamRepository, HighlightRepository
 from shared.infrastructure.database.database import Database
 from shared.infrastructure.config.config import get_settings
@@ -130,41 +131,87 @@ async def _process_stream_async(
                 task_id=task_id,
             )
         
-        # Initialize processors
-        ffmpeg_processor = FFmpegProcessor()
-        segment_buffer = SegmentBuffer(max_size=10)
+        # Create temporary directory for processing
+        from tempfile import TemporaryDirectory
+        from pathlib import Path
+        from worker.services.ffmpeg_processor import FFmpegConfig
         
-        # Process stream segments
-        processed_count = 0
-        async for segment in ffmpeg_processor.process_stream(
-            stream.url,
-            segment_duration=processing_options.get("segment_duration", 30),
-        ):
-            # Add to buffer for context
-            segment_buffer.add(segment)
+        with TemporaryDirectory() as temp_dir:
+            output_dir = Path(temp_dir)
             
-            # Queue highlight detection for this segment
-            detect_highlights_task.delay(
-                stream_id=stream_id,
-                segment_data={
-                    "id": segment.id,
-                    "start_time": segment.start_time,
-                    "end_time": segment.end_time,
-                    "video_path": segment.video_path,
-                    "audio_path": segment.audio_path,
-                },
-                processing_options=processing_options,
-                context_segments=[s.to_dict() for s in segment_buffer.get_context()],
+            # Configure FFmpeg processor
+            config = FFmpegConfig(
+                segment_duration=processing_options.get("video_segment_duration", 120),
+                audio_segment_duration=processing_options.get("audio_segment_duration", 30),
+                audio_overlap=processing_options.get("audio_overlap", 5),
             )
             
-            processed_count += 1
+            # Initialize processors with context manager
+            ffmpeg_processor = FFmpegProcessor(
+                stream_url=stream.url,
+                output_dir=output_dir,
+                config=config,
+            )
+            segment_buffer = SegmentBuffer(max_size=10)
             
-            # Update progress periodically
-            if processed_count % 10 == 0:
-                celery_app.send_task(
-                    "worker.tasks.webhook_delivery.send_progress_update",
-                    args=[stream_id, processed_count],
-                )
+            # Process stream segments
+            processed_count = 0
+            async with ffmpeg_processor:
+                # Simple segment handler
+                class SegmentHandler:
+                    async def handle_segment(self, segment):
+                        pass
+                
+                handler = SegmentHandler()
+                
+                async for segment in ffmpeg_processor.process_stream(handler):
+                    # Add to buffer for context
+                    segment_buffer.add(segment)
+                    
+                    # Queue highlight detection for video segment
+                    detect_highlights_task.delay(
+                        stream_id=stream_id,
+                        segment_data={
+                            "id": str(segment.segment_id),
+                            "start_time": segment.start_time,
+                            "end_time": segment.start_time + segment.duration,
+                            "video_path": str(segment.path),
+                            "audio_chunks": [
+                                {
+                                    "id": str(chunk.chunk_id),
+                                    "path": str(chunk.path),
+                                    "start_time": chunk.start_time,
+                                    "end_time": chunk.end_time,
+                                }
+                                for chunk in segment.audio_chunks
+                            ],
+                        },
+                        processing_options=processing_options,
+                        context_segments=[s.to_dict() for s in segment_buffer.get_context()],
+                    )
+                    
+                    # Also queue wake word detection for audio chunks
+                    for chunk in segment.audio_chunks:
+                        detect_wake_words_task.delay(
+                            stream_id=stream_id,
+                            audio_chunk={
+                                "id": str(chunk.chunk_id),
+                                "path": str(chunk.path),
+                                "start_time": chunk.start_time,
+                                "end_time": chunk.end_time,
+                                "video_segment_number": segment.segment_number,
+                            },
+                            organization_id=str(stream.organization_id),
+                        )
+                    
+                    processed_count += 1
+                    
+                    # Update progress periodically
+                    if processed_count % 10 == 0:
+                        celery_app.send_task(
+                            "worker.tasks.webhook_delivery.send_progress_update",
+                            args=[stream_id, processed_count],
+                        )
         
         logger.info(
             "Stream processing completed",

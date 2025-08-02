@@ -11,7 +11,7 @@ import time
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import AsyncIterator, Optional, Protocol
+from typing import AsyncIterator, Optional, Protocol, List
 from uuid import UUID
 
 logger = logging.getLogger(__name__)
@@ -39,7 +39,9 @@ class FFmpegConfig:
     rtsp_transport: str = "tcp"
 
     # Output settings
-    segment_duration: int = 120  # 2 minutes as specified
+    segment_duration: int = 120  # 2 minutes for video segments
+    audio_segment_duration: int = 30  # 30 seconds for audio chunks
+    audio_overlap: int = 5  # 5 seconds overlap for wake word detection
     force_keyframes: bool = True
     keyframe_interval: int = 2  # seconds
 
@@ -50,6 +52,12 @@ class FFmpegConfig:
 
     # Audio settings
     audio_codec: str = "copy"
+    audio_sample_rate: int = 16000  # 16kHz for WhisperX
+    audio_channels: int = 1  # Mono for WhisperX
+
+    # Ring buffer settings for memory efficiency
+    video_ring_buffer_size: int = 10  # Keep last 10 video segments
+    audio_ring_buffer_size: int = 50  # Keep last 50 audio chunks
 
     # Performance settings
     threads: int = 0  # auto-detect
@@ -72,6 +80,33 @@ class StreamSegment:
     size_bytes: int
     is_complete: bool = False
     error: Optional[str] = None
+    # Associated audio chunks for this video segment
+    audio_chunks: list["AudioChunk"] = None
+    
+    def __post_init__(self):
+        if self.audio_chunks is None:
+            self.audio_chunks = []
+
+
+@dataclass
+class AudioChunk:
+    """Represents an audio chunk for transcription."""
+    
+    chunk_id: UUID
+    path: Path
+    start_time: float
+    end_time: float
+    duration: float
+    chunk_number: int
+    size_bytes: int
+    is_complete: bool = False
+    error: Optional[str] = None
+    # Which video segments this audio chunk overlaps with
+    overlapping_segments: list[int] = None
+    
+    def __post_init__(self):
+        if self.overlapping_segments is None:
+            self.overlapping_segments = []
 
 
 class SegmentHandler(Protocol):
@@ -82,7 +117,7 @@ class SegmentHandler(Protocol):
         ...
 
 
-class FFmpegStreamProcessor:
+class FFmpegProcessor:
     """Robust FFmpeg stream processor with error recovery."""
 
     def __init__(
@@ -107,11 +142,19 @@ class FFmpegStreamProcessor:
         self._process: Optional[subprocess.Popen] = None
         self._running = False
         self._segment_counter = 0
+        self._audio_chunk_counter = 0
         self._retry_count = 0
         self._last_error_time = 0.0
 
-        # Ensure output directory exists
-        self.output_dir.mkdir(parents=True, exist_ok=True)
+        # Create subdirectories
+        self.video_dir = self.output_dir / "video"
+        self.audio_dir = self.output_dir / "audio"
+        self.video_dir.mkdir(parents=True, exist_ok=True)
+        self.audio_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Ring buffers for segments
+        self._video_ring_buffer = []
+        self._audio_ring_buffer = []
 
     @property
     def format(self) -> StreamFormat:
@@ -256,7 +299,7 @@ class FFmpegStreamProcessor:
     def _build_ffmpeg_command(self) -> list[str]:
         """Build complete FFmpeg command."""
         # Segment file pattern
-        segment_pattern = str(self.output_dir / "segment_%05d.mp4")
+        segment_pattern = str(self.video_dir / "segment_%05d.mp4")
 
         # Build command
         cmd = ["ffmpeg", "-y"]  # overwrite output files
@@ -364,10 +407,113 @@ class FFmpegStreamProcessor:
                 logger.error(f"Stream processing error: {e}")
                 await self._handle_error(e)
 
+    async def _extract_audio_chunks(self, video_segment: StreamSegment) -> list[AudioChunk]:
+        """Extract overlapping audio chunks from a video segment."""
+        audio_chunks = []
+        segment_start = video_segment.start_time
+        segment_duration = video_segment.duration
+        
+        # Calculate audio chunk positions with overlap
+        chunk_start = segment_start
+        
+        while chunk_start < segment_start + segment_duration:
+            # Calculate chunk duration
+            chunk_duration = min(
+                self.config.audio_segment_duration,
+                (segment_start + segment_duration) - chunk_start
+            )
+            
+            # Skip if chunk is too short
+            if chunk_duration < 5:
+                break
+            
+            # Extract audio chunk
+            chunk = await self._extract_single_audio_chunk(
+                video_path=video_segment.path,
+                start_time=chunk_start - segment_start,  # Relative to video start
+                duration=chunk_duration,
+                chunk_number=self._audio_chunk_counter,
+                absolute_start_time=chunk_start,
+            )
+            
+            if chunk:
+                audio_chunks.append(chunk)
+                self._audio_chunk_counter += 1
+                
+                # Add to ring buffer and clean old chunks
+                self._audio_ring_buffer.append(chunk)
+                if len(self._audio_ring_buffer) > self.config.audio_ring_buffer_size:
+                    old_chunk = self._audio_ring_buffer.pop(0)
+                    try:
+                        old_chunk.path.unlink()
+                        logger.debug(f"Deleted old audio chunk: {old_chunk.path}")
+                    except Exception as e:
+                        logger.error(f"Failed to delete audio chunk: {e}")
+            
+            # Move to next chunk with overlap
+            chunk_start += self.config.audio_segment_duration - self.config.audio_overlap
+        
+        return audio_chunks
+    
+    async def _extract_single_audio_chunk(
+        self,
+        video_path: Path,
+        start_time: float,
+        duration: float,
+        chunk_number: int,
+        absolute_start_time: float,
+    ) -> Optional[AudioChunk]:
+        """Extract a single audio chunk from video."""
+        chunk_id = UUID(int=chunk_number)  # Deterministic UUID
+        output_path = self.audio_dir / f"chunk_{chunk_number:06d}.wav"
+        
+        # Use segment muxer with forced segment times for consistency
+        cmd = [
+            "ffmpeg", "-y",
+            "-ss", str(start_time),
+            "-t", str(duration),
+            "-i", str(video_path),
+            "-vn",  # No video
+            "-acodec", "pcm_s16le",  # 16-bit PCM for WhisperX
+            "-ar", str(self.config.audio_sample_rate),
+            "-ac", str(self.config.audio_channels),
+            str(output_path),
+        ]
+        
+        try:
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            
+            stdout, stderr = await process.communicate()
+            
+            if process.returncode == 0 and output_path.exists():
+                stats = output_path.stat()
+                if stats.st_size > 0:
+                    return AudioChunk(
+                        chunk_id=chunk_id,
+                        path=output_path,
+                        start_time=absolute_start_time,
+                        end_time=absolute_start_time + duration,
+                        duration=duration,
+                        chunk_number=chunk_number,
+                        size_bytes=stats.st_size,
+                        is_complete=True,
+                    )
+            
+            logger.error(f"Audio extraction failed: {stderr.decode()}")
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error extracting audio chunk: {e}")
+            return None
+
     async def _monitor_segments(self) -> AsyncIterator[StreamSegment]:
         """Monitor output directory for new segments using CSV file."""
         processed_segments = set()
-        csv_path = self.output_dir / "segments.csv"
+        csv_path = self.video_dir / "segments.csv"
         last_csv_size = 0
 
         while self._running and self._process and self._process.returncode is None:
@@ -386,7 +532,7 @@ class FFmpegStreamProcessor:
                             if filename in processed_segments:
                                 continue
 
-                            segment_file = self.output_dir / filename
+                            segment_file = self.video_dir / filename
 
                             # Wait for segment file to be complete
                             if (
@@ -396,6 +542,20 @@ class FFmpegStreamProcessor:
                                 segment = await self._create_segment_from_csv(
                                     segment_info, segment_file
                                 )
+                                
+                                # Extract audio chunks from this video segment
+                                segment.audio_chunks = await self._extract_audio_chunks(segment)
+                                
+                                # Add to ring buffer and clean old segments
+                                self._video_ring_buffer.append(segment)
+                                if len(self._video_ring_buffer) > self.config.video_ring_buffer_size:
+                                    old_segment = self._video_ring_buffer.pop(0)
+                                    try:
+                                        old_segment.path.unlink()
+                                        logger.debug(f"Deleted old video segment: {old_segment.path}")
+                                    except Exception as e:
+                                        logger.error(f"Failed to delete video segment: {e}")
+                                
                                 processed_segments.add(filename)
                                 yield segment
 
@@ -526,14 +686,37 @@ class FFmpegStreamProcessor:
         # Restart will be handled in main loop
         logger.info("Will attempt restart in next iteration")
 
-    def cleanup_old_segments(self, keep_count: int = 10) -> None:
-        """Clean up old segments, keeping only the most recent ones."""
-        segments = sorted(self.output_dir.glob("segment_*.mp4"))
-
-        if len(segments) > keep_count:
-            for segment in segments[:-keep_count]:
-                try:
-                    segment.unlink()
-                    logger.debug(f"Deleted old segment: {segment}")
-                except Exception as e:
-                    logger.error(f"Failed to delete segment {segment}: {e}")
+    def cleanup_all_segments(self) -> None:
+        """Clean up all segments when stopping the processor."""
+        # Clean video segments
+        for segment in self._video_ring_buffer:
+            try:
+                segment.path.unlink()
+                logger.debug(f"Deleted video segment: {segment.path}")
+            except Exception as e:
+                logger.error(f"Failed to delete video segment: {e}")
+        
+        # Clean audio chunks
+        for chunk in self._audio_ring_buffer:
+            try:
+                chunk.path.unlink()
+                logger.debug(f"Deleted audio chunk: {chunk.path}")
+            except Exception as e:
+                logger.error(f"Failed to delete audio chunk: {e}")
+        
+        # Clear ring buffers
+        self._video_ring_buffer.clear()
+        self._audio_ring_buffer.clear()
+    
+    async def __aenter__(self):
+        """Async context manager entry."""
+        await self.start()
+        return self
+    
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Async context manager exit with cleanup."""
+        try:
+            await self.stop()
+        finally:
+            # Always cleanup segments
+            self.cleanup_all_segments()

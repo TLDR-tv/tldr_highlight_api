@@ -282,13 +282,21 @@ class WakeWordModel(Base):
     organization_id = Column(
         UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False
     )
-    word = Column(String(255), nullable=False)
+    phrase = Column(String(500), nullable=False)  # Increased size for multi-word phrases
     is_active = Column(Boolean, default=True, nullable=False)
 
     # Configuration
     case_sensitive = Column(Boolean, default=False, nullable=False)
     exact_match = Column(Boolean, default=True, nullable=False)
     cooldown_seconds = Column(Integer, default=30, nullable=False)
+    
+    # Fuzzy matching configuration
+    max_edit_distance = Column(Integer, default=2, nullable=False)
+    similarity_threshold = Column(Float, default=0.8, nullable=False)
+    
+    # Clip configuration
+    pre_roll_seconds = Column(Integer, default=10, nullable=False)
+    post_roll_seconds = Column(Integer, default=30, nullable=False)
 
     # Usage tracking
     trigger_count = Column(Integer, default=0, nullable=False)
@@ -311,7 +319,7 @@ class WakeWordModel(Base):
     organization = relationship("OrganizationModel", back_populates="wake_word_configs")
 
     __table_args__ = (
-        UniqueConstraint("organization_id", "word", name="uq_org_wake_word"),
+        UniqueConstraint("organization_id", "phrase", name="uq_org_wake_phrase"),
         Index("idx_wake_word_active", "organization_id", "is_active"),
     )
 
