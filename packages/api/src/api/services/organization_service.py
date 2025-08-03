@@ -6,9 +6,9 @@ from typing import Optional
 from uuid import UUID
 import structlog
 
-from ...domain.models.organization import Organization
-from ...domain.models.user import UserRole
-from ...infrastructure.storage.repositories import OrganizationRepository
+from shared.domain.models.organization import Organization
+from shared.domain.models.user import UserRole
+from shared.infrastructure.storage.repositories import OrganizationRepository
 from .user_service import UserService
 
 logger = structlog.get_logger()

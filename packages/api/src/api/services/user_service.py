@@ -5,10 +5,10 @@ from typing import Optional
 from uuid import UUID
 import structlog
 
-from ...domain.models.user import User, UserRole
-from ...infrastructure.storage.repositories import UserRepository
-from ...infrastructure.security.password_service import PasswordService
-from ...infrastructure.security.jwt_service import JWTService
+from shared.domain.models.user import User, UserRole
+from shared.infrastructure.storage.repositories import UserRepository
+from .auth.password_service import PasswordService
+from .auth.jwt_service import JWTService
 
 logger = structlog.get_logger()
 

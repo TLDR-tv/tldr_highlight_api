@@ -6,9 +6,9 @@ from pathlib import Path
 from typing import Optional
 from uuid import UUID
 
-from ...domain.models.highlight import Highlight
-from ...domain.models.stream import Stream
-from ...domain.services.dimension_framework import (
+from shared.domain.models.highlight import Highlight
+from shared.domain.models.stream import Stream
+from worker.services.dimension_framework import (
     ScoringContext,
     ScoringRubric,
     ScoringStrategy,

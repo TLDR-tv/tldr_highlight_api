@@ -2,7 +2,7 @@
 
 import pytest
 
-from shared.infrastructure.security.password_service import PasswordService
+from api.services.auth.password_service import PasswordService
 
 
 @pytest.fixture

@@ -21,7 +21,7 @@ from ..schemas.user import (
     UserListResponse,
 )
 from ..schemas.auth import PasswordChangeRequest, MessageResponse
-from shared.application.services.user_service import UserService
+from api.services.user_service import UserService
 from shared.infrastructure.storage.repositories import UserRepository
 from shared.domain.models.user import User
 

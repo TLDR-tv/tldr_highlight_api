@@ -123,9 +123,9 @@ def get_user_service(
     settings: Settings = Depends(get_settings_dep),
 ) -> "UserService":
     """Get user service."""
-    from shared.application.services.user_service import UserService
-    from shared.infrastructure.security.password_service import PasswordService
-    from shared.infrastructure.security.jwt_service import JWTService
+    from api.services.user_service import UserService
+    from api.services.auth.password_service import PasswordService
+    from api.services.auth.jwt_service import JWTService
 
     password_service = PasswordService()
     jwt_service = JWTService(settings)
@@ -139,7 +139,7 @@ def get_organization_service(
     user_service: "UserService" = Depends(get_user_service),
 ) -> "OrganizationService":
     """Get organization service."""
-    from shared.application.services.organization_service import OrganizationService
+    from api.services.organization_service import OrganizationService
 
     return OrganizationService(organization_repository, user_service)
 
@@ -212,7 +212,7 @@ async def get_jwt_service(
     settings: Settings = Depends(get_settings_dep),
 ) -> JWTURLSigner:
     """Get JWT service for user authentication."""
-    from shared.infrastructure.security.jwt_service import JWTService
+    from api.services.auth.jwt_service import JWTService
 
     return JWTService(settings)
 

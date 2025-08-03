@@ -6,7 +6,7 @@ from uuid import UUID, uuid4
 import jwt
 from pydantic import BaseModel
 
-from ..config.config import Settings
+from shared.infrastructure.config.config import Settings
 
 
 class TokenPayload(BaseModel):

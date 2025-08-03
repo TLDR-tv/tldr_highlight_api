@@ -14,8 +14,8 @@ from shared.infrastructure.storage.repositories import (
 from shared.infrastructure.database.database import Database
 from shared.infrastructure.config import get_settings
 from shared.domain.models.highlight import Highlight, HighlightStatus
-from shared.application.services.highlight_detector import HighlightDetector
-from shared.infrastructure.gemini.scoring import GeminiScoringStrategy
+from worker.services.highlight_detector import HighlightDetector
+from worker.services.gemini_scoring import GeminiScoringStrategy
 
 logger = get_logger()
 

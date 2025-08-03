@@ -4,8 +4,8 @@ import pytest
 from datetime import datetime, timedelta, UTC
 from uuid import uuid4
 
-from shared.infrastructure.security.jwt_service import JWTService
-from shared.infrastructure.config import Settings
+from api.services.auth.jwt_service import JWTService
+from shared.infrastructure.config.config import Settings
 
 
 @pytest.fixture

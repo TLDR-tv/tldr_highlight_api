@@ -13,7 +13,7 @@ from shared.domain.models.user import User, UserRole
 from shared.domain.models.api_key import APIKey, APIScopes
 from shared.domain.models.stream import Stream, StreamStatus, StreamType, StreamSource
 from shared.domain.models.highlight import Highlight, DimensionScore
-from shared.infrastructure.security.password_service import PasswordService
+from api.services.auth.password_service import PasswordService
 
 fake = Faker()
 password_service = PasswordService()

@@ -27,7 +27,7 @@ from ..schemas.user import UserListResponse, UserResponse
 from ..schemas.api_key import APIKeyResponse, APIKeyListResponse
 from shared.domain.models.api_key import APIScopes
 from shared.domain.models.user import User
-from shared.application.services.organization_service import OrganizationService
+from api.services.organization_service import OrganizationService
 from shared.infrastructure.storage.repositories import (
     OrganizationRepository,
     UserRepository,

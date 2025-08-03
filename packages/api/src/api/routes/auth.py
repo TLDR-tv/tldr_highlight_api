@@ -23,8 +23,8 @@ from ..schemas.auth import (
 )
 from ..schemas.user import UserResponse
 from ..schemas.organization import OrganizationResponse
-from shared.application.services.user_service import UserService
-from shared.application.services.organization_service import OrganizationService
+from api.services.user_service import UserService
+from api.services.organization_service import OrganizationService
 from shared.infrastructure.config.config import Settings
 
 router = APIRouter()

@@ -68,7 +68,7 @@ async def test_stream(test_session, test_organization):
 async def test_admin_user(test_session, test_organization):
     """Create test admin user."""
     from shared.infrastructure.storage.repositories import UserRepository
-    from shared.infrastructure.security.password_service import PasswordService
+    from api.services.auth.password_service import PasswordService
     
     repo = UserRepository(test_session)
     password_service = PasswordService()
@@ -88,7 +88,7 @@ async def test_admin_user(test_session, test_organization):
 @pytest.fixture
 async def auth_token(test_admin_user, test_settings):
     """Create JWT auth token."""
-    from shared.infrastructure.security.jwt_service import JWTService
+    from api.services.auth.jwt_service import JWTService
     
     jwt_service = JWTService(test_settings)
     token = jwt_service.create_access_token(str(test_admin_user.id))
