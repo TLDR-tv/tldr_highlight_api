@@ -4,7 +4,9 @@ This file provides guidance to Claude Code when working with the shared package,
 
 ## Package Overview
 
-The `shared` package is the **core foundation** containing domain models, infrastructure components, and common utilities used across both API and worker packages. It implements clean architecture principles with clear separation between domain, application, and infrastructure layers.
+The `shared` package is the **core foundation** containing domain models, infrastructure components, and only truly shared utilities used across both API and worker packages. It implements clean architecture principles with clear separation between domain, application, and infrastructure layers.
+
+**Note**: Following recent refactoring, this package now contains only components that are genuinely shared between API and Worker packages. API-specific services (auth, user management) have been moved to the API package, and Worker-specific services (AI processing) have been moved to the Worker package.
 
 ## Working with This Package
 
@@ -54,9 +56,9 @@ When working with domain models and protocols:
 3. **Multi-tenancy** is enforced at the domain level - always include `organization_id` in queries
 
 ### Application Layer (`src/shared/application/`)
-Business logic and orchestration:
+Shared business logic only:
 
-1. **Services** orchestrate domain operations:
+1. **Shared Services** (currently only `highlight_service.py`):
    ```python
    class HighlightService:
        def __init__(self, repository: HighlightRepository):
@@ -70,6 +72,8 @@ Business logic and orchestration:
        stream_id: UUID
        dimension_scores: dict[str, float]
    ```
+
+**Note**: User and organization services have been moved to the API package where they belong.
 
 ### Infrastructure Layer (`src/shared/infrastructure/`)
 Technical implementations:
@@ -93,6 +97,12 @@ Technical implementations:
            Index("idx_highlights_org_created", "organization_id", "created_at"),
        )
    ```
+
+3. **Security Services** (only shared ones):
+   - `api_key_service.py` - API key management (used by both packages)
+   - `url_signer.py` - Secure URL signing (used by both packages)
+   
+**Note**: JWT and password services have been moved to the API package.
 
 ## Key Patterns to Follow
 
@@ -200,7 +210,13 @@ uv run pytest --cov=src/shared --cov-report=html
 ## Integration with Other Packages
 
 The shared package is imported by:
-- **API Package**: Uses services, schemas, and repositories
-- **Worker Package**: Uses domain models and infrastructure
+- **API Package**: Uses domain models, repositories, database config, and shared security services
+- **Worker Package**: Uses domain models, repositories, database config, and infrastructure components
+
+**What's Actually Shared**:
+- Domain models: `user`, `organization`, `stream`, `highlight`, `api_key`, `wake_word`
+- Infrastructure: Database configuration, repository implementations
+- Security: `api_key_service`, `url_signer` (both used by API and Worker)
+- Application: `highlight_service` (shared business logic)
 
 Ensure changes maintain backward compatibility or coordinate updates across packages.

@@ -5,9 +5,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Multipackage Repository Structure
 
 This is a uv workspace monorepo with three packages:
-- **packages/shared**: Core domain models, infrastructure, and shared utilities
-- **packages/api**: FastAPI application and HTTP endpoints
-- **packages/worker**: Celery workers for async processing
+- **packages/shared**: Core domain models, infrastructure components, and truly shared utilities
+- **packages/api**: FastAPI application, HTTP endpoints, and API-specific services (auth, user management)
+- **packages/worker**: Celery workers, async processing tasks, and worker-specific services (AI processing)
 
 ## Development Setup and Commands
 
@@ -212,6 +212,38 @@ The API is designed for easy integration into existing enterprise systems:
 7. Client notified via webhook or polling
 8. Usage metrics recorded for billing
 
+### Package Architecture
+
+#### Shared Package (`packages/shared`)
+Contains only truly shared components used by both API and Worker:
+- **Domain Models**: `user`, `organization`, `stream`, `highlight`, `api_key`, `wake_word`
+- **Infrastructure**: 
+  - Database configuration and models
+  - Repository implementations
+  - Shared security services (`api_key_service`, `url_signer`)
+- **Application Services**: `highlight_service` (shared business logic)
+
+#### API Package (`packages/api`)
+Contains all API-specific code:
+- **Routes**: FastAPI endpoints for all resources
+- **Dependencies**: Dependency injection setup
+- **Schemas**: Pydantic models for requests/responses
+- **Services**:
+  - `auth/`: JWT and password services for user authentication
+  - `user_service.py`: User management logic
+  - `organization_service.py`: Organization management logic
+- **Middleware**: Rate limiting, CORS, logging
+
+#### Worker Package (`packages/worker`)
+Contains all async processing code:
+- **Tasks**: Celery tasks for stream processing, webhook delivery
+- **Services**:
+  - `highlight_detector.py`: AI-powered highlight detection
+  - `gemini_scoring.py`: Gemini AI integration
+  - `dimension_framework.py`: Scoring system framework
+  - `ffmpeg_processor.py`: Video/audio processing
+- **App Configuration**: Celery app setup and routing
+
 ### Flexible Highlight Detection System
 
 The highlight detection system has been completely redesigned to be industry-agnostic and highly customizable:
@@ -262,3 +294,10 @@ Given TDD approach:
 - **ALWAYS replace the original file** with the new implementation
 - If you need to refactor or rewrite a component, update the existing file
 - Use Git for version control, not file naming
+
+### Module Organization
+- Keep modules in their appropriate package based on usage
+- Shared modules must be used by both API and Worker packages
+- API-specific services (auth, user management) belong in API package
+- Worker-specific services (AI processing, video analysis) belong in Worker package
+- When in doubt, start in the package that uses it and move to shared only if needed

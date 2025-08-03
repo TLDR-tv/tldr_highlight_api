@@ -4,7 +4,7 @@ This file provides guidance to Claude Code when working with the API package, wh
 
 ## Package Overview
 
-The `api` package provides the **REST API interface** for the enterprise B2B highlight detection service. It handles HTTP requests, authentication, and coordinates with Celery workers for asynchronous processing.
+The `api` package provides the **REST API interface** for the enterprise B2B highlight detection service. It handles HTTP requests, authentication, and coordinates with Celery workers for asynchronous processing. Following recent refactoring, this package now also contains all API-specific services including authentication and user management.
 
 ## Working with This Package
 
@@ -26,6 +26,28 @@ uv add httpx  # Add production dependency
 uv add --dev pytest-httpx  # Add dev dependency
 ```
 
+## Package Structure
+
+### Services (`src/api/services/`)
+API-specific business logic:
+
+1. **Authentication Services** (`auth/`):
+   - `jwt_service.py` - JWT token creation and validation
+   - `password_service.py` - Password hashing and verification
+
+2. **Business Services**:
+   - `user_service.py` - User management and authentication logic
+   - `organization_service.py` - Organization management logic
+
+### Routes (`src/api/routes/`)
+FastAPI endpoints organized by resource:
+- `auth.py` - Authentication endpoints (login, register, refresh)
+- `users.py` - User management endpoints
+- `organizations.py` - Organization management endpoints
+- `streams.py` - Stream processing endpoints
+- `highlights.py` - Highlight retrieval endpoints
+- `webhooks.py` - Webhook configuration endpoints
+
 ## FastAPI Application Structure
 
 ### Main Application (`src/api/main.py`)
@@ -41,7 +63,7 @@ def create_app() -> FastAPI:
     return app
 ```
 
-### Route Organization (`src/api/routes/`)
+### Route Organization
 Each route module follows this pattern:
 ```python
 router = APIRouter(prefix="/streams", tags=["streams"])
@@ -68,14 +90,35 @@ async def create_stream(
    current_user = Depends(get_current_user)  # Bearer token
    ```
 
+### Service Dependencies
+The API package now contains its own authentication services:
+```python
+# JWT Service (api/services/auth/jwt_service.py)
+class JWTService:
+    def create_access_token(...) -> str
+    def verify_access_token(...) -> TokenPayload
+    def create_refresh_token(...) -> str
+    def verify_refresh_token(...) -> dict
+
+# Password Service (api/services/auth/password_service.py)
+class PasswordService:
+    def hash_password(password: str) -> str
+    def verify_password(plain: str, hashed: str) -> bool
+    def validate_password_strength(password: str) -> tuple[bool, list[str]]
+```
+
 ### Dependency Functions (`dependencies.py`)
 ```python
-# Always use these for auth
+# Service initialization
+def get_user_service(...) -> UserService:
+    # Now imports from api.services.user_service
+    
+def get_organization_service(...) -> OrganizationService:
+    # Now imports from api.services.organization_service
+
+# Auth dependencies remain the same
 async def get_current_user(...) -> User: ...
 async def get_api_key_from_header(...) -> APIKey: ...
-async def require_organization_member(...) -> Organization: ...
-
-# Scope checking
 async def require_scope(scope: str): ...
 ```
 
@@ -138,29 +181,26 @@ await stream_repository.update(stream)
 ## Testing Guidelines
 
 ### Test Structure (`tests/`)
-```python
-# Use TestClient for API testing
-from fastapi.testclient import TestClient
-
-@pytest.fixture
-def client(app):
-    return TestClient(app)
-
-# Test with real database using testcontainers
-@pytest.fixture
-async def db_session():
-    async with TestDatabase() as db:
-        yield db.session
-```
+- `unit/` - Unit tests for services and utilities
+  - `test_jwt_service.py` - JWT service tests
+  - `test_password_service.py` - Password service tests
+  - `test_rate_limiter.py` - Rate limiting tests
+- `integration/` - API endpoint integration tests
+- `factories.py` - Test data factories
 
 ### Common Test Patterns
 ```python
-# Test authentication
-def test_requires_api_key(client):
-    response = client.get("/api/v1/streams")
-    assert response.status_code == 401
+# Test authentication service
+async def test_user_authentication():
+    user_service = UserService(repo, password_service, jwt_service)
+    user, access_token, refresh_token = await user_service.authenticate(
+        email="test@example.com",
+        password="secure_password"
+    )
+    assert user is not None
+    assert access_token is not None
 
-# Test with auth
+# Test API endpoint
 def test_create_stream(client, api_key):
     response = client.post(
         "/api/v1/streams",
@@ -225,6 +265,13 @@ async def list_highlights(
 3. Add router to main app in `main.py`
 4. Write integration tests
 5. Update OpenAPI documentation
+
+### Adding a New Service
+1. Create service in `src/api/services/`
+2. Add dependency function in `dependencies.py`
+3. Use dependency injection in routes
+4. Write unit tests for the service
+5. Update imports in existing code
 
 ### Adding Authentication to Endpoint
 ```python
@@ -295,6 +342,14 @@ app.add_middleware(
 )
 ```
 
+### Rate Limiting
+```python
+# Using slowapi for rate limiting
+from api.middleware.rate_limit import RateLimiter
+
+rate_limiter = RateLimiter(redis_url=settings.redis_url)
+```
+
 ## Common Pitfalls to Avoid
 
 1. **Don't bypass authentication** - Always use dependency injection
@@ -302,13 +357,15 @@ app.add_middleware(
 3. **Don't block the event loop** - Use async operations
 4. **Don't expose internal errors** - Use proper error handling
 5. **Don't skip input validation** - Use Pydantic schemas
+6. **Don't mix concerns** - Keep auth logic in services, not routes
 
 ## Integration Points
 
 ### With Shared Package
-- Import domain models and services
-- Use repository protocols
-- Apply business logic from application layer
+- Import domain models (`User`, `Organization`, `Stream`, etc.)
+- Use repository implementations
+- Access shared infrastructure (database, config)
+- Use shared security services (`api_key_service`, `url_signer`)
 
 ### With Worker Package  
 - Queue Celery tasks for processing
@@ -326,4 +383,27 @@ uv run pytest tests/integration/test_streams.py::test_create_stream -v
 
 # Check OpenAPI schema
 curl http://localhost:8000/openapi.json | jq
+
+# Test authentication
+curl -X POST http://localhost:8000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "user@example.com", "password": "secure_password"}'
+```
+
+## Import Guidelines
+
+Following the refactoring, use these import patterns:
+```python
+# Auth services (now in API package)
+from api.services.auth.jwt_service import JWTService
+from api.services.auth.password_service import PasswordService
+
+# Business services (now in API package)
+from api.services.user_service import UserService
+from api.services.organization_service import OrganizationService
+
+# Shared imports (unchanged)
+from shared.domain.models.user import User
+from shared.infrastructure.storage.repositories import UserRepository
+from shared.infrastructure.config.config import Settings
 ```

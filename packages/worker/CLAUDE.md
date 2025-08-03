@@ -4,7 +4,7 @@ This file provides guidance to Claude Code when working with the worker package,
 
 ## Package Overview
 
-The `worker` package contains **Celery workers** that handle CPU-intensive tasks like stream processing, AI-powered highlight detection, wake word detection, and webhook delivery. It's the processing engine of the system.
+The `worker` package contains **Celery workers** that handle CPU-intensive tasks like stream processing, AI-powered highlight detection, wake word detection, and webhook delivery. It's the processing engine of the system. Following recent refactoring, this package now also contains all worker-specific services including AI processing and video analysis.
 
 ## Working with This Package
 
@@ -25,6 +25,33 @@ cd packages/worker
 uv add opencv-python  # Add production dependency
 uv add --dev pytest-celery  # Add dev dependency
 ```
+
+## Package Structure
+
+### Services (`src/worker/services/`)
+Worker-specific processing services:
+
+1. **AI Processing Services**:
+   - `highlight_detector.py` - AI-powered highlight detection logic
+   - `gemini_scoring.py` - Gemini AI integration for video scoring
+   - `dimension_framework.py` - Flexible scoring system framework
+   - `scoring_factory.py` - Factory for creating scoring strategies
+
+2. **Media Processing Services**:
+   - `ffmpeg_processor.py` - Video/audio stream processing
+   - `video_utils.py` - Video manipulation utilities
+   - `audio_utils.py` - Audio processing utilities
+
+3. **Detection Services**:
+   - `wake_word_detector.py` - Wake word detection in audio
+   - `rule_scorer.py` - Rule-based scoring strategies
+
+### Tasks (`src/worker/tasks/`)
+Celery task implementations:
+- `stream_processing.py` - Main stream processing orchestration
+- `highlight_detection.py` - Highlight detection tasks
+- `wake_word_detection.py` - Wake word detection tasks
+- `webhook_delivery.py` - Webhook notification delivery
 
 ## Celery Configuration
 
@@ -86,6 +113,38 @@ async def process_stream(self, stream_id: str) -> dict:
 
 ## Core Processing Services
 
+### Highlight Detector (`services/highlight_detector.py`)
+```python
+# Now a worker-specific service
+from worker.services.highlight_detector import HighlightDetector
+from worker.services.dimension_framework import ScoringRubric
+
+detector = HighlightDetector(
+    scoring_strategy=gemini_strategy,
+    min_highlight_duration=10.0,
+    max_highlight_duration=120.0
+)
+
+candidates = await detector.detect_highlights(
+    stream=stream,
+    segments=video_segments,
+    rubric=scoring_rubric
+)
+```
+
+### Gemini Scoring (`services/gemini_scoring.py`)
+```python
+# AI-powered video analysis (now in worker package)
+from worker.services.gemini_scoring import GeminiScoringStrategy
+
+strategy = GeminiScoringStrategy(settings)
+scores = await strategy.score(
+    content=video_path,
+    rubric=scoring_rubric,
+    context=previous_segments
+)
+```
+
 ### FFmpeg Processor (`services/ffmpeg_processor.py`)
 ```python
 # Stream processing with ring buffer
@@ -110,17 +169,6 @@ async with FFmpegStreamProcessor(
 - **Audio extraction**: Optimized for WhisperX transcription
 - **CSV tracking**: Reliable segment metadata storage
 
-### Gemini Video Scorer (`services/gemini_scorer.py`)
-```python
-# AI-powered video analysis
-async with GeminiVideoScorer() as scorer:
-    scores = await scorer.score_video(
-        video_path=segment_path,
-        dimensions=dimension_set,
-        context=previous_scores
-    )
-```
-
 ### Dimension Framework (`services/dimension_framework.py`)
 ```python
 # Flexible scoring system
@@ -134,6 +182,14 @@ dimension = DimensionDefinition(
         {"context": "Fast-paced combat", "score": 9},
         {"context": "Calm dialogue", "score": 2}
     ]
+)
+
+# Create scoring rubric
+rubric = ScoringRubric(
+    name="Gaming Highlights",
+    dimensions=[dimension],
+    highlight_threshold=7.0,
+    highlight_confidence_threshold=0.8
 )
 ```
 
@@ -154,14 +210,23 @@ dimension = DimensionDefinition(
 ### 2. Highlight Detection (`tasks/highlight_detection.py`)
 **Purpose**: AI analysis and highlight creation
 ```python
-# Detection flow
-1. Upload video to Gemini File API
-2. Score against dimension set
-3. Generate highlight if threshold met
-4. Create thumbnail and clip
-5. Upload media to S3
-6. Store in database
-7. Send webhook notification
+# Detection flow using local services
+from worker.services.highlight_detector import HighlightDetector
+from worker.services.gemini_scoring import GeminiScoringStrategy
+
+# Initialize with worker-specific services
+scoring_strategy = GeminiScoringStrategy(settings)
+highlight_detector = HighlightDetector(
+    scoring_strategy=scoring_strategy,
+    min_highlight_duration=processing_options.get("min_duration", 10.0)
+)
+
+# Process segment
+detected_highlights = await highlight_detector.process_segment(
+    segment=segment,
+    stream=stream,
+    rubric=scoring_rubric
+)
 ```
 
 ### 3. Wake Word Detection (`tasks/wake_word_detection.py`)
@@ -193,7 +258,7 @@ dimension = DimensionDefinition(
 ### Unit Tests
 ```python
 # Mock external services
-@patch("worker.services.gemini_scorer.genai")
+@patch("worker.services.gemini_scoring.genai")
 async def test_gemini_scorer(mock_genai):
     mock_genai.upload_file.return_value = Mock(name="test.mp4")
     # Test implementation
@@ -310,6 +375,13 @@ await session.commit()
 4. Write unit and integration tests
 5. Document webhook events if applicable
 
+### Adding a New Service
+1. Create service in `src/worker/services/`
+2. Implement required interfaces (e.g., ScoringStrategy)
+3. Write unit tests for the service
+4. Integrate into relevant tasks
+5. Document usage patterns
+
 ### Debugging Tasks
 ```bash
 # Run worker with debug logging
@@ -338,18 +410,34 @@ uv run watchmedo auto-restart -d . -p '*.py' -- celery -A worker.app worker
 3. **Don't ignore retries** - Implement proper retry logic
 4. **Don't skip organization checks** - Maintain multi-tenant isolation
 5. **Don't hardcode limits** - Use configuration for thresholds
+6. **Don't mix concerns** - Keep AI logic in services, not tasks
 
 ## Integration Points
 
 ### With Shared Package
-- Import domain models
-- Use repository implementations  
-- Apply business logic services
+- Import domain models (`Stream`, `Highlight`, `Organization`)
+- Use repository implementations
+- Access shared infrastructure (database, config)
 
 ### With API Package
 - Receive tasks via Celery
 - Update shared database records
 - Send webhooks for notifications
+
+## Import Guidelines
+
+Following the refactoring, use these import patterns:
+```python
+# Worker-specific services (now in worker package)
+from worker.services.highlight_detector import HighlightDetector
+from worker.services.gemini_scoring import GeminiScoringStrategy
+from worker.services.dimension_framework import ScoringRubric, DimensionDefinition
+
+# Shared imports (unchanged)
+from shared.domain.models.stream import Stream
+from shared.infrastructure.storage.repositories import StreamRepository
+from shared.infrastructure.config.config import Settings
+```
 
 ## Monitoring and Observability
 
