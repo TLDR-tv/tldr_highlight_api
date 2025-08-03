@@ -8,7 +8,9 @@ dependencies = [
     "fastapi[all]>=0.115.0",
     "uvicorn[standard]>=0.32.0",
     "python-multipart>=0.0.18",
-    "celery>=5.4.0",  # For queueing tasks
+    "celery>=5.4.0", # For queueing tasks
+    "slowapi>=0.1.9",
+    "redis>=5.2.1",
 ]
 
 [tool.uv.sources]

@@ -1,6 +1,6 @@
 """Stream management endpoints."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from uuid import UUID
 from typing import Optional
 
@@ -9,7 +9,10 @@ from ..dependencies import (
     require_scope,
     get_stream_repository,
     get_organization_repository,
+    get_settings_dep,
+    get_rate_limiter,
 )
+from ..middleware.rate_limit import create_endpoint_limiter
 from ..schemas.streams import (
     StreamCreateRequest,
     StreamProcessRequest,
@@ -22,9 +25,11 @@ from shared.domain.models.api_key import APIScopes
 from shared.domain.models.stream import Stream, StreamStatus
 from shared.domain.models.organization import Organization
 from shared.infrastructure.storage.repositories import StreamRepository
+from shared.infrastructure.config.config import Settings
 from ..celery_client import celery_app
 
 router = APIRouter()
+
 
 
 @router.post("/", response_model=StreamResponse)
@@ -33,6 +38,7 @@ async def create_stream(
     organization: Organization = Depends(get_current_organization),
     stream_repository: StreamRepository = Depends(get_stream_repository),
     _=Depends(require_scope(APIScopes.STREAMS_WRITE)),
+    _rate_limit: None = create_endpoint_limiter("20/minute"),
 ):
     """Create a new stream for processing.
     
@@ -101,6 +107,7 @@ async def process_stream(
     organization: Organization = Depends(get_current_organization),
     stream_repository: StreamRepository = Depends(get_stream_repository),
     _=Depends(require_scope(APIScopes.STREAMS_WRITE)),
+    _rate_limit: None = create_endpoint_limiter("10/minute"),
 ):
     """Start processing a stream for highlight detection.
     

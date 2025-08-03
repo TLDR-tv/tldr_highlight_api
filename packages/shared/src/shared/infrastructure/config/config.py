@@ -10,7 +10,10 @@ class Settings(BaseSettings):
     """Application settings."""
 
     model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", case_sensitive=False
+        env_file=".env", 
+        env_file_encoding="utf-8", 
+        case_sensitive=False,
+        extra="ignore"  # Ignore extra fields to handle old env vars
     )
 
     # Environment
@@ -79,9 +82,44 @@ class Settings(BaseSettings):
     )
 
     # Rate Limiting
-    rate_limit_requests: int = Field(default=100, description="Requests per window")
-    rate_limit_window_seconds: int = Field(
-        default=60, description="Rate limit window in seconds"
+    rate_limit_enabled: bool = Field(
+        default=True, description="Enable rate limiting"
+    )
+    rate_limit_storage_url: str = Field(
+        default="redis://localhost:6379/3", description="Rate limit storage backend URL"
+    )
+    
+    # Global rate limits
+    rate_limit_global: str = Field(
+        default="1000/minute", description="Global rate limit per IP"
+    )
+    rate_limit_burst: int = Field(
+        default=20, description="Burst size for rate limiting"
+    )
+    
+    # Endpoint-specific rate limits
+    rate_limit_auth: str = Field(
+        default="5/minute", description="Auth endpoint rate limit"
+    )
+    rate_limit_stream_create: str = Field(
+        default="20/minute", description="Stream creation rate limit"
+    )
+    rate_limit_stream_process: str = Field(
+        default="10/minute", description="Stream processing rate limit"
+    )
+    rate_limit_webhook: str = Field(
+        default="5/hour", description="Webhook configuration rate limit"
+    )
+    
+    # Organization tier limits
+    rate_limit_tier_free: str = Field(
+        default="100/minute", description="Free tier rate limit"
+    )
+    rate_limit_tier_pro: str = Field(
+        default="1000/minute", description="Pro tier rate limit"
+    )
+    rate_limit_tier_enterprise: str = Field(
+        default="10000/minute", description="Enterprise tier rate limit"
     )
 
     # Webhooks

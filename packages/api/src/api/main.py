@@ -1,15 +1,39 @@
 """Main FastAPI application."""
 
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from structlog import get_logger
 
 from .routes import auth, users, streams, highlights, organizations, webhooks, health
 from .middleware.logging import LoggingMiddleware
+from .middleware.rate_limit import RateLimiter, RateLimitHeaderMiddleware, rate_limit_error_handler
 from shared.infrastructure.config.config import get_settings
 
 logger = get_logger()
 settings = get_settings()
+
+# Global rate limiter instance
+rate_limiter: RateLimiter = None
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan manager."""
+    # Startup
+    global rate_limiter
+    rate_limiter = RateLimiter(settings)
+    app.state.limiter = rate_limiter.limiter  # Make limiter available to app
+    logger.info("Rate limiter initialized", enabled=settings.rate_limit_enabled)
+    
+    yield
+    
+    # Shutdown
+    if rate_limiter:
+        await rate_limiter.close()
+        logger.info("Rate limiter closed")
 
 
 def create_app() -> FastAPI:
@@ -20,6 +44,7 @@ def create_app() -> FastAPI:
         version="1.0.0",
         docs_url="/docs" if settings.environment != "production" else None,
         redoc_url="/redoc" if settings.environment != "production" else None,
+        lifespan=lifespan,
     )
 
     # Middleware
@@ -32,6 +57,11 @@ def create_app() -> FastAPI:
     )
 
     app.add_middleware(LoggingMiddleware)
+    
+    # Add rate limiting if enabled
+    if settings.rate_limit_enabled:
+        # Add rate limit exceeded handler
+        app.add_exception_handler(RateLimitExceeded, rate_limit_error_handler)
 
     # Routes
     app.include_router(health.router, tags=["health"])

@@ -1,10 +1,13 @@
 """Authentication endpoints."""
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status, Request
 from fastapi.security import HTTPBearer
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from typing import Union
-from ..dependencies import get_user_service, get_organization_service, get_settings_dep
+from ..dependencies import get_user_service, get_organization_service, get_settings_dep, get_rate_limiter
+from ..middleware.rate_limit import create_endpoint_limiter
 from ..schemas.auth import (
     LoginRequest,
     TokenResponse,
@@ -28,10 +31,12 @@ router = APIRouter()
 security = HTTPBearer(auto_error=False)
 
 
+
 @router.post("/register", response_model=RegisterOrganizationResponse)
 async def register_organization(
     request: RegisterOrganizationRequest,
     org_service: OrganizationService = Depends(get_organization_service),
+    _: None = create_endpoint_limiter("5/hour"),
 ):
     """Register a new organization with owner user."""
     try:
@@ -61,6 +66,7 @@ async def login(
     response: Response,
     user_service: UserService = Depends(get_user_service),
     settings: Settings = Depends(get_settings_dep),
+    _: None = create_endpoint_limiter("5/minute"),
 ):
     """User login endpoint."""
     user, access_token, refresh_token = await user_service.authenticate(
@@ -140,6 +146,7 @@ async def logout(response: Response):
 async def forgot_password(
     request: PasswordResetRequest,
     user_service: UserService = Depends(get_user_service),
+    _: None = create_endpoint_limiter("3/hour"),
 ):
     """Request password reset."""
     # Always return success to prevent email enumeration
@@ -160,6 +167,7 @@ async def forgot_password(
 async def reset_password(
     request: PasswordResetConfirmRequest,
     user_service: UserService = Depends(get_user_service),
+    _: None = create_endpoint_limiter("5/hour"),
 ):
     """Reset password with token."""
     try:

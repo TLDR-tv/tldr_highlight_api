@@ -283,3 +283,10 @@ async def require_org_member(
             detail="Access denied",
         )
     return user
+
+
+# Rate limiting dependencies
+def get_rate_limiter():
+    """Get the global rate limiter instance."""
+    from .main import rate_limiter
+    return rate_limiter
