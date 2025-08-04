@@ -8,7 +8,7 @@ from structlog import get_logger
 from worker.app import celery_app
 from shared.infrastructure.storage.repositories import OrganizationRepository
 from shared.infrastructure.database.database import Database
-from shared.infrastructure.config import get_settings
+from shared.infrastructure.config.config import get_settings
 
 logger = get_logger()
 

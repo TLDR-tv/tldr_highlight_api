@@ -6,6 +6,7 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from typing import Union
+from shared.infrastructure.config.config import Settings, get_settings
 from ..dependencies import get_user_service, get_organization_service, get_settings_dep, get_rate_limiter
 from ..middleware.rate_limit import create_endpoint_limiter
 from ..schemas.auth import (
@@ -146,21 +147,22 @@ async def logout(response: Response):
 async def forgot_password(
     request: PasswordResetRequest,
     user_service: UserService = Depends(get_user_service),
+    settings: Settings = Depends(get_settings),
     _: None = create_endpoint_limiter("3/hour"),
 ):
     """Request password reset."""
     # Always return success to prevent email enumeration
     reset_token = await user_service.request_password_reset(email=request.email)
 
-    # In a real system, send email with reset token
-    # For development, we'll return it in the response
-    if reset_token:
+    # In development mode, return the token
+    if reset_token and settings.environment == "development":
         return PasswordResetWithTokenResponse(
-            message="Password reset email sent",
-            reset_token=reset_token,  # Remove this in production!
+            message="Password reset email sent (dev mode: token included)",
+            reset_token=reset_token,
         )
 
-    return PasswordResetResponse(message="Password reset email sent")
+    # In production, just confirm email was sent
+    return PasswordResetResponse(message="If an account exists with this email, you will receive a password reset link.")
 
 
 @router.post("/reset-password", response_model=MessageResponse)

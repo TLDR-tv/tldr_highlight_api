@@ -1,0 +1,1109 @@
+{
+  "info": {
+    "name": "TLDR Highlight API",
+    "description": "Enterprise B2B API for AI-powered highlight extraction from livestreams and video content",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "apikey",
+    "apikey": [
+      {
+        "key": "value",
+        "value": "{{api_key}}",
+        "type": "string"
+      },
+      {
+        "key": "key",
+        "value": "X-API-Key",
+        "type": "string"
+      },
+      {
+        "key": "in",
+        "value": "header",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "api_key",
+      "value": "your-api-key-here",
+      "type": "string"
+    },
+    {
+      "key": "jwt_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refresh_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "stream_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "highlight_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "user_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "organization_id",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health Check",
+      "item": [
+        {
+          "name": "Basic Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": ["{{base_url}}"],
+              "path": ["health"]
+            },
+            "description": "Basic health check endpoint to verify API is running"
+          }
+        },
+        {
+          "name": "Database Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health/db",
+              "host": ["{{base_url}}"],
+              "path": ["health", "db"]
+            },
+            "description": "Check database connectivity and health"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Register Organization",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('jwt_token', response.access_token);",
+                  "    pm.collectionVariables.set('refresh_token', response.refresh_token);",
+                  "    pm.collectionVariables.set('user_id', response.user.id);",
+                  "    pm.collectionVariables.set('organization_id', response.user.organization_id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organization_name\": \"Test Organization\",\n  \"email\": \"admin@example.com\",\n  \"password\": \"SecurePassword123!\",\n  \"full_name\": \"Admin User\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/register",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "register"]
+            },
+            "description": "Register a new organization with owner user. Rate limited to 5 requests per hour."
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('jwt_token', response.access_token);",
+                  "    pm.collectionVariables.set('refresh_token', response.refresh_token);",
+                  "    pm.collectionVariables.set('user_id', response.user.id);",
+                  "    pm.collectionVariables.set('organization_id', response.user.organization_id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"SecurePassword123!\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "login"]
+            },
+            "description": "User login. Rate limited to 5 requests per minute."
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('jwt_token', response.access_token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{refresh_token}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/refresh",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "refresh"]
+            },
+            "description": "Refresh access token using refresh token"
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/logout",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "logout"]
+            },
+            "description": "Logout user by clearing cookies"
+          }
+        },
+        {
+          "name": "Forgot Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@example.com\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/forgot-password",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "forgot-password"]
+            },
+            "description": "Request password reset. Rate limited to 3 requests per hour."
+          }
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"reset-token-from-email\",\n  \"new_password\": \"NewSecurePassword123!\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/reset-password",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "reset-password"]
+            },
+            "description": "Reset password with token. Rate limited to 5 requests per hour."
+          }
+        }
+      ]
+    },
+    {
+      "name": "User Management",
+      "item": [
+        {
+          "name": "Current User",
+          "item": [
+            {
+              "name": "Get Current User",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/users/me",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "users", "me"]
+                },
+                "description": "Get current user profile"
+              }
+            },
+            {
+              "name": "Update Current User",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"full_name\": \"Updated Name\",\n  \"email\": \"newemail@example.com\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/v1/users/me",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "users", "me"]
+                },
+                "description": "Update current user profile"
+              }
+            },
+            {
+              "name": "Change Password",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"current_password\": \"SecurePassword123!\",\n  \"new_password\": \"NewSecurePassword123!\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/v1/users/me/password",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "users", "me", "password"]
+                },
+                "description": "Change current user password"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Organization Users",
+          "item": [
+            {
+              "name": "List Organization Users",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/users",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "users"]
+                },
+                "description": "List all users in organization (Admin only)"
+              }
+            },
+            {
+              "name": "Create User",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"newuser@example.com\",\n  \"password\": \"TempPassword123!\",\n  \"full_name\": \"New User\",\n  \"role\": \"member\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/v1/users",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "users"]
+                },
+                "description": "Create new user in organization (Admin only)"
+              }
+            },
+            {
+              "name": "Get User Details",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/users/{{user_id}}",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "users", "{{user_id}}"]
+                },
+                "description": "Get user details (Self or Admin)"
+              }
+            },
+            {
+              "name": "Update User",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"full_name\": \"Updated User Name\",\n  \"email\": \"updated@example.com\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/v1/users/{{user_id}}",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "users", "{{user_id}}"]
+                },
+                "description": "Update user profile (Self or Admin)"
+              }
+            },
+            {
+              "name": "Update User Role",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"role\": \"admin\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/v1/users/{{user_id}}/role",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "users", "{{user_id}}", "role"]
+                },
+                "description": "Update user role (Admin only)"
+              }
+            },
+            {
+              "name": "Deactivate User",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/users/{{user_id}}",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "users", "{{user_id}}"]
+                },
+                "description": "Deactivate user (Admin only)"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Organization Management",
+      "item": [
+        {
+          "name": "API Key Auth",
+          "item": [
+            {
+              "name": "Get Organization (API Key)",
+              "request": {
+                "auth": {
+                  "type": "apikey",
+                  "apikey": [
+                    {
+                      "key": "value",
+                      "value": "{{api_key}}",
+                      "type": "string"
+                    },
+                    {
+                      "key": "key",
+                      "value": "X-API-Key",
+                      "type": "string"
+                    },
+                    {
+                      "key": "in",
+                      "value": "header",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/organizations/me",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "organizations", "me"]
+                },
+                "description": "Get current organization details using API key authentication"
+              }
+            }
+          ]
+        },
+        {
+          "name": "JWT Auth",
+          "item": [
+            {
+              "name": "Get Current Organization",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/organizations/current",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "organizations", "current"]
+                },
+                "description": "Get current organization details (User auth)"
+              }
+            },
+            {
+              "name": "Update Organization",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Updated Organization Name\",\n  \"settings\": {\n    \"default_language\": \"en\",\n    \"timezone\": \"UTC\"\n  }\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/v1/organizations/current",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "organizations", "current"]
+                },
+                "description": "Update organization details (Admin only)"
+              }
+            },
+            {
+              "name": "Get Organization Usage",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/organizations/current/usage",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "organizations", "current", "usage"]
+                },
+                "description": "Get organization usage statistics"
+              }
+            },
+            {
+              "name": "Configure Webhook",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"webhook_url\": \"https://example.com/webhooks/highlights\",\n  \"events\": [\"highlight.created\", \"stream.processed\"]\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/v1/organizations/current/webhook",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "organizations", "current", "webhook"]
+                },
+                "description": "Configure webhook URL (Admin only)"
+              }
+            },
+            {
+              "name": "Regenerate Webhook Secret",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/organizations/current/webhook/secret",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "organizations", "current", "webhook", "secret"]
+                },
+                "description": "Regenerate webhook secret (Admin only)"
+              }
+            },
+            {
+              "name": "List Organization Users",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/organizations/current/users",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "organizations", "current", "users"]
+                },
+                "description": "List organization users"
+              }
+            },
+            {
+              "name": "Add Wake Word",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"wake_word\": \"highlight\",\n  \"sensitivity\": 0.8\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/v1/organizations/current/wake-words",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "organizations", "current", "wake-words"]
+                },
+                "description": "Add custom wake word (Admin only)"
+              }
+            },
+            {
+              "name": "Remove Wake Word",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/organizations/current/wake-words/highlight",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "organizations", "current", "wake-words", "highlight"]
+                },
+                "description": "Remove wake word (Admin only)"
+              }
+            },
+            {
+              "name": "List API Keys",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/organizations/current/api-keys",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "organizations", "current", "api-keys"]
+                },
+                "description": "List API keys (Admin only)"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Stream Management",
+      "item": [
+        {
+          "name": "Create Stream",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('stream_id', response.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "value",
+                  "value": "{{api_key}}",
+                  "type": "string"
+                },
+                {
+                  "key": "key",
+                  "value": "X-API-Key",
+                  "type": "string"
+                },
+                {
+                  "key": "in",
+                  "value": "header",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"url\": \"https://example.com/stream.m3u8\",\n  \"name\": \"Test Stream\",\n  \"type\": \"hls\",\n  \"metadata\": {\n    \"description\": \"Test stream for API testing\",\n    \"tags\": [\"test\", \"demo\"]\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/streams/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "streams", ""]
+            },
+            "description": "Create new stream. Rate limited to 20 requests per minute. Requires STREAMS_WRITE scope."
+          }
+        },
+        {
+          "name": "Get Stream Details",
+          "request": {
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "value",
+                  "value": "{{api_key}}",
+                  "type": "string"
+                },
+                {
+                  "key": "key",
+                  "value": "X-API-Key",
+                  "type": "string"
+                },
+                {
+                  "key": "in",
+                  "value": "header",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/streams/{{stream_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "streams", "{{stream_id}}"]
+            },
+            "description": "Get stream details by ID. Requires STREAMS_READ scope."
+          }
+        },
+        {
+          "name": "Process Stream",
+          "request": {
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "value",
+                  "value": "{{api_key}}",
+                  "type": "string"
+                },
+                {
+                  "key": "key",
+                  "value": "X-API-Key",
+                  "type": "string"
+                },
+                {
+                  "key": "in",
+                  "value": "header",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"processing_options\": {\n    \"dimension_set_id\": \"gaming_default\",\n    \"type_registry_id\": \"gaming_types\",\n    \"detection_strategy\": \"ai_only\",\n    \"fusion_strategy\": \"weighted\",\n    \"modality_weights\": {\n      \"video\": 0.5,\n      \"audio\": 0.3,\n      \"text\": 0.2\n    },\n    \"min_confidence\": 0.7,\n    \"enable_wake_words\": true\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/streams/{{stream_id}}/process",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "streams", "{{stream_id}}", "process"]
+            },
+            "description": "Start stream processing. Rate limited to 10 requests per minute. Requires STREAMS_WRITE scope. Returns 202 Accepted with task_id."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Highlight Management",
+      "item": [
+        {
+          "name": "Get Stream Highlights",
+          "request": {
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "value",
+                  "value": "{{api_key}}",
+                  "type": "string"
+                },
+                {
+                  "key": "key",
+                  "value": "X-API-Key",
+                  "type": "string"
+                },
+                {
+                  "key": "in",
+                  "value": "header",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/highlights/streams/{{stream_id}}/highlights",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "highlights", "streams", "{{stream_id}}", "highlights"]
+            },
+            "description": "Get all highlights for a specific stream. Requires HIGHLIGHTS_READ scope."
+          }
+        },
+        {
+          "name": "List Highlights with Filters",
+          "request": {
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "value",
+                  "value": "{{api_key}}",
+                  "type": "string"
+                },
+                {
+                  "key": "key",
+                  "value": "X-API-Key",
+                  "type": "string"
+                },
+                {
+                  "key": "in",
+                  "value": "header",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/highlights/?stream_id={{stream_id}}&wake_word_triggered=true&min_score=0.8&order_by=score&limit=50&offset=0",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "highlights", ""],
+              "query": [
+                {
+                  "key": "stream_id",
+                  "value": "{{stream_id}}",
+                  "description": "Filter by stream ID"
+                },
+                {
+                  "key": "wake_word_triggered",
+                  "value": "true",
+                  "description": "Filter by wake word trigger status"
+                },
+                {
+                  "key": "min_score",
+                  "value": "0.8",
+                  "description": "Minimum overall score (0.0-1.0)"
+                },
+                {
+                  "key": "order_by",
+                  "value": "score",
+                  "description": "Sort by 'created_at' or 'score'"
+                },
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "description": "Maximum results (1-1000, default 100)"
+                },
+                {
+                  "key": "offset",
+                  "value": "0",
+                  "description": "Pagination offset (default 0)"
+                }
+              ]
+            },
+            "description": "List highlights with various filters. Requires HIGHLIGHTS_READ scope."
+          }
+        },
+        {
+          "name": "Get Highlight Details",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.highlights && response.highlights.length > 0) {",
+                  "        pm.collectionVariables.set('highlight_id', response.highlights[0].id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "value",
+                  "value": "{{api_key}}",
+                  "type": "string"
+                },
+                {
+                  "key": "key",
+                  "value": "X-API-Key",
+                  "type": "string"
+                },
+                {
+                  "key": "in",
+                  "value": "header",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/highlights/{{highlight_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "highlights", "{{highlight_id}}"]
+            },
+            "description": "Get detailed highlight information including dimension scores, media URLs, and transcript. Requires HIGHLIGHTS_READ scope."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Webhooks",
+      "item": [
+        {
+          "name": "Configure Webhook",
+          "request": {
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "value",
+                  "value": "{{api_key}}",
+                  "type": "string"
+                },
+                {
+                  "key": "key",
+                  "value": "X-API-Key",
+                  "type": "string"
+                },
+                {
+                  "key": "in",
+                  "value": "header",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"url\": \"https://example.com/webhooks/highlights\",\n  \"events\": [\"highlight.created\", \"stream.processed\"],\n  \"headers\": {\n    \"X-Custom-Header\": \"custom-value\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/webhooks/configure",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "webhooks", "configure"]
+            },
+            "description": "Configure webhook for organization. Requires WEBHOOKS_WRITE scope. Note: Currently returns placeholder message."
+          }
+        },
+        {
+          "name": "Receive Webhook",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event\": \"test.webhook\",\n  \"data\": {\n    \"message\": \"Test webhook payload\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/webhooks/receive/test-webhook-id",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "webhooks", "receive", "test-webhook-id"]
+            },
+            "description": "Receive incoming webhook. Note: Currently returns placeholder response."
+          }
+        }
+      ]
+    },
+    {
+      "name": "API Info",
+      "item": [
+        {
+          "name": "Get API Info",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/",
+              "host": ["{{base_url}}"],
+              "path": [""]
+            },
+            "description": "Root endpoint returning API information and docs URL"
+          }
+        }
+      ]
+    }
+  ]
+}

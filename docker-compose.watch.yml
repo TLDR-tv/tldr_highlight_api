@@ -1,0 +1,40 @@
+# Docker Compose Watch Mode
+# 
+# This file documents how to use Docker Compose watch capabilities for development.
+# Requires Docker Compose v2.22.0 or later.
+#
+# Usage:
+#   docker compose watch              # Start services with file watching
+#   docker compose up --watch         # Alternative syntax
+#   docker compose watch --no-up      # Only watch, don't start services
+#
+# The watch configuration is defined in docker-compose.yml under the 'develop' section.
+#
+# Watch Actions:
+# - sync: Syncs file changes into the container without restart
+# - rebuild: Triggers a full rebuild when dependency files change
+# - sync+restart: Syncs files and restarts the container
+#
+# Current Configuration:
+# 
+# celery_worker and celery_beat services have watch enabled:
+# - Syncs all changes in ./packages to /app/packages (ignoring cache files)
+# - Rebuilds container when pyproject.toml or uv.lock changes
+#
+# Example Commands:
+#
+# Start all services with watch mode:
+docker compose watch
+
+# Start specific services with watch:
+docker compose watch celery_worker celery_beat
+
+# View watch events:
+docker compose alpha watch
+
+# Run in detached mode with watch:
+docker compose up -d --watch
+
+# Note: File watching uses inotify on Linux/Mac and polling on Windows.
+# Large projects may need to increase inotify limits on Linux:
+# echo fs.inotify.max_user_watches=524288 | sudo tee -a /etc/sysctl.conf

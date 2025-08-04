@@ -1,4 +1,64 @@
 services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: api
+    container_name: tldr_api
+    command: uv run --package api uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      DATABASE_URL: postgresql+asyncpg://tldr_user:tldr_password@postgres:5432/tldr_highlights
+      REDIS_URL: redis://:tldr_redis_password@redis:6379/0
+      RATE_LIMIT_STORAGE_URL: redis://:tldr_redis_password@redis:6379/3
+      CELERY_BROKER_URL: redis://:tldr_redis_password@redis:6379/1
+      CELERY_RESULT_BACKEND: redis://:tldr_redis_password@redis:6379/2
+      AWS_ENDPOINT_URL: http://minio:9000
+      AWS_ACCESS_KEY_ID: tldr_minio_admin
+      AWS_SECRET_ACCESS_KEY: tldr_minio_password
+      S3_BUCKET_NAME: tldr-highlights
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-your-secret-key-change-in-production}
+      JWT_ALGORITHM: HS256
+      JWT_EXPIRATION_HOURS: 24
+      # Email configuration
+      EMAIL_ENABLED: ${EMAIL_ENABLED:-false}
+      EMAIL_HOST: ${EMAIL_HOST:-smtp.gmail.com}
+      EMAIL_PORT: ${EMAIL_PORT:-587}
+      EMAIL_USERNAME: ${EMAIL_USERNAME}
+      EMAIL_PASSWORD: ${EMAIL_PASSWORD}
+      EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-noreply@tldr-highlights.com}
+      EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-TLDR Highlights}
+      EMAIL_USE_TLS: ${EMAIL_USE_TLS:-true}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    volumes:
+      - ./packages:/app/packages
+    networks:
+      - tldr_network
+    develop:
+      watch:
+        - action: sync
+          path: ./packages
+          target: /app/packages
+          ignore:
+            - packages/**/__pycache__/
+            - packages/**/*.pyc
+            - packages/**/.pytest_cache/
+            - packages/**/.mypy_cache/
+            - packages/**/.ruff_cache/
+        - action: rebuild
+          path: ./pyproject.toml
+        - action: rebuild
+          path: ./uv.lock
+
   postgres:
     image: postgres:16-alpine
     container_name: tldr_postgres
@@ -81,15 +141,29 @@ services:
       dockerfile: Dockerfile
       target: worker
     container_name: tldr_celery_worker
-    command: uv run --package worker celery -A worker.app worker --loglevel=info --concurrency=2
+    command: uv run --package worker celery -A worker.app worker --loglevel=info --concurrency=2 -Q celery,emails,webhooks,stream_processing,highlight_detection
     environment:
       DATABASE_URL: postgresql+asyncpg://tldr_user:tldr_password@postgres:5432/tldr_highlights
       REDIS_URL: redis://:tldr_redis_password@redis:6379/0
+      CELERY_BROKER_URL: redis://:tldr_redis_password@redis:6379/1
+      CELERY_RESULT_BACKEND: redis://:tldr_redis_password@redis:6379/2
       AWS_ENDPOINT_URL: http://minio:9000
       AWS_ACCESS_KEY_ID: tldr_minio_admin
       AWS_SECRET_ACCESS_KEY: tldr_minio_password
       S3_BUCKET_NAME: tldr-highlights
       GEMINI_API_KEY: ${GEMINI_API_KEY}
+      # Email configuration
+      EMAIL_ENABLED: ${EMAIL_ENABLED:-false}
+      EMAIL_HOST: ${EMAIL_HOST:-smtp.gmail.com}
+      EMAIL_PORT: ${EMAIL_PORT:-587}
+      EMAIL_USERNAME: ${EMAIL_USERNAME}
+      EMAIL_PASSWORD: ${EMAIL_PASSWORD}
+      EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-noreply@tldr-highlights.com}
+      EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-TLDR Highlights}
+      EMAIL_USE_TLS: ${EMAIL_USE_TLS:-true}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      PASSWORD_RESET_URL_PATH: ${PASSWORD_RESET_URL_PATH:-/auth/reset-password}
+      PASSWORD_RESET_TOKEN_EXPIRY_HOURS: ${PASSWORD_RESET_TOKEN_EXPIRY_HOURS:-24}
     depends_on:
       postgres:
         condition: service_healthy
@@ -101,6 +175,21 @@ services:
       - ./packages:/app/packages
     networks:
       - tldr_network
+    develop:
+      watch:
+        - action: sync
+          path: ./packages
+          target: /app/packages
+          ignore:
+            - packages/**/__pycache__/
+            - packages/**/*.pyc
+            - packages/**/.pytest_cache/
+            - packages/**/.mypy_cache/
+            - packages/**/.ruff_cache/
+        - action: rebuild
+          path: ./pyproject.toml
+        - action: rebuild
+          path: ./uv.lock
 
   celery_beat:
     build:
@@ -112,6 +201,8 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://tldr_user:tldr_password@postgres:5432/tldr_highlights
       REDIS_URL: redis://:tldr_redis_password@redis:6379/0
+      CELERY_BROKER_URL: redis://:tldr_redis_password@redis:6379/1
+      CELERY_RESULT_BACKEND: redis://:tldr_redis_password@redis:6379/2
     depends_on:
       postgres:
         condition: service_healthy
@@ -121,14 +212,29 @@ services:
       - ./packages:/app/packages
     networks:
       - tldr_network
+    develop:
+      watch:
+        - action: sync
+          path: ./packages
+          target: /app/packages
+          ignore:
+            - packages/**/__pycache__/
+            - packages/**/*.pyc
+            - packages/**/.pytest_cache/
+            - packages/**/.mypy_cache/
+            - packages/**/.ruff_cache/
+        - action: rebuild
+          path: ./pyproject.toml
+        - action: rebuild
+          path: ./uv.lock
 
   flower:
     image: mher/flower:2.0
     container_name: tldr_flower
-    command: celery flower --broker=redis://:tldr_redis_password@redis:6379/0 --port=5555
+    command: celery flower --broker=redis://:tldr_redis_password@redis:6379/1 --port=5555
     environment:
-      CELERY_BROKER_URL: redis://:tldr_redis_password@redis:6379/0
-      CELERY_RESULT_BACKEND: redis://:tldr_redis_password@redis:6379/0
+      CELERY_BROKER_URL: redis://:tldr_redis_password@redis:6379/1
+      CELERY_RESULT_BACKEND: redis://:tldr_redis_password@redis:6379/2
     ports:
       - "5556:5555"
     depends_on:

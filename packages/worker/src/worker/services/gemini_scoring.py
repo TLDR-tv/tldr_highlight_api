@@ -7,7 +7,7 @@ from typing import Any, Optional
 import google.generativeai as genai
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
 
-from shared.domain.services.dimension_framework import (
+from worker.services.dimension_framework import (
     DimensionDefinition,
     ScoringRubric,
     ScoringStrategy,

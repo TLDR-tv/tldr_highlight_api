@@ -129,7 +129,7 @@ def get_user_service(
 
     password_service = PasswordService()
     jwt_service = JWTService(settings)
-    return UserService(user_repository, password_service, jwt_service)
+    return UserService(user_repository, password_service, jwt_service, settings)
 
 
 def get_organization_service(

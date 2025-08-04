@@ -7,6 +7,7 @@ import structlog
 
 from shared.domain.models.user import User, UserRole
 from shared.infrastructure.storage.repositories import UserRepository
+from shared.infrastructure.config.config import Settings
 from .auth.password_service import PasswordService
 from .auth.jwt_service import JWTService
 
@@ -21,11 +22,13 @@ class UserService:
         user_repository: UserRepository,
         password_service: PasswordService,
         jwt_service: JWTService,
+        settings: Settings,
     ):
         """Initialize with dependencies."""
         self.user_repository = user_repository
         self.password_service = password_service
         self.jwt_service = jwt_service
+        self.settings = settings
 
     async def create_user(
         self,
@@ -287,9 +290,26 @@ class UserService:
 
         logger.info("Password reset requested", user_id=str(user.id))
 
-        # In a real system, you would send this token via email
-        # For now, we'll return it
-        return reset_token
+        # Queue email delivery task
+        from api.celery_client import celery_app
+        task = celery_app.send_task(
+            "worker.tasks.email_delivery.send_password_reset_email",
+            args=[str(user.id), reset_token],
+            queue="emails"
+        )
+        logger.info(
+            "Email task queued",
+            task_id=task.id,
+            task_name="send_password_reset_email",
+            user_id=str(user.id)
+        )
+
+        # Return token only in development mode
+        if self.settings.environment == "development":
+            return reset_token
+        else:
+            # In production, email is sent asynchronously
+            return None
 
     async def reset_password(self, token: str, new_password: str) -> bool:
         """Reset password using reset token.

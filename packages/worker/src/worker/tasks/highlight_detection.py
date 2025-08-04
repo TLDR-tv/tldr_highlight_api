@@ -3,6 +3,7 @@
 from typing import Dict, List, Optional
 from uuid import UUID
 from datetime import datetime
+from dataclasses import asdict
 from structlog import get_logger
 
 from worker.services.ffmpeg_processor import FFmpegProcessor
@@ -12,8 +13,8 @@ from shared.infrastructure.storage.repositories import (
     OrganizationRepository,
 )
 from shared.infrastructure.database.database import Database
-from shared.infrastructure.config import get_settings
-from shared.domain.models.highlight import Highlight, HighlightStatus
+from shared.infrastructure.config.config import get_settings
+from shared.domain.models.highlight import Highlight
 from worker.services.highlight_detector import HighlightDetector
 from worker.services.gemini_scoring import GeminiScoringStrategy
 
@@ -118,28 +119,21 @@ async def process_segment_for_highlights(
                             + highlight_data["duration"]
                         ),
                         duration=highlight_data["duration"],
-                        type=highlight_data["type"],
-                        confidence=highlight_data["confidence"],
                         title=highlight_data.get("title", ""),
                         description=highlight_data.get("description", ""),
-                        clip_url=clip_url,
-                        thumbnail_url=thumbnail_url,
-                        status=HighlightStatus.READY,
-                        metadata={
-                            "dimension_scores": highlight_data["dimension_scores"],
-                            "detected_at": datetime.utcnow().isoformat(),
-                            "segment_id": segment_data["id"],
-                        },
+                        clip_path=clip_url,
+                        thumbnail_path=thumbnail_url,
+                        overall_score=highlight_data.get("confidence", 0.0),
                     )
                     
                     await highlight_repo.create(highlight)
-                    created_highlights.append(highlight.to_dict())
+                    created_highlights.append(asdict(highlight))
                     
                     # Send webhook notification
                     from worker.tasks.webhook_delivery import send_highlight_webhook
                     send_highlight_webhook.delay(
                         organization_id=str(stream.organization_id),
-                        highlight_data=highlight.to_dict(),
+                        highlight_data=asdict(highlight),
                     )
         
         logger.info(

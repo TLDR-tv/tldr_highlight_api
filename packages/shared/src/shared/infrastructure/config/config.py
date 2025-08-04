@@ -134,6 +134,46 @@ class Settings(BaseSettings):
     log_level: str = Field(default="INFO", description="Logging level")
     log_format: str = Field(default="json", description="Log format (json or text)")
 
+    # Email Configuration
+    email_enabled: bool = Field(
+        default=False, description="Enable email sending"
+    )
+    email_host: str = Field(
+        default="smtp.gmail.com", description="SMTP server hostname"
+    )
+    email_port: int = Field(
+        default=587, description="SMTP server port"
+    )
+    email_username: Optional[str] = Field(
+        default=None, description="SMTP username"
+    )
+    email_password: Optional[str] = Field(
+        default=None, description="SMTP password"
+    )
+    email_from_address: str = Field(
+        default="noreply@tldr-highlights.com", description="From email address"
+    )
+    email_from_name: str = Field(
+        default="TLDR Highlights", description="From name"
+    )
+    email_use_tls: bool = Field(
+        default=True, description="Use TLS for SMTP connection"
+    )
+    email_use_ssl: bool = Field(
+        default=False, description="Use SSL for SMTP connection"
+    )
+    
+    # Email URLs
+    frontend_url: str = Field(
+        default="http://localhost:3000", description="Frontend URL for email links"
+    )
+    password_reset_url_path: str = Field(
+        default="/auth/reset-password", description="Password reset URL path"
+    )
+    password_reset_token_expiry_hours: int = Field(
+        default=24, description="Password reset token expiry in hours"
+    )
+
 
 @lru_cache()
 def get_settings() -> Settings:

@@ -9,7 +9,7 @@ from structlog import get_logger
 
 from worker.app import celery_app
 from worker.services.ffmpeg_processor import FFmpegProcessor
-from worker.services.segment_buffer import SegmentBuffer
+from worker.services.segment_buffer import SegmentRingBuffer
 from worker.tasks.wake_word_detection import detect_wake_words_task
 from shared.infrastructure.storage.repositories import StreamRepository, HighlightRepository
 from shared.infrastructure.database.database import Database
@@ -152,7 +152,7 @@ async def _process_stream_async(
                 output_dir=output_dir,
                 config=config,
             )
-            segment_buffer = SegmentBuffer(max_size=10)
+            segment_buffer = SegmentRingBuffer(max_size=10)
             
             # Process stream segments
             processed_count = 0
@@ -166,7 +166,7 @@ async def _process_stream_async(
                 
                 async for segment in ffmpeg_processor.process_stream(handler):
                     # Add to buffer for context
-                    segment_buffer.add(segment)
+                    await segment_buffer.add_segment(segment)
                     
                     # Queue highlight detection for video segment
                     detect_highlights_task.delay(
@@ -187,7 +187,15 @@ async def _process_stream_async(
                             ],
                         },
                         processing_options=processing_options,
-                        context_segments=[s.to_dict() for s in segment_buffer.get_context()],
+                        context_segments=[
+                            {
+                                "segment_id": str(s.segment_id),
+                                "start_time": s.start_time,
+                                "duration": s.duration,
+                                "segment_number": s.segment_number,
+                            }
+                            for s in await segment_buffer.peek(5)
+                        ],
                     )
                     
                     # Also queue wake word detection for audio chunks

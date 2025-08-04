@@ -14,6 +14,7 @@ celery_app = Celery(
         "worker.tasks.stream_processing",
         "worker.tasks.highlight_detection",
         "worker.tasks.webhook_delivery",
+        "worker.tasks.email_delivery",
     ]
 )
 
@@ -49,6 +50,7 @@ celery_app.conf.update(
         "worker.tasks.stream_processing.*": {"queue": "stream_processing"},
         "worker.tasks.highlight_detection.*": {"queue": "highlight_detection"},
         "worker.tasks.webhook_delivery.*": {"queue": "webhooks"},
+        "worker.tasks.email_delivery.*": {"queue": "emails"},
     },
 )
 

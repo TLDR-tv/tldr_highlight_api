@@ -26,7 +26,7 @@ RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
 USER appuser
 
 # API stage
-FROM base as api
+FROM base AS api
 
 # Install API dependencies
 RUN uv sync --package api --no-dev
@@ -42,7 +42,7 @@ ENV PYTHONUNBUFFERED=1
 CMD ["uv", "run", "--package", "api", "uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
 # Worker stage
-FROM base as worker
+FROM base AS worker
 
 # Install worker dependencies
 RUN uv sync --package worker --no-dev
