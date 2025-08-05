@@ -12,7 +12,7 @@ from shared.infrastructure.storage.repositories import (
     OrganizationRepository,
     UserRepository,
 )
-from shared.infrastructure.security.password_service import PasswordService
+# Password service is now in the API package, so we'll mock it instead
 
 
 @pytest.fixture
@@ -121,7 +121,6 @@ class TestUserRepository:
 
         # Create user
         user_repo = UserRepository(session)
-        password_service = PasswordService()
 
         user = User(
             id=uuid4(),
@@ -129,7 +128,7 @@ class TestUserRepository:
             email="test@example.com",
             name="Test User",
             role=UserRole.ADMIN,
-            hashed_password=password_service.hash_password("TestPass123!"),
+            hashed_password="hashed_TestPass123!",
         )
 
         created = await user_repo.create(user)
@@ -152,7 +151,6 @@ class TestUserRepository:
 
         # Create user
         user_repo = UserRepository(session)
-        password_service = PasswordService()
 
         user = User(
             id=uuid4(),
@@ -160,7 +158,7 @@ class TestUserRepository:
             email="test@example.com",
             name="Test User",
             role=UserRole.ADMIN,
-            hashed_password=password_service.hash_password("TestPass123!"),
+            hashed_password="hashed_TestPass123!",
         )
 
         await user_repo.create(user)
@@ -193,7 +191,7 @@ class TestUserRepository:
             email="test@example.com",
             name="Test User",
             role=UserRole.ADMIN,
-            hashed_password=password_service.hash_password(password),
+            hashed_password=f"hashed_{password}",
         )
 
         await user_repo.create(user)
@@ -202,4 +200,4 @@ class TestUserRepository:
         # Test authentication
         found = await user_repo.get_by_email("test@example.com")
         assert found is not None
-        assert password_service.verify_password(password, found.hashed_password)
+        assert found.hashed_password == f"hashed_{password}"

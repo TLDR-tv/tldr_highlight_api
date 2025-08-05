@@ -15,6 +15,7 @@ from ..dependencies import (
     get_organization_repository,
     get_user_repository,
     get_api_key_repository,
+    get_api_key_service,
 )
 from ..schemas.organization import (
     OrganizationResponse,
@@ -24,7 +25,7 @@ from ..schemas.organization import (
     WakeWordRequest,
 )
 from ..schemas.user import UserListResponse, UserResponse
-from ..schemas.api_key import APIKeyResponse, APIKeyListResponse
+from ..schemas.api_key import APIKeyResponse, APIKeyListResponse, APIKeyCreateRequest, APIKeyCreateResponse
 from shared.domain.models.api_key import APIScopes
 from shared.domain.models.user import User
 from api.services.organization_service import OrganizationService
@@ -33,6 +34,7 @@ from shared.infrastructure.storage.repositories import (
     UserRepository,
     APIKeyRepository,
 )
+from shared.infrastructure.security.api_key_service import APIKeyService
 
 router = APIRouter()
 
@@ -219,3 +221,68 @@ async def list_api_keys(
         api_keys=api_key_responses,
         total=len(keys),
     )
+
+
+@router.post("/current/api-keys", response_model=APIKeyCreateResponse)
+async def create_api_key(
+    request: APIKeyCreateRequest,
+    current_user: User = Depends(require_admin_user),
+    api_key_service: APIKeyService = Depends(get_api_key_service),
+):
+    """Create a new API key for the organization (admin only)."""
+    try:
+        # Generate the API key
+        raw_key, api_key_entity = await api_key_service.generate_api_key(
+            organization_id=current_user.organization_id,
+            name=request.name,
+            scopes=set(request.scopes),
+            created_by_user_id=current_user.id,
+        )
+        
+        # Return the response with the raw key (only shown once)
+        return APIKeyCreateResponse(
+            api_key=APIKeyResponse(
+                id=api_key_entity.id,
+                name=api_key_entity.name,
+                prefix=api_key_entity.prefix,
+                scopes=list(api_key_entity.scopes),
+                created_at=api_key_entity.created_at,
+                last_used_at=api_key_entity.last_used_at,
+                is_active=api_key_entity.is_active,
+            ),
+            raw_key=raw_key,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+
+@router.delete("/current/api-keys/{key_id}", response_model=dict)
+async def delete_api_key(
+    key_id: UUID,
+    current_user: User = Depends(require_admin_user),
+    api_key_repository: APIKeyRepository = Depends(get_api_key_repository),
+    api_key_service: APIKeyService = Depends(get_api_key_service),
+):
+    """Delete an API key (admin only)."""
+    # First check if the key exists and belongs to the organization
+    api_key = await api_key_repository.get(key_id)
+    
+    if not api_key:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="API key not found",
+        )
+    
+    if api_key.organization_id != current_user.organization_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="API key not found",
+        )
+    
+    # Revoke the key (soft delete)
+    await api_key_service.revoke_api_key(key_id)
+    
+    return {"detail": "API key revoked successfully"}

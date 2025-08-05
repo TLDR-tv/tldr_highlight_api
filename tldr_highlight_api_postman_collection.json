@@ -64,6 +64,11 @@
       "key": "organization_id",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "created_api_key_id",
+      "value": "",
+      "type": "string"
     }
   ],
   "item": [
@@ -725,6 +730,66 @@
                 },
                 "description": "List API keys (Admin only)"
               }
+            },
+            {
+              "name": "Create API Key",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "if (pm.response.code === 200) {",
+                      "    const response = pm.response.json();",
+                      "    pm.collectionVariables.set('created_api_key_id', response.api_key.id);",
+                      "    console.log('API Key created:', response.raw_key);",
+                      "    console.log('Store this key securely - it will not be shown again!');",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Production API Key\",\n  \"scopes\": [\n    \"streams:read\",\n    \"streams:write\",\n    \"highlights:read\",\n    \"organizations:read\"\n  ]\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/v1/organizations/current/api-keys",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "organizations", "current", "api-keys"]
+                },
+                "description": "Create a new API key (Admin only). The raw key is only shown once in the response."
+              }
+            },
+            {
+              "name": "Delete API Key",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/organizations/current/api-keys/{{created_api_key_id}}",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "organizations", "current", "api-keys", "{{created_api_key_id}}"]
+                },
+                "description": "Delete (revoke) an API key (Admin only)"
+              }
             }
           ]
         }
@@ -733,6 +798,51 @@
     {
       "name": "Stream Management",
       "item": [
+        {
+          "name": "List Streams",
+          "request": {
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "value",
+                  "value": "{{api_key}}",
+                  "type": "string"
+                },
+                {
+                  "key": "key",
+                  "value": "X-API-Key",
+                  "type": "string"
+                },
+                {
+                  "key": "in",
+                  "value": "header",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/streams/?page=1&page_size=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "streams", ""],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number"
+                },
+                {
+                  "key": "page_size",
+                  "value": "20",
+                  "description": "Items per page (max 100)"
+                }
+              ]
+            },
+            "description": "List all streams for the organization with pagination. Requires STREAMS_READ scope."
+          }
+        },
         {
           "name": "Create Stream",
           "event": [
@@ -869,6 +979,39 @@
     {
       "name": "Highlight Management",
       "item": [
+        {
+          "name": "Get Highlights by Stream",
+          "request": {
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "value",
+                  "value": "{{api_key}}",
+                  "type": "string"
+                },
+                {
+                  "key": "key",
+                  "value": "X-API-Key",
+                  "type": "string"
+                },
+                {
+                  "key": "in",
+                  "value": "header",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/highlights/streams/{{stream_id}}/highlights",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "highlights", "streams", "{{stream_id}}", "highlights"]
+            },
+            "description": "Get all highlights for a specific stream in chronological order. Requires HIGHLIGHTS_READ scope."
+          }
+        },
         {
           "name": "Get Stream Highlights",
           "request": {

@@ -109,14 +109,14 @@ class OrganizationRepository:
         model.updated_at = entity.updated_at
 
         # Update wake words - only add/remove changed ones
-        existing_words = {ww.word for ww in model.wake_word_configs if ww.is_active}
+        existing_words = {ww.phrase for ww in model.wake_word_configs if ww.is_active}
         new_words = entity.wake_words
 
         # Remove words that are no longer in the set
         for ww in model.wake_word_configs[
             :
         ]:  # Use slice to avoid modifying during iteration
-            if ww.word not in new_words:
+            if ww.phrase not in new_words:
                 model.wake_word_configs.remove(ww)
 
         # Add new words that don't exist
@@ -124,7 +124,7 @@ class OrganizationRepository:
             if word not in existing_words:
                 wake_word = WakeWordModel(
                     organization_id=entity.id,
-                    word=word,
+                    phrase=word,
                     is_active=True,
                 )
                 model.wake_word_configs.append(wake_word)
@@ -160,7 +160,7 @@ class OrganizationRepository:
         wake_words = set()
         # Only access wake_word_configs if it's already loaded
         if "wake_word_configs" in model.__dict__:
-            wake_words = {ww.word for ww in model.wake_word_configs if ww.is_active}
+            wake_words = {ww.phrase for ww in model.wake_word_configs if ww.is_active}
 
         return Organization(
             id=model.id,

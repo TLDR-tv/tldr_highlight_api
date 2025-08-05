@@ -77,6 +77,16 @@ class StreamRepository:
         )
         models = result.scalars().all()
         return [self._to_entity(model) for model in models]
+    
+    async def count_by_organization(self, org_id: UUID) -> int:
+        """Count total streams for an organization."""
+        from sqlalchemy import func
+        
+        result = await self.session.execute(
+            select(func.count(StreamModel.id))
+            .where(StreamModel.organization_id == org_id)
+        )
+        return result.scalar() or 0
 
     async def update(self, entity: Stream) -> Stream:
         """Update existing stream."""

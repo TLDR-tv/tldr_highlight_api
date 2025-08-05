@@ -1,6 +1,7 @@
 """Integration tests for organization management API endpoints."""
 
 import pytest
+from uuid import uuid4
 from fastapi import status
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -548,6 +549,231 @@ class TestUsageAndAPIKeys:
         assert "user1@example.com" in emails
         assert "user2@example.com" in emails
         assert "user3@example.com" in emails
+
+    @pytest.mark.asyncio
+    async def test_create_api_key(
+        self,
+        client: AsyncClient,
+        test_session: AsyncSession,
+        auth_headers,
+    ):
+        """Test creating a new API key."""
+        # Create organization and admin
+        org = create_test_organization()
+        admin, password = create_test_user(
+            organization_id=org.id, email="admin@example.com", role=UserRole.ADMIN
+        )
+
+        org_repo = OrganizationRepository(test_session)
+        user_repo = UserRepository(test_session)
+        await org_repo.create(org)
+        await user_repo.create(admin)
+        await test_session.commit()
+
+        # Login as admin
+        login_response = await client.post(
+            "/api/v1/auth/login",
+            json={"email": "admin@example.com", "password": password},
+        )
+        token = login_response.json()["access_token"]
+
+        # Create API key
+        response = await client.post(
+            "/api/v1/organizations/current/api-keys",
+            headers=auth_headers(token),
+            json={
+                "name": "Production API Key",
+                "scopes": ["streams:read", "streams:write", "highlights:read"],
+            },
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+
+        # Check response structure
+        assert "api_key" in data
+        assert "raw_key" in data
+        assert "message" in data
+
+        # Check API key details
+        api_key = data["api_key"]
+        assert api_key["name"] == "Production API Key"
+        assert api_key["is_active"] is True
+        assert set(api_key["scopes"]) == {"streams:read", "streams:write", "highlights:read"}
+        assert api_key["prefix"].startswith("tldr_")
+
+        # Check raw key format
+        raw_key = data["raw_key"]
+        assert raw_key.startswith("tldr_")
+        assert len(raw_key) > 30  # Should be a secure length
+
+    @pytest.mark.asyncio
+    async def test_create_api_key_non_admin_forbidden(
+        self,
+        client: AsyncClient,
+        test_session: AsyncSession,
+        auth_headers,
+    ):
+        """Test non-admin cannot create API keys."""
+        # Create organization and member
+        org = create_test_organization()
+        member, password = create_test_user(
+            organization_id=org.id, email="member@example.com", role=UserRole.MEMBER
+        )
+
+        org_repo = OrganizationRepository(test_session)
+        user_repo = UserRepository(test_session)
+        await org_repo.create(org)
+        await user_repo.create(member)
+        await test_session.commit()
+
+        # Login as member
+        login_response = await client.post(
+            "/api/v1/auth/login",
+            json={"email": "member@example.com", "password": password},
+        )
+        token = login_response.json()["access_token"]
+
+        # Try to create API key
+        response = await client.post(
+            "/api/v1/organizations/current/api-keys",
+            headers=auth_headers(token),
+            json={
+                "name": "Test Key",
+                "scopes": ["streams:read"],
+            },
+        )
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    @pytest.mark.asyncio
+    async def test_delete_api_key(
+        self,
+        client: AsyncClient,
+        test_session: AsyncSession,
+        auth_headers,
+    ):
+        """Test deleting an API key."""
+        # Create organization with API key
+        org = create_test_organization()
+        admin, password = create_test_user(
+            organization_id=org.id, email="admin@example.com", role=UserRole.ADMIN
+        )
+        api_key, _ = create_test_api_key(
+            organization_id=org.id, name="Test Key to Delete"
+        )
+
+        org_repo = OrganizationRepository(test_session)
+        user_repo = UserRepository(test_session)
+        api_key_repo = APIKeyRepository(test_session)
+        await org_repo.create(org)
+        await user_repo.create(admin)
+        await api_key_repo.create(api_key)
+        await test_session.commit()
+
+        # Login as admin
+        login_response = await client.post(
+            "/api/v1/auth/login",
+            json={"email": "admin@example.com", "password": password},
+        )
+        token = login_response.json()["access_token"]
+
+        # Delete API key
+        response = await client.delete(
+            f"/api/v1/organizations/current/api-keys/{api_key.id}",
+            headers=auth_headers(token),
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["detail"] == "API key revoked successfully"
+
+        # Verify key is revoked
+        revoked_key = await api_key_repo.get(api_key.id)
+        assert revoked_key.is_active is False
+
+    @pytest.mark.asyncio
+    async def test_delete_api_key_not_found(
+        self,
+        client: AsyncClient,
+        test_session: AsyncSession,
+        auth_headers,
+    ):
+        """Test deleting non-existent API key."""
+        # Create organization and admin
+        org = create_test_organization()
+        admin, password = create_test_user(
+            organization_id=org.id, email="admin@example.com", role=UserRole.ADMIN
+        )
+
+        org_repo = OrganizationRepository(test_session)
+        user_repo = UserRepository(test_session)
+        await org_repo.create(org)
+        await user_repo.create(admin)
+        await test_session.commit()
+
+        # Login as admin
+        login_response = await client.post(
+            "/api/v1/auth/login",
+            json={"email": "admin@example.com", "password": password},
+        )
+        token = login_response.json()["access_token"]
+
+        # Try to delete non-existent key
+        response = await client.delete(
+            f"/api/v1/organizations/current/api-keys/{uuid4()}",
+            headers=auth_headers(token),
+        )
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+        assert "not found" in response.json()["detail"]
+
+    @pytest.mark.asyncio
+    async def test_delete_api_key_wrong_organization(
+        self,
+        client: AsyncClient,
+        test_session: AsyncSession,
+        auth_headers,
+    ):
+        """Test cannot delete API key from different organization."""
+        # Create two organizations
+        org1 = create_test_organization(name="Org 1")
+        org2 = create_test_organization(name="Org 2")
+        
+        admin1, password1 = create_test_user(
+            organization_id=org1.id, email="admin1@example.com", role=UserRole.ADMIN
+        )
+        
+        # Create API key for org2
+        api_key_org2, _ = create_test_api_key(
+            organization_id=org2.id, name="Org2 Key"
+        )
+
+        org_repo = OrganizationRepository(test_session)
+        user_repo = UserRepository(test_session)
+        api_key_repo = APIKeyRepository(test_session)
+        
+        await org_repo.create(org1)
+        await org_repo.create(org2)
+        await user_repo.create(admin1)
+        await api_key_repo.create(api_key_org2)
+        await test_session.commit()
+
+        # Login as admin of org1
+        login_response = await client.post(
+            "/api/v1/auth/login",
+            json={"email": "admin1@example.com", "password": password1},
+        )
+        token = login_response.json()["access_token"]
+
+        # Try to delete org2's API key
+        response = await client.delete(
+            f"/api/v1/organizations/current/api-keys/{api_key_org2.id}",
+            headers=auth_headers(token),
+        )
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+        assert "not found" in response.json()["detail"]
 
 
 class TestAPIKeyScopes:
