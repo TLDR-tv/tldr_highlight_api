@@ -42,16 +42,13 @@ class StreamProcessingTask(Task):
         """Update stream status in database."""
         settings = get_settings()
         database = Database(settings.database_url)
-        await database.connect()
         
         async with database.session() as session:
             stream_repo = StreamRepository(session)
-            stream = await stream_repo.get_by_id(UUID(stream_id))
+            stream = await stream_repo.get(UUID(stream_id))
             if stream:
                 stream.status = status
                 await stream_repo.update(stream)
-        
-        await database.disconnect()
 
 
 @celery_app.task(
@@ -109,132 +106,132 @@ async def _process_stream_async(
     """Async implementation of stream processing."""
     settings = get_settings()
     database = Database(settings.database_url)
-    await database.connect()
     
-    try:
-        async with database.session() as session:
-            stream_repo = StreamRepository(session)
-            stream = await stream_repo.get_by_id(UUID(stream_id))
-            
-            if not stream:
-                raise ValueError(f"Stream {stream_id} not found")
-            
-            # Update stream status
-            stream.status = StreamStatus.PROCESSING
-            stream.celery_task_id = task_id
-            await stream_repo.update(stream)
-            
-            logger.info(
-                "Starting stream processing",
-                stream_id=stream_id,
-                url=stream.url,
-                task_id=task_id,
-            )
+    # Get stream info and update status
+    async with database.session() as session:
+        stream_repo = StreamRepository(session)
+        stream = await stream_repo.get(UUID(stream_id))
         
-        # Create temporary directory for processing
-        from tempfile import TemporaryDirectory
-        from pathlib import Path
-        from worker.services.ffmpeg_processor import FFmpegConfig
+        if not stream:
+            raise ValueError(f"Stream {stream_id} not found")
         
-        with TemporaryDirectory() as temp_dir:
-            output_dir = Path(temp_dir)
+        # Update stream status
+        stream.status = StreamStatus.PROCESSING
+        stream.celery_task_id = task_id
+        await stream_repo.update(stream)
+        
+        # Store needed values
+        stream_url = stream.url
+        organization_id = stream.organization_id
+        
+        logger.info(
+            "Starting stream processing",
+            stream_id=stream_id,
+            url=stream_url,
+            task_id=task_id,
+        )
+    
+    # Create temporary directory for processing
+    from tempfile import TemporaryDirectory
+    from pathlib import Path
+    from worker.services.ffmpeg_processor import FFmpegConfig
+    
+    with TemporaryDirectory() as temp_dir:
+        output_dir = Path(temp_dir)
+        
+        # Configure FFmpeg processor
+        config = FFmpegConfig(
+            segment_duration=processing_options.get("video_segment_duration", 120),
+            audio_segment_duration=processing_options.get("audio_segment_duration", 30),
+            audio_overlap=processing_options.get("audio_overlap", 5),
+        )
+        
+        # Initialize processors with context manager
+        ffmpeg_processor = FFmpegProcessor(
+            stream_url=stream_url,
+            output_dir=output_dir,
+            config=config,
+        )
+        segment_buffer = SegmentRingBuffer(max_size=10)
+        
+        # Process stream segments
+        processed_count = 0
+        async with ffmpeg_processor:
+            # Simple segment handler
+            class SegmentHandler:
+                async def handle_segment(self, segment):
+                    pass
             
-            # Configure FFmpeg processor
-            config = FFmpegConfig(
-                segment_duration=processing_options.get("video_segment_duration", 120),
-                audio_segment_duration=processing_options.get("audio_segment_duration", 30),
-                audio_overlap=processing_options.get("audio_overlap", 5),
-            )
+            handler = SegmentHandler()
             
-            # Initialize processors with context manager
-            ffmpeg_processor = FFmpegProcessor(
-                stream_url=stream.url,
-                output_dir=output_dir,
-                config=config,
-            )
-            segment_buffer = SegmentRingBuffer(max_size=10)
-            
-            # Process stream segments
-            processed_count = 0
-            async with ffmpeg_processor:
-                # Simple segment handler
-                class SegmentHandler:
-                    async def handle_segment(self, segment):
-                        pass
+            async for segment in ffmpeg_processor.process_stream(handler):
+                # Add to buffer for context
+                await segment_buffer.add_segment(segment)
                 
-                handler = SegmentHandler()
-                
-                async for segment in ffmpeg_processor.process_stream(handler):
-                    # Add to buffer for context
-                    await segment_buffer.add_segment(segment)
-                    
-                    # Queue highlight detection for video segment
-                    detect_highlights_task.delay(
-                        stream_id=stream_id,
-                        segment_data={
-                            "id": str(segment.segment_id),
-                            "start_time": segment.start_time,
-                            "end_time": segment.start_time + segment.duration,
-                            "video_path": str(segment.path),
-                            "audio_chunks": [
-                                {
-                                    "id": str(chunk.chunk_id),
-                                    "path": str(chunk.path),
-                                    "start_time": chunk.start_time,
-                                    "end_time": chunk.end_time,
-                                }
-                                for chunk in segment.audio_chunks
-                            ],
-                        },
-                        processing_options=processing_options,
-                        context_segments=[
+                # Queue highlight detection for video segment
+                detect_highlights_task.delay(
+                    stream_id=stream_id,
+                    segment_data={
+                        "id": str(segment.segment_id),
+                        "start_time": segment.start_time,
+                        "end_time": segment.start_time + segment.duration,
+                        "video_path": str(segment.path),
+                        "audio_chunks": [
                             {
-                                "segment_id": str(s.segment_id),
-                                "start_time": s.start_time,
-                                "duration": s.duration,
-                                "segment_number": s.segment_number,
-                            }
-                            for s in await segment_buffer.peek(5)
-                        ],
-                    )
-                    
-                    # Also queue wake word detection for audio chunks
-                    for chunk in segment.audio_chunks:
-                        detect_wake_words_task.delay(
-                            stream_id=stream_id,
-                            audio_chunk={
                                 "id": str(chunk.chunk_id),
                                 "path": str(chunk.path),
                                 "start_time": chunk.start_time,
                                 "end_time": chunk.end_time,
-                                "video_segment_number": segment.segment_number,
-                            },
-                            organization_id=str(stream.organization_id),
-                        )
-                    
-                    processed_count += 1
-                    
-                    # Update progress periodically
-                    if processed_count % 10 == 0:
-                        celery_app.send_task(
-                            "worker.tasks.webhook_delivery.send_progress_update",
-                            args=[stream_id, processed_count],
-                        )
-        
-        logger.info(
-            "Stream processing completed",
-            stream_id=stream_id,
-            segments_processed=processed_count,
-        )
-        
-        return {
-            "stream_id": stream_id,
-            "segments_processed": processed_count,
-            "status": "completed",
-        }
-        
-    finally:
-        await database.disconnect()
+                            }
+                            for chunk in segment.audio_chunks
+                        ],
+                    },
+                    processing_options=processing_options,
+                    context_segments=[
+                        {
+                            "segment_id": str(s.segment_id),
+                            "start_time": s.start_time,
+                            "duration": s.duration,
+                            "segment_number": s.segment_number,
+                        }
+                        for s in await segment_buffer.peek(5)
+                    ],
+                )
+                
+                # Also queue wake word detection for audio chunks
+                for chunk in segment.audio_chunks:
+                    detect_wake_words_task.delay(
+                        stream_id=stream_id,
+                        audio_chunk={
+                            "id": str(chunk.chunk_id),
+                            "path": str(chunk.path),
+                            "start_time": chunk.start_time,
+                            "end_time": chunk.end_time,
+                            "video_segment_number": segment.segment_number,
+                        },
+                        organization_id=str(organization_id),
+                    )
+                
+                processed_count += 1
+                
+                # Update progress periodically
+                if processed_count % 10 == 0:
+                    celery_app.send_task(
+                        "worker.tasks.webhook_delivery.send_progress_update",
+                        args=[stream_id, processed_count],
+                    )
+    
+    logger.info(
+        "Stream processing completed",
+        stream_id=stream_id,
+        segments_processed=processed_count,
+    )
+    
+    return {
+        "stream_id": stream_id,
+        "segments_processed": processed_count,
+        "status": "completed",
+    }
 
 
 @celery_app.task(

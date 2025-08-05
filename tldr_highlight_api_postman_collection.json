@@ -973,6 +973,71 @@
             },
             "description": "Start stream processing. Rate limited to 10 requests per minute. Requires STREAMS_WRITE scope. Returns 202 Accepted with task_id."
           }
+        },
+        {
+          "name": "Upload Stream File",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set(\"stream_id\", response.id);",
+                  "    console.log(\"Stream created with ID: \" + response.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "value",
+                  "value": "{{api_key}}",
+                  "type": "string"
+                },
+                {
+                  "key": "key",
+                  "value": "X-API-Key",
+                  "type": "string"
+                },
+                {
+                  "key": "in",
+                  "value": "header",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "",
+                  "description": "Video file to upload (MP4, MOV, AVI, MKV, WEBM, FLV, MPG, MPEG)"
+                },
+                {
+                  "key": "name",
+                  "value": "My Uploaded Video",
+                  "type": "text",
+                  "description": "Optional name for the stream"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/streams/upload",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "streams", "upload"]
+            },
+            "description": "Upload a video file and create a stream for processing. Supports MP4, MOV, AVI, MKV, WEBM, FLV, MPG, MPEG formats. No size limit - files will be segmented with FFmpeg. Rate limited to 10 requests per minute. Requires STREAMS_WRITE scope."
+          }
         }
       ]
     },

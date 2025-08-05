@@ -4,7 +4,9 @@ version = "0.1.0"
 description = "Enterprise B2B API for AI-powered highlight extraction from livestreams and video content"
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "requests>=2.32.4",
+]
 
 [tool.uv.workspace]
 members = [

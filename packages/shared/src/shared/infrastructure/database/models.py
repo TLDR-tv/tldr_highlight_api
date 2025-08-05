@@ -42,6 +42,7 @@ class OrganizationModel(Base):
     # Custom configuration
     webhook_url = Column(String(500), nullable=True)
     webhook_secret = Column(String(255), nullable=True)
+    rubric_name = Column(String(50), nullable=False, default="general")
 
     # Timestamps
     created_at = Column(

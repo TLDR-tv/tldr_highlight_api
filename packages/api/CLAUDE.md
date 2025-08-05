@@ -265,6 +265,7 @@ async def list_highlights(
 3. Add router to main app in `main.py`
 4. Write integration tests
 5. Update OpenAPI documentation
+6. **IMPORTANT: Update the Postman collection** (`TLDR_Highlight_API.postman_collection.json`) with the new endpoint
 
 ### Adding a New Service
 1. Create service in `src/api/services/`
@@ -350,6 +351,17 @@ from api.middleware.rate_limit import RateLimiter
 rate_limiter = RateLimiter(redis_url=settings.redis_url)
 ```
 
+## Postman Collection Maintenance
+
+**CRITICAL**: The Postman collection (`TLDR_Highlight_API.postman_collection.json`) must be kept in sync with API changes:
+
+- **When adding endpoints**: Add corresponding requests to the collection
+- **When modifying endpoints**: Update request URLs, methods, headers, and body examples
+- **When deleting endpoints**: Remove from the collection
+- **When changing authentication**: Update collection variables and auth settings
+
+The Postman collection serves as both documentation and testing tool for API consumers.
+
 ## Common Pitfalls to Avoid
 
 1. **Don't bypass authentication** - Always use dependency injection
@@ -358,6 +370,7 @@ rate_limiter = RateLimiter(redis_url=settings.redis_url)
 4. **Don't expose internal errors** - Use proper error handling
 5. **Don't skip input validation** - Use Pydantic schemas
 6. **Don't mix concerns** - Keep auth logic in services, not routes
+7. **Don't forget to update Postman collection** - Keep it in sync with API changes
 
 ## Integration Points
 

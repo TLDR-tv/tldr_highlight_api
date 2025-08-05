@@ -26,6 +26,9 @@ class Organization:
     wake_words: set[str] = field(default_factory=set)
     webhook_url: Optional[str] = None
     webhook_secret: Optional[str] = None
+    
+    # Rubric configuration
+    rubric_name: str = "general"  # Name of the rubric to use for this organization
 
     def __post_init__(self) -> None:
         """Validate and normalize data after initialization."""

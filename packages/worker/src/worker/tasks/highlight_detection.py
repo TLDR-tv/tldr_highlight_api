@@ -17,6 +17,7 @@ from shared.infrastructure.config.config import get_settings
 from shared.domain.models.highlight import Highlight
 from worker.services.highlight_detector import HighlightDetector
 from worker.services.gemini_scorer import GeminiVideoScorer
+from worker.services.rubric_registry import RubricRegistry
 
 logger = get_logger()
 
@@ -48,104 +49,121 @@ async def process_segment_for_highlights(
     """
     settings = get_settings()
     database = Database(settings.database_url)
-    await database.connect()
     
-    try:
+    async with database.session() as session:
+        # Get stream and organization info
+        stream_repo = StreamRepository(session)
+        org_repo = OrganizationRepository(session)
+        highlight_repo = HighlightRepository(session)
+        
+        stream = await stream_repo.get(UUID(stream_id))
+        if not stream:
+            raise ValueError(f"Stream {stream_id} not found")
+        
+        organization = await org_repo.get(stream.organization_id)
+        if not organization:
+            raise ValueError(f"Organization not found for stream {stream_id}")
+    
+    # Get the rubric for this organization
+    rubric = RubricRegistry.get_rubric(organization.rubric_name)
+    if not rubric:
+        logger.warning(
+            f"Rubric '{organization.rubric_name}' not found, using general rubric",
+            organization_id=str(organization.id),
+            rubric_name=organization.rubric_name,
+        )
+        rubric = RubricRegistry.get_rubric("general")
+        if not rubric:
+            raise ValueError("General rubric not found in registry")
+    
+    logger.info(
+        "Using rubric for highlight detection",
+        rubric_name=rubric.name,
+        organization_id=str(organization.id),
+        stream_id=stream_id,
+    )
+    
+    # Initialize scoring strategy and detector
+    scoring_strategy = GeminiVideoScorer(
+        api_key=settings.gemini_api_key,
+    )
+    
+    highlight_detector = HighlightDetector(
+        scoring_strategy=scoring_strategy,
+        min_highlight_duration=processing_options.get("min_highlight_duration", 10.0),
+        max_highlight_duration=processing_options.get("max_highlight_duration", 120.0),
+    )
+    
+    # Convert segment data to VideoSegment for the detector
+    from worker.services.highlight_detector import VideoSegment
+    from pathlib import Path
+    
+    video_segment = VideoSegment(
+        file_path=Path(segment_data["video_path"]),
+        start_time=segment_data["start_time"],
+        duration=segment_data["end_time"] - segment_data["start_time"],
+        segment_number=segment_data.get("segment_number", 0),
+    )
+    
+    # Detect highlights in the segment
+    detected_highlights = await highlight_detector.detect_highlights(
+        stream=stream,
+        segments=[video_segment],
+        rubric=rubric,
+    )
+    
+    # Create highlight records if any detected
+    created_highlights = []
+    if detected_highlights:
+        ffmpeg_processor = FFmpegProcessor()
+        
         async with database.session() as session:
-            # Get stream and organization info
-            stream_repo = StreamRepository(session)
-            org_repo = OrganizationRepository(session)
             highlight_repo = HighlightRepository(session)
             
-            stream = await stream_repo.get_by_id(UUID(stream_id))
-            if not stream:
-                raise ValueError(f"Stream {stream_id} not found")
-            
-            organization = await org_repo.get_by_id(stream.organization_id)
-            if not organization:
-                raise ValueError(f"Organization not found for stream {stream_id}")
-        
-        # Initialize scoring strategy and detector
-        scoring_strategy = GeminiVideoScorer(
-            api_key=settings.gemini_api_key,
-        )
-        
-        highlight_detector = HighlightDetector(
-            scoring_strategy=scoring_strategy,
-            type_registry_id=processing_options["type_registry_id"],
-            confidence_threshold=processing_options.get("confidence_threshold", 0.7),
-        )
-        
-        # Process segment through detector
-        detected_highlights = await highlight_detector.process_segment(
-            video_path=segment_data["video_path"],
-            start_time=segment_data["start_time"],
-            end_time=segment_data["end_time"],
-            context=context_segments,
-        )
-        
-        # Create highlight records if any detected
-        created_highlights = []
-        if detected_highlights:
-            ffmpeg_processor = FFmpegProcessor()
-            
-            async with database.session() as session:
-                highlight_repo = HighlightRepository(session)
+            for highlight_candidate in detected_highlights:
+                # Calculate offset within the segment
+                segment_start = segment_data["start_time"]
+                highlight_start_offset = highlight_candidate.start_time - segment_start
                 
-                for highlight_data in detected_highlights:
-                    # Generate clip and thumbnail
-                    clip_path, thumbnail_path = await ffmpeg_processor.create_highlight_clip(
-                        source_path=segment_data["video_path"],
-                        start_offset=highlight_data["start_offset"],
-                        duration=highlight_data["duration"],
-                        output_dir=f"/tmp/highlights/{stream_id}",
-                    )
-                    
-                    # Upload to S3
-                    clip_url = await _upload_to_s3(clip_path, f"highlights/{stream_id}/clips")
-                    thumbnail_url = await _upload_to_s3(
-                        thumbnail_path, f"highlights/{stream_id}/thumbnails"
-                    )
-                    
-                    # Create highlight record
-                    highlight = Highlight(
-                        stream_id=stream.id,
-                        organization_id=stream.organization_id,
-                        start_time=segment_data["start_time"] + highlight_data["start_offset"],
-                        end_time=(
-                            segment_data["start_time"]
-                            + highlight_data["start_offset"]
-                            + highlight_data["duration"]
-                        ),
-                        duration=highlight_data["duration"],
-                        title=highlight_data.get("title", ""),
-                        description=highlight_data.get("description", ""),
-                        clip_path=clip_url,
-                        thumbnail_path=thumbnail_url,
-                        overall_score=highlight_data.get("confidence", 0.0),
-                    )
-                    
-                    await highlight_repo.create(highlight)
-                    created_highlights.append(asdict(highlight))
-                    
-                    # Send webhook notification
-                    from worker.tasks.webhook_delivery import send_highlight_webhook
-                    send_highlight_webhook.delay(
-                        organization_id=str(stream.organization_id),
-                        highlight_data=asdict(highlight),
-                    )
-        
-        logger.info(
-            "Segment processing completed",
-            stream_id=stream_id,
-            segment_id=segment_data["id"],
-            highlights_found=len(created_highlights),
-        )
-        
-        return created_highlights
-        
-    finally:
-        await database.disconnect()
+                # Generate clip and thumbnail
+                clip_path, thumbnail_path = await ffmpeg_processor.create_highlight_clip(
+                    source_path=segment_data["video_path"],
+                    start_offset=highlight_start_offset,
+                    duration=highlight_candidate.duration,
+                    output_dir=f"/tmp/highlights/{stream_id}",
+                )
+                
+                # Upload to S3
+                clip_url = await _upload_to_s3(clip_path, f"highlights/{stream_id}/clips")
+                thumbnail_url = await _upload_to_s3(
+                    thumbnail_path, f"highlights/{stream_id}/thumbnails"
+                )
+                
+                # Convert to highlight using the candidate's method
+                highlight = highlight_candidate.to_highlight(
+                    organization_id=stream.organization_id,
+                    s3_url=clip_url,
+                    thumbnail_url=thumbnail_url,
+                )
+                
+                await highlight_repo.create(highlight)
+                created_highlights.append(asdict(highlight))
+                
+                # Send webhook notification
+                from worker.tasks.webhook_delivery import send_highlight_webhook
+                send_highlight_webhook.delay(
+                    organization_id=str(stream.organization_id),
+                    highlight_data=asdict(highlight),
+                )
+    
+    logger.info(
+        "Segment processing completed",
+        stream_id=stream_id,
+        segment_id=segment_data["id"],
+        highlights_found=len(created_highlights),
+    )
+    
+    return created_highlights
 
 
 async def _upload_to_s3(file_path: str, s3_prefix: str) -> str:

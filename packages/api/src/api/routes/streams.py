@@ -1,8 +1,13 @@
 """Stream management endpoints."""
 
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, UploadFile, File
 from uuid import UUID
 from typing import Optional
+import boto3
+from pathlib import Path
+import aiofiles
+import tempfile
+import os
 
 from ..dependencies import (
     get_current_organization,
@@ -112,6 +117,110 @@ async def create_stream(
     await stream_repository.create(stream)
     
     return StreamResponse.model_validate(stream)
+
+
+@router.post("/upload", response_model=StreamResponse)
+async def upload_stream_file(
+    file: UploadFile = File(...),
+    name: Optional[str] = None,
+    organization: Organization = Depends(get_current_organization),
+    stream_repository: StreamRepository = Depends(get_stream_repository),
+    settings: Settings = Depends(get_settings_dep),
+    _=Depends(require_scope(APIScopes.STREAMS_WRITE)),
+    _rate_limit: None = create_endpoint_limiter("10/minute"),
+):
+    """Upload a video file and create a stream for processing.
+    
+    Args:
+        file: Video file to upload (MP4, MOV, AVI, etc.).
+        name: Optional name for the stream.
+        organization: Current organization from API key.
+        stream_repository: Stream data repository.
+        settings: Application settings.
+        _: API scope validation dependency.
+        
+    Returns:
+        StreamResponse with the created stream details.
+        
+    Raises:
+        HTTPException: 400 if file is invalid.
+
+    """
+    # Validate file type
+    allowed_extensions = {'.mp4', '.mov', '.avi', '.mkv', '.webm', '.flv', '.mpg', '.mpeg'}
+    file_extension = Path(file.filename).suffix.lower()
+    if file_extension not in allowed_extensions:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid file type. Allowed types: {', '.join(allowed_extensions)}"
+        )
+    
+    # Get file size for metadata
+    file.file.seek(0, 2)  # Move to end
+    file_size = file.file.tell()
+    file.file.seek(0)  # Reset to beginning
+    
+    # Generate S3 key
+    import uuid
+    file_id = str(uuid.uuid4())
+    s3_key = f"uploads/{organization.id}/{file_id}{file_extension}"
+    
+    # Upload to S3/MinIO
+    s3_client = boto3.client(
+        's3',
+        endpoint_url=settings.aws_endpoint_url,
+        aws_access_key_id=settings.aws_access_key_id,
+        aws_secret_access_key=settings.aws_secret_access_key,
+    )
+    
+    try:
+        # Upload file in chunks to avoid memory issues
+        s3_client.upload_fileobj(
+            file.file,
+            settings.s3_bucket_name,
+            s3_key,
+            ExtraArgs={
+                'ContentType': file.content_type or 'video/mp4',
+                'Metadata': {
+                    'organization_id': str(organization.id),
+                    'original_filename': file.filename.encode('ascii', 'ignore').decode('ascii'),
+                }
+            }
+        )
+        
+        # Generate S3 URL
+        s3_url = f"s3://{settings.s3_bucket_name}/{s3_key}"
+        
+        # Create stream record
+        stream = Stream(
+            organization_id=organization.id,
+            url=s3_url,
+            name=name or file.filename,
+            type="file",
+            status=StreamStatus.PENDING,
+            metadata={
+                "file_size": file_size,
+                "content_type": file.content_type,
+                "original_filename": file.filename.encode('ascii', 'ignore').decode('ascii'),
+                "s3_key": s3_key,
+            },
+        )
+        
+        await stream_repository.create(stream)
+        
+        return StreamResponse.model_validate(stream)
+        
+    except Exception as e:
+        # Clean up S3 file if stream creation fails
+        try:
+            s3_client.delete_object(Bucket=settings.s3_bucket_name, Key=s3_key)
+        except:
+            pass
+            
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to upload file: {str(e)}"
+        )
 
 
 @router.get("/{stream_id}", response_model=StreamResponse)

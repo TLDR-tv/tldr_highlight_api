@@ -58,6 +58,9 @@ class Settings(BaseSettings):
     aws_secret_access_key: Optional[str] = Field(
         default=None, description="AWS secret key"
     )
+    aws_endpoint_url: Optional[str] = Field(
+        default=None, description="AWS endpoint URL (for MinIO or S3-compatible services)"
+    )
 
     # Google Gemini
     gemini_api_key: str = Field(default="", description="Google Gemini API key")

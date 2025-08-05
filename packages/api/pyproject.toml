@@ -11,6 +11,8 @@ dependencies = [
     "celery>=5.4.0", # For queueing tasks
     "slowapi>=0.1.9",
     "redis>=5.2.1",
+    "boto3>=1.38.42",
+    "aiofiles>=24.1.0",
 ]
 
 [tool.uv.sources]

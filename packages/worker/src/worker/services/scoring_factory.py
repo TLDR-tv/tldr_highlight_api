@@ -1,8 +1,11 @@
 """Factory for creating scoring rubrics and configurations."""
 
 from .dimension_framework import (
+    AggregationMethod,
     DimensionDefinition,
+    DimensionExample,
     DimensionTemplates,
+    DimensionType,
     ScoringRubric,
 )
 
@@ -139,6 +142,152 @@ class ScoringRubricFactory:
         rubric.add_dimension(DimensionTemplates.narrative_importance())
         rubric.add_dimension(DimensionTemplates.humor())
 
+        return rubric
+
+    @staticmethod
+    def create_dyli_rubric(
+        name: str = "DYLI Trading Card & Collectibles",
+        description: str = "Optimized for trading card pack openings, collectibles reveals, and merchandise showcases",
+    ) -> ScoringRubric:
+        """Create a rubric optimized for DYLI's collectibles content.
+        
+        Returns:
+            ScoringRubric configured for trading card and collectibles highlights
+            
+        """
+        rubric = ScoringRubric(
+            name=name,
+            description=description,
+            highlight_threshold=0.65,  # Slightly lower to catch good moments
+            highlight_confidence_threshold=0.7,
+        )
+        
+        # Primary dimensions for trading card/collectibles content
+        
+        # Rare pull moment - highest weight for the money shots
+        rare_pull = DimensionDefinition(
+            name="rare_pull_moment",
+            description="Moments when rare, valuable, or chase cards are revealed",
+            type=DimensionType.BINARY,
+            weight=3.0,
+            scoring_prompt="Is a rare, valuable, or highly sought-after card being revealed in this moment?",
+            evaluation_criteria=[
+                "Card is being pulled from a pack or revealed for the first time",
+                "Card has special rarity indicators (holographic, numbered, special edition)",
+                "Creator mentions rarity, value, or that it's a 'hit' or 'chase card'",
+                "Visible excitement or surprise reaction to the card",
+                "Card is held up prominently to camera or zoomed in on",
+            ],
+            examples=[
+                DimensionExample(
+                    input_description="Creator pulls a common base card and quickly moves to next",
+                    expected_score=0,
+                    reasoning="Common card with no special reaction or emphasis",
+                ),
+                DimensionExample(
+                    input_description="Creator pulls holographic card, shouts 'NO WAY!', shows it to camera",
+                    expected_score=1,
+                    reasoning="Rare card reveal with strong reaction and clear presentation",
+                ),
+            ],
+            aggregation_method=AggregationMethod.MAX,
+        )
+        rubric.add_dimension(rare_pull)
+        
+        # Product showcase - critical for marketplace visibility
+        showcase = DimensionDefinition(
+            name="product_showcase",
+            description="Clear visibility and presentation of products/cards",
+            type=DimensionType.SCALE_1_4,
+            weight=2.5,
+            scoring_prompt="How well are the products/cards showcased visually?",
+            evaluation_criteria=[
+                "Cards held steady and clearly visible to camera",
+                "Good lighting on the product",
+                "Close-up shots or zoom-ins on card details",
+                "Card features (artwork, text, rarity markers) are readable",
+                "Multiple angles or thorough examination of product",
+            ],
+            aggregation_method=AggregationMethod.MEAN,
+        )
+        rubric.add_dimension(showcase)
+        
+        # Excitement level - drives engagement
+        excitement = DimensionDefinition(
+            name="excitement_level",
+            description="Creator's excitement and energy level during reveals",
+            type=DimensionType.SCALE_1_4,
+            weight=2.0,
+            scoring_prompt="Rate the creator's excitement and energy in this moment",
+            evaluation_criteria=[
+                "Vocal excitement (shouting, exclamations, surprise)",
+                "Physical reactions (jumping, gesturing, celebrating)",
+                "Verbal expressions of excitement or disbelief",
+                "Building anticipation before reveals",
+                "Sustained energy throughout the segment",
+            ],
+            aggregation_method=AggregationMethod.MAX,
+        )
+        rubric.add_dimension(excitement)
+        
+        # Collector reaction - authenticity matters
+        reaction = DimensionDefinition(
+            name="collector_reaction",
+            description="Authentic collector emotions and reactions",
+            type=DimensionType.SCALE_1_4,
+            weight=1.8,
+            scoring_prompt="Rate the authenticity and relatability of collector reactions",
+            evaluation_criteria=[
+                "Genuine surprise or disappointment",
+                "Nostalgic reactions or personal connections to cards",
+                "Sharing collecting stories or experiences",
+                "Reactions that other collectors would relate to",
+                "Emotional investment in the pulls",
+            ],
+            aggregation_method=AggregationMethod.MAX,
+        )
+        rubric.add_dimension(reaction)
+        
+        # Value discussion - educational for buyers
+        value = DimensionDefinition(
+            name="value_discussion",
+            description="Discussion of card value, rarity, market price, or collectibility",
+            type=DimensionType.NUMERIC,
+            weight=1.5,
+            min_score=0.0,
+            max_score=1.0,
+            scoring_prompt="Rate how much valuable information about pricing/rarity is shared (0-1)",
+            evaluation_criteria=[
+                "Mentions specific market value or price ranges",
+                "Discusses card rarity (1 in X packs, print run numbers)",
+                "Compares to other cards in set or market",
+                "Mentions grading potential or condition",
+                "Shares collecting tips or market insights",
+            ],
+            aggregation_method=AggregationMethod.MAX,
+        )
+        rubric.add_dimension(value)
+        
+        # Add some general dimensions with lower weights
+        rubric.add_dimension(DimensionTemplates.visual_interest())
+        
+        # Community engagement - important for social commerce
+        community = DimensionDefinition(
+            name="community_engagement",
+            description="Interaction with viewers and collector community",
+            type=DimensionType.SCALE_1_4,
+            weight=1.2,
+            evaluation_criteria=[
+                "Acknowledges viewers or community",
+                "Responds to chat or comments",
+                "Creates interactive moments (polls, questions)",
+                "Shares community inside jokes or references",
+                "Encourages viewer participation",
+            ],
+            aggregation_method=AggregationMethod.MEAN,
+        )
+        rubric.add_dimension(community)
+        
         return rubric
 
     @staticmethod
