@@ -72,7 +72,7 @@ class GeminiFileManager:
             response = await asyncio.to_thread(
                 self.client.files.upload,
                 file=str(video_path),
-                mime_type=mime_type,  # Pass mime_type directly
+                config=types.UploadFileConfig(mime_type=mime_type),
             )
 
             video_file = VideoFile(

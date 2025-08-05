@@ -217,8 +217,6 @@ class FFmpegProcessor:
                 [
                     "-timeout",
                     str(self.config.timeout * 1000000),  # microseconds
-                    "-stimeout",
-                    str(self.config.timeout * 1000000),
                 ]
             )
 
@@ -267,8 +265,6 @@ class FFmpegProcessor:
                 str(self.config.segment_duration),
                 "-segment_format",
                 "mp4",
-                "-segment_atclocktime",
-                "1",
                 "-reset_timestamps",
                 "1",
                 "-movflags",
@@ -277,8 +273,7 @@ class FFmpegProcessor:
         )
 
         # Force keyframe split for segments
-        if self.config.force_keyframes:
-            args.extend(["-segment_format_options", "movflags=+frag_keyframe"])
+        # Note: segment_format_options removed for compatibility
 
         # Add segment list in CSV format
         segment_list_path = str(self.output_dir / "segments.csv")
@@ -304,8 +299,8 @@ class FFmpegProcessor:
         # Build command
         cmd = ["ffmpeg", "-y"]  # overwrite output files
 
-        # Log level
-        cmd.extend(["-loglevel", self.config.log_level])
+        # Log level - use info for debugging
+        cmd.extend(["-loglevel", "info" if logger.isEnabledFor(logging.INFO) else self.config.log_level])
 
         # Stats
         if self.config.stats:
@@ -342,11 +337,54 @@ class FFmpegProcessor:
                 preexec_fn=os.setsid if os.name != "nt" else None,
             )
             logger.info(f"FFmpeg process started with PID: {self._process.pid}")
+            
+            # For debugging: monitor process in background
+            asyncio.create_task(self._monitor_process_debug())
 
         except Exception as e:
             logger.error(f"Failed to start FFmpeg: {e}")
             self._running = False
             raise
+
+    async def _monitor_process_debug(self) -> None:
+        """Debug method to monitor FFmpeg process status."""
+        start_time = asyncio.get_event_loop().time()
+        while self._process and self._process.returncode is None:
+            await asyncio.sleep(0.5)
+        
+        if self._process:
+            elapsed = asyncio.get_event_loop().time() - start_time
+            logger.info(f"FFmpeg process exited with code: {self._process.returncode} after {elapsed:.1f} seconds")
+            
+            # Always try to read stderr
+            try:
+                stderr = await self._process.stderr.read()
+                if stderr:
+                    logger.info(f"FFmpeg stderr output: {stderr.decode()}")
+            except:
+                pass
+                
+            if self._process.returncode == 0:
+                # Check if files were generated
+                csv_path = self.output_dir / "segments.csv"
+                if csv_path.exists():
+                    logger.info(f"CSV file created: {csv_path}")
+                    video_files = list(self.video_dir.glob("*.mp4"))
+                    logger.info(f"Video files generated: {len(video_files)}")
+                    # Show CSV content
+                    try:
+                        with open(csv_path, 'r') as f:
+                            content = f.read()
+                            logger.info(f"CSV content:\n{content[:500]}")  # First 500 chars
+                    except:
+                        pass
+                else:
+                    logger.warning("No CSV file generated")
+                    # Check what's in output dir
+                    logger.info(f"Output dir after FFmpeg: {list(self.output_dir.iterdir())}")
+                    logger.info(f"Video dir after FFmpeg: {list(self.video_dir.iterdir())}")
+            else:
+                logger.error(f"FFmpeg failed with code {self._process.returncode}")
 
     async def stop(self) -> None:
         """Stop FFmpeg process gracefully."""
@@ -395,6 +433,10 @@ class FFmpegProcessor:
             try:
                 # Start or restart FFmpeg
                 if not self._process or self._process.returncode is not None:
+                    # Check if process exited normally (VOD completion)
+                    if self._process and self._process.returncode == 0:
+                        logger.info("Stream processing completed normally")
+                        break
                     await self._handle_restart()
 
                 # Monitor for new segments
@@ -402,6 +444,11 @@ class FFmpegProcessor:
                     # Handle segment
                     await segment_handler.handle_segment(segment)
                     yield segment
+                
+                # If we exit the monitor loop normally, check if it was successful
+                if self._process and self._process.returncode == 0:
+                    logger.info("VOD/HLS processing completed successfully")
+                    break
 
             except Exception as e:
                 logger.error(f"Stream processing error: {e}")
@@ -513,8 +560,16 @@ class FFmpegProcessor:
     async def _monitor_segments(self) -> AsyncIterator[StreamSegment]:
         """Monitor output directory for new segments using CSV file."""
         processed_segments = set()
-        csv_path = self.video_dir / "segments.csv"
+        csv_path = self.output_dir / "segments.csv"  # CSV is in output_dir, not video_dir
         last_csv_size = 0
+        
+        # Give FFmpeg time to create the CSV file
+        await asyncio.sleep(2.0)
+        logger.info(f"Starting segment monitoring, looking for CSV at: {csv_path}")
+        
+        # Debug: check output directory
+        logger.info(f"Output directory contents: {list(self.output_dir.iterdir())}")
+        logger.info(f"Video directory contents: {list(self.video_dir.iterdir())}")
 
         while self._running and self._process and self._process.returncode is None:
             # Check if CSV file exists and has been updated
@@ -526,6 +581,7 @@ class FFmpegProcessor:
                     if current_csv_size > last_csv_size:
                         # Read new segment entries from CSV
                         segments_info = await self._read_segment_csv(csv_path)
+                        logger.debug(f"Found {len(segments_info)} segments in CSV")
 
                         for segment_info in segments_info:
                             filename = segment_info["filename"]
@@ -557,6 +613,7 @@ class FFmpegProcessor:
                                         logger.error(f"Failed to delete video segment: {e}")
                                 
                                 processed_segments.add(filename)
+                                logger.info(f"Yielding segment {segment.segment_number}: {segment.path}")
                                 yield segment
 
                         last_csv_size = current_csv_size
@@ -566,10 +623,44 @@ class FFmpegProcessor:
 
             # Check process health
             if self._process.returncode is not None:
-                stderr = await self._process.stderr.read()
-                raise RuntimeError(
-                    f"FFmpeg exited with code {self._process.returncode}: {stderr.decode()}"
-                )
+                # For VOD/HLS content, exit code 0 means successful completion
+                if self._process.returncode == 0:
+                    logger.info("FFmpeg completed successfully (VOD/HLS stream finished)")
+                    # Give FFmpeg time to finish writing
+                    await asyncio.sleep(2.0)
+                    
+                    # Read any remaining segments before exiting
+                    if csv_path.exists():
+                        logger.info(f"Reading final segments from CSV: {csv_path}")
+                        segments_info = await self._read_segment_csv(csv_path)
+                        logger.info(f"Found {len(segments_info)} total segments in CSV")
+                        
+                        for segment_info in segments_info:
+                            filename = segment_info["filename"]
+                            if filename in processed_segments:
+                                continue
+                            segment_file = self.video_dir / filename
+                            if segment_file.exists():
+                                segment = await self._create_segment_from_csv(
+                                    segment_info, segment_file
+                                )
+                                segment.audio_chunks = await self._extract_audio_chunks(segment)
+                                self._video_ring_buffer.append(segment)
+                                processed_segments.add(filename)
+                                logger.info(f"Processing final segment {segment.segment_number}")
+                                yield segment
+                    else:
+                        logger.warning(f"No CSV file found at completion: {csv_path}")
+                    
+                    logger.info(f"Total segments processed: {len(processed_segments)}")
+                    # Exit the monitoring loop normally
+                    break
+                else:
+                    # Non-zero exit code indicates an error
+                    stderr = await self._process.stderr.read()
+                    raise RuntimeError(
+                        f"FFmpeg exited with code {self._process.returncode}: {stderr.decode()}"
+                    )
 
             # Small delay to prevent busy waiting
             await asyncio.sleep(0.5)

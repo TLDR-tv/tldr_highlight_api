@@ -1,6 +1,7 @@
 """Wake word detection task using faster-whisper transcription."""
 
 import asyncio
+from contextlib import asynccontextmanager
 from typing import Dict, List, Optional
 from uuid import UUID
 from pathlib import Path
@@ -73,7 +74,7 @@ def detect_wake_words_task(
             _detect_wake_words_async(
                 self,
                 stream_id,
-                audio_chunk,
+                video_segment,
                 organization_id,
             )
         )
@@ -83,7 +84,7 @@ def detect_wake_words_task(
         logger.error(
             "Wake word detection error",
             stream_id=stream_id,
-            chunk_id=audio_chunk.get("id"),
+            segment_id=video_segment.get("id"),
             error=str(exc),
             exc_info=True,
         )
@@ -96,13 +97,12 @@ def detect_wake_words_task(
 async def _detect_wake_words_async(
     task: WakeWordDetectionTask,
     stream_id: str,
-    audio_chunk: Dict,
+    video_segment: Dict,
     organization_id: str,
 ) -> Dict:
     """Async implementation of wake word detection."""
     settings = get_settings()
     database = Database(settings.database_url)
-    await database.connect()
     
     detected_wake_words = []
     
@@ -119,40 +119,42 @@ async def _detect_wake_words_async(
                     "No active wake words for organization",
                     organization_id=organization_id,
                 )
-                return {"detected": [], "chunk_id": audio_chunk["id"]}
+                return {"detected": [], "segment_id": video_segment["id"]}
             
             logger.info(
-                f"Checking {len(wake_words)} wake words for chunk",
-                chunk_id=audio_chunk["id"],
+                f"Checking {len(wake_words)} wake words for video segment",
+                segment_id=video_segment["id"],
                 wake_words=[w.phrase for w in wake_words],
             )
         
-        # Load audio file
-        audio_path = Path(audio_chunk["path"])
-        if not audio_path.exists():
-            raise FileNotFoundError(f"Audio file not found: {audio_path}")
+        # Extract audio from video segment using FFmpeg with proper context management
+        video_path = Path(video_segment["video_path"])
+        if not video_path.exists():
+            raise FileNotFoundError(f"Video file not found: {video_path}")
         
-        # Transcribe with faster-whisper
-        logger.debug(f"Transcribing audio chunk: {audio_path}")
-        
-        # Transcribe with word-level timestamps
-        segments, info = task._whisper_model.transcribe(
-            str(audio_path),
-            word_timestamps=True,  # Enable word-level timestamps
-            language=None,  # Auto-detect language
-            task="transcribe",
-            beam_size=5,
-            best_of=5,
-            temperature=0.0,  # Deterministic transcription
-        )
-        
-        logger.info(
-            f"Detected language: {info.language} with probability {info.language_probability:.2f}"
-        )
-        
-        # Extract full transcript and word timings
-        full_transcript = ""
-        word_timings = []
+        # Use context manager for audio extraction and cleanup
+        async with _extract_audio_from_video(video_path) as audio_path:
+            # Transcribe with faster-whisper
+            logger.debug(f"Transcribing audio segment: {audio_path}")
+            
+            # Transcribe with word-level timestamps
+            segments, info = task._whisper_model.transcribe(
+                str(audio_path),
+                word_timestamps=True,  # Enable word-level timestamps
+                language=None,  # Auto-detect language
+                task="transcribe",
+                beam_size=5,
+                best_of=5,
+                temperature=0.0,  # Deterministic transcription
+            )
+            
+            logger.info(
+                f"Detected language: {info.language} with probability {info.language_probability:.2f}"
+            )
+            
+            # Extract full transcript and word timings
+            full_transcript = ""
+            word_timings = []
         
         for segment in segments:
             segment_text = segment.text.strip()
@@ -176,7 +178,7 @@ async def _detect_wake_words_async(
                 wake_word,
                 full_transcript,
                 word_timings,
-                audio_chunk["start_time"],
+                video_segment["start_time"],
             )
             
             if detection:
@@ -203,7 +205,7 @@ async def _detect_wake_words_async(
                         generate_wake_word_clip_task.delay(
                             stream_id=stream_id,
                             wake_word_detection=detection,
-                            video_segment_number=audio_chunk["video_segment_number"],
+                            video_segment_number=video_segment["segment_number"],
                         )
         
         return {
@@ -213,7 +215,8 @@ async def _detect_wake_words_async(
         }
         
     finally:
-        await database.disconnect()
+        # Database context manager handles cleanup automatically
+        pass
 
 
 def _check_wake_word_in_transcript(
@@ -336,3 +339,61 @@ async def _generate_clip_async(
         "wake_word_detection": wake_word_detection,
         "video_segment_number": video_segment_number,
     }
+
+
+@asynccontextmanager
+async def _extract_audio_from_video(video_path: Path):
+    """Context manager for extracting audio from video with automatic cleanup.
+    
+    Args:
+        video_path: Path to the video file
+        
+    Yields:
+        Path to the extracted audio file
+        
+    Ensures:
+        Temporary audio file is always cleaned up
+    """
+    import tempfile
+    
+    # Create temporary audio file
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_audio:
+        audio_path = Path(temp_audio.name)
+    
+    try:
+        # Extract audio using FFmpeg
+        ffmpeg_cmd = [
+            "ffmpeg",
+            "-i", str(video_path),
+            "-vn",  # No video
+            "-acodec", "pcm_s16le",  # 16-bit PCM
+            "-ar", "16000",  # 16kHz sample rate for WhisperX
+            "-ac", "1",  # Mono
+            "-y",  # Overwrite output file
+            str(audio_path)
+        ]
+        
+        logger.debug(f"Extracting audio from video: {video_path}")
+        result = await asyncio.create_subprocess_exec(
+            *ffmpeg_cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await result.communicate()
+        
+        if result.returncode != 0:
+            raise RuntimeError(f"FFmpeg failed: {stderr.decode()}")
+        
+        logger.debug(f"Audio extracted to: {audio_path}")
+        
+        # Yield the audio path for use
+        yield audio_path
+        
+    finally:
+        # Clean up temporary audio file
+        try:
+            if audio_path.exists():
+                audio_path.unlink()
+                logger.debug(f"Cleaned up temporary audio file: {audio_path}")
+        except Exception as e:
+            logger.warning(f"Failed to cleanup audio file {audio_path}: {e}")

@@ -135,6 +135,24 @@ services:
     networks:
       - tldr_network
 
+  minio_init:
+    image: minio/mc:latest
+    container_name: tldr_minio_init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set minio http://minio:9000 tldr_minio_admin tldr_minio_password;
+      mc mb --ignore-existing minio/tldr-highlights;
+      mc mb --ignore-existing minio/tldr-temp;
+      mc anonymous set download minio/tldr-highlights/streams/;
+      echo 'MinIO buckets configured with public access for streams/';
+      exit 0;
+      "
+    networks:
+      - tldr_network
+
   celery_worker:
     build:
       context: .

@@ -136,7 +136,6 @@ async def _send_webhook_async(
     """Send webhook notification to organization."""
     settings = get_settings()
     database = Database(settings.database_url)
-    await database.connect()
     
     try:
         async with database.session() as session:
@@ -213,7 +212,8 @@ async def _send_webhook_async(
         raise
         
     finally:
-        await database.disconnect()
+        # Database context manager handles cleanup automatically
+        pass
 
 
 async def _send_progress_update_async(
@@ -223,7 +223,6 @@ async def _send_progress_update_async(
     """Send progress update for stream processing."""
     settings = get_settings()
     database = Database(settings.database_url)
-    await database.connect()
     
     try:
         async with database.session() as session:
@@ -244,7 +243,8 @@ async def _send_progress_update_async(
                 )
                 
     finally:
-        await database.disconnect()
+        # Database context manager handles cleanup automatically
+        pass
 
 
 def _generate_webhook_signature(payload: Dict, secret: str) -> str:

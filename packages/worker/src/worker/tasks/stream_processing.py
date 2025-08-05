@@ -10,6 +10,7 @@ from structlog import get_logger
 from worker.app import celery_app
 from worker.services.ffmpeg_processor import FFmpegProcessor
 from worker.services.segment_buffer import SegmentRingBuffer
+from worker.services.persistent_segment import PersistentSegmentManager
 from worker.tasks.wake_word_detection import detect_wake_words_task
 from shared.infrastructure.storage.repositories import StreamRepository, HighlightRepository
 from shared.infrastructure.database.database import Database
@@ -152,6 +153,7 @@ async def _process_stream_async(
             output_dir=output_dir,
             config=config,
         )
+        # Use ring buffer for livestream processing (prevents memory overflow)
         segment_buffer = SegmentRingBuffer(max_size=10)
         
         # Process stream segments
@@ -168,49 +170,59 @@ async def _process_stream_async(
                 # Add to buffer for context
                 await segment_buffer.add_segment(segment)
                 
-                # Queue highlight detection for video segment
-                detect_highlights_task.delay(
+                # Use context manager to safely process segment before ring buffer cleanup
+                async with PersistentSegmentManager(segment, output_dir) as persistent_segment:
+                    # Process highlights synchronously within the safe context
+                    from worker.tasks.highlight_detection import process_segment_for_highlights
+                    
+                    try:
+                        # Get context segments from buffer
+                        context_segments = [
+                            {
+                                "segment_id": str(s.segment_id),
+                                "start_time": s.start_time,
+                                "duration": s.duration,
+                                "segment_number": s.segment_number,
+                            }
+                            for s in await segment_buffer.peek(5)
+                        ]
+                        
+                        highlights = await process_segment_for_highlights(
+                            stream_id,
+                            persistent_segment.to_dict(),
+                            processing_options,
+                            context_segments,
+                        )
+                        
+                        logger.info(
+                            "Highlight detection completed",
+                            stream_id=stream_id,
+                            segment_id=str(persistent_segment.id),
+                            highlights_found=len(highlights),
+                        )
+                        
+                    except Exception as e:
+                        logger.error(
+                            "Highlight detection failed",
+                            stream_id=stream_id,
+                            segment_id=str(persistent_segment.id),
+                            error=str(e),
+                            exc_info=True,
+                        )
+                
+                # Queue wake word detection for the full video segment (async is fine)
+                # This uses the same 2-minute segments as Gemini processing for easier clip alignment
+                detect_wake_words_task.delay(
                     stream_id=stream_id,
-                    segment_data={
+                    video_segment={
                         "id": str(segment.segment_id),
+                        "video_path": str(segment.path),  # Use the original path since this is queued immediately
                         "start_time": segment.start_time,
                         "end_time": segment.start_time + segment.duration,
-                        "video_path": str(segment.path),
-                        "audio_chunks": [
-                            {
-                                "id": str(chunk.chunk_id),
-                                "path": str(chunk.path),
-                                "start_time": chunk.start_time,
-                                "end_time": chunk.end_time,
-                            }
-                            for chunk in segment.audio_chunks
-                        ],
+                        "segment_number": segment.segment_number,
                     },
-                    processing_options=processing_options,
-                    context_segments=[
-                        {
-                            "segment_id": str(s.segment_id),
-                            "start_time": s.start_time,
-                            "duration": s.duration,
-                            "segment_number": s.segment_number,
-                        }
-                        for s in await segment_buffer.peek(5)
-                    ],
+                    organization_id=str(organization_id),
                 )
-                
-                # Also queue wake word detection for audio chunks
-                for chunk in segment.audio_chunks:
-                    detect_wake_words_task.delay(
-                        stream_id=stream_id,
-                        audio_chunk={
-                            "id": str(chunk.chunk_id),
-                            "path": str(chunk.path),
-                            "start_time": chunk.start_time,
-                            "end_time": chunk.end_time,
-                            "video_segment_number": segment.segment_number,
-                        },
-                        organization_id=str(organization_id),
-                    )
                 
                 processed_count += 1
                 
