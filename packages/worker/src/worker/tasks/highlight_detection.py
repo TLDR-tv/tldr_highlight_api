@@ -16,7 +16,7 @@ from shared.infrastructure.database.database import Database
 from shared.infrastructure.config.config import get_settings
 from shared.domain.models.highlight import Highlight
 from worker.services.highlight_detector import HighlightDetector
-from worker.services.gemini_scoring import GeminiScoringStrategy
+from worker.services.gemini_scorer import GeminiVideoScorer
 
 logger = get_logger()
 
@@ -66,9 +66,8 @@ async def process_segment_for_highlights(
                 raise ValueError(f"Organization not found for stream {stream_id}")
         
         # Initialize scoring strategy and detector
-        scoring_strategy = GeminiScoringStrategy(
+        scoring_strategy = GeminiVideoScorer(
             api_key=settings.gemini_api_key,
-            dimension_set_id=processing_options["dimension_set_id"],
         )
         
         highlight_detector = HighlightDetector(

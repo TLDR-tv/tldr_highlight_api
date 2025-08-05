@@ -239,7 +239,7 @@ Contains all async processing code:
 - **Tasks**: Celery tasks for stream processing, webhook delivery
 - **Services**:
   - `highlight_detector.py`: AI-powered highlight detection
-  - `gemini_scoring.py`: Gemini AI integration
+  - `gemini_scorer.py`: Gemini AI integration
   - `dimension_framework.py`: Scoring system framework
   - `ffmpeg_processor.py`: Video/audio processing
 - **App Configuration**: Celery app setup and routing

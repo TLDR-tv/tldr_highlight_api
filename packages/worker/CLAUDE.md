@@ -33,7 +33,7 @@ Worker-specific processing services:
 
 1. **AI Processing Services**:
    - `highlight_detector.py` - AI-powered highlight detection logic
-   - `gemini_scoring.py` - Gemini AI integration for video scoring
+   - `gemini_scorer.py` - Gemini AI integration for video scoring
    - `dimension_framework.py` - Flexible scoring system framework
    - `scoring_factory.py` - Factory for creating scoring strategies
 
@@ -132,13 +132,13 @@ candidates = await detector.detect_highlights(
 )
 ```
 
-### Gemini Scoring (`services/gemini_scoring.py`)
+### Gemini Scoring (`services/gemini_scorer.py`)
 ```python
 # AI-powered video analysis (now in worker package)
-from worker.services.gemini_scoring import GeminiScoringStrategy
+from worker.services.gemini_scorer import GeminiVideoScorer
 
-strategy = GeminiScoringStrategy(settings)
-scores = await strategy.score(
+scorer = GeminiVideoScorer(api_key=settings.gemini_api_key)
+scores = await scorer.score(
     content=video_path,
     rubric=scoring_rubric,
     context=previous_segments
@@ -212,10 +212,10 @@ rubric = ScoringRubric(
 ```python
 # Detection flow using local services
 from worker.services.highlight_detector import HighlightDetector
-from worker.services.gemini_scoring import GeminiScoringStrategy
+from worker.services.gemini_scorer import GeminiVideoScorer
 
 # Initialize with worker-specific services
-scoring_strategy = GeminiScoringStrategy(settings)
+scoring_strategy = GeminiVideoScorer(api_key=settings.gemini_api_key)
 highlight_detector = HighlightDetector(
     scoring_strategy=scoring_strategy,
     min_highlight_duration=processing_options.get("min_duration", 10.0)
@@ -430,7 +430,7 @@ Following the refactoring, use these import patterns:
 ```python
 # Worker-specific services (now in worker package)
 from worker.services.highlight_detector import HighlightDetector
-from worker.services.gemini_scoring import GeminiScoringStrategy
+from worker.services.gemini_scorer import GeminiVideoScorer
 from worker.services.dimension_framework import ScoringRubric, DimensionDefinition
 
 # Shared imports (unchanged)
