@@ -240,7 +240,7 @@ class GeminiVideoScorer(ScoringStrategy):
         api_key: str,
         model_name: str = "gemini-2.0-flash",
         temperature: float = 0.3,
-        max_tokens: int = 2048,
+        max_tokens: int = 8192,
     ):
         """Initialize Gemini scorer.
 
@@ -371,7 +371,11 @@ class GeminiVideoScorer(ScoringStrategy):
                 )
 
                 # Parse structured response
-                return self._parse_structured_response(response, rubric)
+                try:
+                    return self._parse_structured_response(response, rubric)
+                except (json.JSONDecodeError, KeyError, ValueError) as parse_error:
+                    # JSON parsing failed - likely truncated response, trigger fallback
+                    raise RuntimeError(f"Structured response parsing failed: {parse_error}")
 
             except Exception as e:
                 logger.error(f"Structured output failed, attempting fallback: {e}")

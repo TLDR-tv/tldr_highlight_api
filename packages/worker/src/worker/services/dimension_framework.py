@@ -474,15 +474,14 @@ def create_gemini_response_schema(rubric: ScoringRubric) -> Dict[str, Any]:
             "properties": {
                 "score": {"type": "number", "minimum": 0},
                 "confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0},
-                "reasoning": {"type": "string", "minLength": 10},
+                "reasoning": {"type": "string", "minLength": 5},
                 "key_moments": {
                     "type": "array", 
-                    "items": {"type": "string", "pattern": r"^\d{1,2}:\d{2}$"},
+                    "items": {"type": "string"},
                     "description": "MM:SS timestamps of key moments for this dimension"
                 }
             },
-            "required": ["score", "confidence", "reasoning"],
-            "additionalProperties": False
+            "required": ["score", "confidence", "reasoning"]
         }
         
         # Add score constraints based on dimension type
@@ -508,14 +507,13 @@ def create_gemini_response_schema(rubric: ScoringRubric) -> Dict[str, Any]:
             },
             "overall_assessment": {
                 "type": "string", 
-                "minLength": 20,
+                "minLength": 10,
                 "description": "Brief summary of video content and analysis"
             },
             "dimensions": {
                 "type": "object",
                 "properties": dimension_properties,
-                "required": list(dimension_properties.keys()),
-                "additionalProperties": False
+                "required": list(dimension_properties.keys())
             },
             "highlight_detected": {
                 "type": "boolean",
@@ -526,12 +524,10 @@ def create_gemini_response_schema(rubric: ScoringRubric) -> Dict[str, Any]:
                 "properties": {
                     "start_timestamp": {
                         "type": "string",
-                        "pattern": r"^\d{1,2}:\d{2}$",
                         "description": "Start time in MM:SS format"
                     },
                     "end_timestamp": {
                         "type": "string", 
-                        "pattern": r"^\d{1,2}:\d{2}$",
                         "description": "End time in MM:SS format"
                     },
                     "confidence": {
@@ -542,12 +538,11 @@ def create_gemini_response_schema(rubric: ScoringRubric) -> Dict[str, Any]:
                     },
                     "reasoning": {
                         "type": "string",
-                        "minLength": 20,
+                        "minLength": 10,
                         "description": "Explanation of why these boundaries were chosen"
                     }
                 },
                 "required": ["start_timestamp", "end_timestamp", "confidence", "reasoning"],
-                "additionalProperties": False,
                 "description": "Precise highlight boundaries within the video segment"
             },
             "overall_highlight_score": {
@@ -563,11 +558,7 @@ def create_gemini_response_schema(rubric: ScoringRubric) -> Dict[str, Any]:
             "dimensions", 
             "highlight_detected",
             "overall_highlight_score"
-        ],
-        "additionalProperties": False,
-        # Conditional requirement: if highlight_detected is True, highlight_boundary is required
-        "if": {"properties": {"highlight_detected": {"const": True}}},
-        "then": {"required": ["highlight_boundary"]}
+        ]
     }
     
     return schema

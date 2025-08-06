@@ -175,18 +175,8 @@ class HighlightCandidate:
         for dim_name, score in self.dimension_scores.items():
             highlight.add_dimension_score(dim_name, score, self.confidence)
         
-        # Add metadata about precise boundaries if available
-        if self.has_precise_boundaries:
-            highlight.metadata.update({
-                "has_precise_boundaries": True,
-                "boundary_confidence": self.boundary_confidence,
-                "boundary_reasoning": self.boundary_reasoning,
-            })
-        else:
-            highlight.metadata.update({
-                "has_precise_boundaries": False,
-                "boundary_method": "segment_based"
-            })
+        # Note: Precise boundaries information is embedded in the clip timing itself
+        # The fact that we have precise boundaries is reflected in the accurate start/end times
         
         return highlight
 

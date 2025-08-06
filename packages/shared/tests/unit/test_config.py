@@ -192,10 +192,11 @@ class TestSettings:
         """Test model configuration attributes."""
         settings = Settings()
         
-        assert hasattr(settings.model_config, 'env_file')
-        assert hasattr(settings.model_config, 'env_file_encoding')
-        assert hasattr(settings.model_config, 'case_sensitive')
-        assert hasattr(settings.model_config, 'extra')
+        # model_config is a dict in Pydantic v2
+        assert 'env_file' in settings.model_config
+        assert 'env_file_encoding' in settings.model_config
+        assert 'case_sensitive' in settings.model_config
+        assert 'extra' in settings.model_config
         
         assert settings.model_config['env_file'] == ".env"
         assert settings.model_config['env_file_encoding'] == "utf-8"
@@ -218,15 +219,18 @@ class TestSettings:
         settings = Settings()
         fields = settings.model_fields
         
-        # Check a few key fields have descriptions
+        # Check a few key fields have descriptions (in Pydantic v2, description is in FieldInfo.description)
         assert 'environment' in fields
-        assert 'description' in fields['environment'].json_schema()
+        assert fields['environment'].description is not None
+        assert "Environment" in fields['environment'].description
         
         assert 'database_url' in fields
-        assert 'description' in fields['database_url'].json_schema()
+        assert fields['database_url'].description is not None
+        assert "PostgreSQL" in fields['database_url'].description
         
         assert 'jwt_secret_key' in fields
-        assert 'description' in fields['jwt_secret_key'].json_schema()
+        assert fields['jwt_secret_key'].description is not None
+        assert "JWT secret" in fields['jwt_secret_key'].description
 
 
 class TestGetSettings:

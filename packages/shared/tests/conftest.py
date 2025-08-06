@@ -12,6 +12,7 @@ from shared.domain.models.user import User, UserRole
 from shared.domain.models.api_key import APIKey, APIScopes
 from shared.domain.models.highlight import Highlight
 from shared.domain.models.wake_word import WakeWord
+from shared.infrastructure.database.database import Database
 
 
 @pytest.fixture(scope="session")
@@ -20,6 +21,57 @@ def event_loop():
     loop = asyncio.get_event_loop_policy().new_event_loop()
     yield loop
     loop.close()
+
+
+@pytest.fixture
+async def test_database():
+    """Create test database."""
+    # Use SQLite in-memory database for tests  
+    from contextlib import asynccontextmanager
+    from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+    from shared.infrastructure.database.database import Base
+    
+    engine = create_async_engine(
+        "sqlite+aiosqlite:///:memory:",
+        echo=False,
+    )
+    
+    # Create all tables
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    
+    class TestDatabase:
+        def __init__(self, engine):
+            self.engine = engine
+            self.async_session = async_sessionmaker(
+                engine, expire_on_commit=False
+            )
+            
+        @asynccontextmanager
+        async def session(self):
+            async with self.async_session() as session:
+                try:
+                    yield session
+                    await session.commit()
+                except Exception:
+                    await session.rollback()
+                    raise
+                finally:
+                    await session.close()
+                    
+        async def close(self):
+            await self.engine.dispose()
+    
+    db = TestDatabase(engine)
+    yield db
+    await db.close()
+
+
+@pytest.fixture
+async def db_session(test_database: Database) -> AsyncGenerator[AsyncSession, None]:
+    """Create database session for tests."""
+    async with test_database.session() as session:
+        yield session
 
 
 @pytest.fixture

@@ -68,8 +68,14 @@ class TestStreamRepositoryMock:
         mock_session.commit.assert_called_once()
         mock_session.refresh.assert_called_once()
         
-        # Result should be the same stream
-        assert result == sample_stream
+        # Result should have the same data but may have been normalized
+        assert result.id == sample_stream.id
+        assert result.organization_id == sample_stream.organization_id
+        assert result.url == sample_stream.url
+        assert result.type == sample_stream.type
+        assert result.status == sample_stream.status
+        # Name may be generated from URL if original was None
+        assert result.name is not None  # Repository sets title from URL if None
 
     @pytest.mark.asyncio
     async def test_get_stream(self, repository, sample_stream_model, mock_session):

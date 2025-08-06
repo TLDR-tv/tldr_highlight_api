@@ -14,7 +14,7 @@ from shared.domain.models.api_key import APIKey
 
 
 @pytest.fixture
-async def rate_limit_app(app: FastAPI, monkeypatch):
+async def rate_limit_app(fastapi_app: FastAPI, monkeypatch):
     """Configure app with rate limiting enabled."""
     # Override settings
     monkeypatch.setattr("api.main.settings.rate_limit_enabled", True)
@@ -32,7 +32,7 @@ async def rate_limit_app(app: FastAPI, monkeypatch):
     test_limiter = RateLimiter(settings)
     monkeypatch.setattr("api.main.rate_limiter", test_limiter)
     
-    yield app
+    yield fastapi_app
     
     # Cleanup
     await test_limiter.close()

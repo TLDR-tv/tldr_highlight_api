@@ -376,8 +376,8 @@ class TestPasswordReset:
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
-        assert data["message"] == "Password reset email sent"
-        assert "reset_token" in data  # In dev mode
+        assert data["message"] == "If an account exists with this email, you will receive a password reset link."
+        # In test environment, token is not returned (only in development)
 
     @pytest.mark.asyncio
     async def test_request_password_reset_nonexistent_user(
@@ -395,7 +395,7 @@ class TestPasswordReset:
         # Always returns success to prevent email enumeration
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
-        assert data["message"] == "Password reset email sent"
+        assert data["message"] == "If an account exists with this email, you will receive a password reset link."
         assert "reset_token" not in data
 
     @pytest.mark.asyncio
@@ -403,6 +403,7 @@ class TestPasswordReset:
         self,
         client: AsyncClient,
         test_session: AsyncSession,
+        test_settings,
     ):
         """Test password reset with valid token."""
         # Create test user
@@ -417,15 +418,12 @@ class TestPasswordReset:
         await user_repo.create(user)
         await test_session.commit()
 
-        # Request reset token
-        reset_response = await client.post(
-            "/api/v1/auth/forgot-password",
-            json={
-                "email": "test@example.com",
-            },
+        # Create reset token manually since it's not returned in test environment
+        from api.services.auth.jwt_service import JWTService
+        jwt_service = JWTService(test_settings)
+        reset_token = jwt_service.create_password_reset_token(
+            user_id=user.id, email=user.email
         )
-
-        reset_token = reset_response.json()["reset_token"]
 
         # Reset password
         response = await client.post(
@@ -471,6 +469,7 @@ class TestPasswordReset:
         self,
         client: AsyncClient,
         test_session: AsyncSession,
+        test_settings,
     ):
         """Test password reset with weak password."""
         # Create test user
@@ -483,15 +482,12 @@ class TestPasswordReset:
         await user_repo.create(user)
         await test_session.commit()
 
-        # Request reset token
-        reset_response = await client.post(
-            "/api/v1/auth/forgot-password",
-            json={
-                "email": "test@example.com",
-            },
+        # Create reset token manually since it's not returned in test environment
+        from api.services.auth.jwt_service import JWTService
+        jwt_service = JWTService(test_settings)
+        reset_token = jwt_service.create_password_reset_token(
+            user_id=user.id, email=user.email
         )
-
-        reset_token = reset_response.json()["reset_token"]
 
         # Try to reset with weak password
         response = await client.post(

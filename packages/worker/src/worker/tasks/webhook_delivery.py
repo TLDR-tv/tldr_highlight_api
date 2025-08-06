@@ -15,7 +15,7 @@ logger = get_logger()
 
 @celery_app.task(
     bind=True,
-    name="send_highlight_webhook",
+    name="worker.tasks.webhook_delivery.send_highlight_webhook",
     max_retries=5,
     default_retry_delay=60,
 )
@@ -62,7 +62,7 @@ def send_highlight_webhook(
 
 @celery_app.task(
     bind=True,
-    name="send_stream_webhook",
+    name="worker.tasks.webhook_delivery.send_stream_webhook",
     max_retries=3,
     default_retry_delay=30,
 )
@@ -110,7 +110,7 @@ def send_stream_webhook(
 
 
 @celery_app.task(
-    name="send_progress_update",
+    name="worker.tasks.webhook_delivery.send_progress_update",
     ignore_result=True,
 )
 def send_progress_update(stream_id: str, segments_processed: int) -> None:
@@ -140,7 +140,7 @@ async def _send_webhook_async(
     try:
         async with database.session() as session:
             org_repo = OrganizationRepository(session)
-            organization = await org_repo.get_by_id(UUID(organization_id))
+            organization = await org_repo.get(UUID(organization_id))
             
             if not organization or not organization.webhook_url:
                 logger.warning(

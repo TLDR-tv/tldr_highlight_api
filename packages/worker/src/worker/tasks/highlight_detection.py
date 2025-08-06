@@ -173,10 +173,13 @@ async def process_segment_for_highlights(
                 created_highlights.append(asdict(highlight))
                 
                 # Send webhook notification
-                from worker.tasks.webhook_delivery import send_highlight_webhook
-                send_highlight_webhook.delay(
-                    organization_id=str(stream.organization_id),
-                    highlight_data=asdict(highlight),
+                from worker.app import celery_app
+                celery_app.send_task(
+                    "worker.tasks.webhook_delivery.send_highlight_webhook",
+                    kwargs={
+                        "organization_id": str(stream.organization_id),
+                        "highlight_data": asdict(highlight),
+                    }
                 )
     
     logger.info(

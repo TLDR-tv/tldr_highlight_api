@@ -157,3 +157,9 @@ def api_key_headers():
     def _headers(api_key: str) -> dict:
         return {"X-API-Key": api_key}
     return _headers
+
+
+@pytest.fixture
+def fastapi_app():
+    """Get the FastAPI app instance."""
+    return app

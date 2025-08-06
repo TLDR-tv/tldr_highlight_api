@@ -182,7 +182,6 @@ class TestUserRepository:
 
         # Create user
         user_repo = UserRepository(session)
-        password_service = PasswordService()
 
         password = "TestPass123!"
         user = User(

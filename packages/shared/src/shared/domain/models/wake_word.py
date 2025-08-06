@@ -63,6 +63,9 @@ class WakeWord:
 
     def matches(self, text: str) -> bool:
         """Check if text contains this wake phrase."""
+        if not self.phrase:  # Handle empty phrase
+            return text == ""
+            
         if not self.case_sensitive:
             text = text.lower()
 
@@ -70,7 +73,12 @@ class WakeWord:
             # Look for phrase boundaries
             import re
 
-            pattern = rf"\b{re.escape(self.phrase)}\b"
+            # Escape the phrase for regex but handle it properly
+            escaped_phrase = re.escape(self.phrase)
+            
+            # For exact match, we want to match the phrase as a complete unit
+            # Use word boundaries but be more flexible with punctuation
+            pattern = rf"(?<!\w){escaped_phrase}(?!\w)"
             return bool(re.search(pattern, text))
         else:
             return self.phrase in text

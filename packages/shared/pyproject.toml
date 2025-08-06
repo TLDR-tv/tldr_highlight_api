@@ -80,3 +80,8 @@ directory = "htmlcov"
 
 [tool.coverage.xml]
 output = "coverage.xml"
+
+[dependency-groups]
+dev = [
+    "aiosqlite>=0.21.0",
+]
