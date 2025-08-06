@@ -2,6 +2,7 @@
 
 from typing import Dict, Optional
 from uuid import UUID
+from datetime import datetime
 import httpx
 from structlog import get_logger
 
@@ -164,10 +165,11 @@ async def _send_webhook_async(
         )
         
         # Send webhook
+        import json
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 organization.webhook_url,
-                json=payload,
+                content=json.dumps(payload, default=_json_serialize_datetime),
                 headers={
                     "X-Webhook-Signature": signature,
                     "X-Event-Type": event_type,
@@ -247,13 +249,36 @@ async def _send_progress_update_async(
         pass
 
 
+def _json_serialize_datetime(obj) -> str:
+    """JSON serializer that handles datetime and UUID objects.
+    
+    Args:
+        obj: Object to serialize
+        
+    Returns:
+        ISO format string for datetime objects, string for UUID objects
+        
+    Raises:
+        TypeError: If object is not JSON serializable
+    """
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    if isinstance(obj, UUID):
+        return str(obj)
+    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
+
+
 def _generate_webhook_signature(payload: Dict, secret: str) -> str:
     """Generate HMAC signature for webhook payload."""
     import hmac
     import hashlib
     import json
     
-    payload_bytes = json.dumps(payload, sort_keys=True).encode("utf-8")
+    payload_bytes = json.dumps(
+        payload, 
+        sort_keys=True, 
+        default=_json_serialize_datetime
+    ).encode("utf-8")
     signature = hmac.new(
         secret.encode("utf-8"),
         payload_bytes,
