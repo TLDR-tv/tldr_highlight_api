@@ -145,6 +145,7 @@ async def _process_stream_async(
             segment_duration=processing_options.get("video_segment_duration", 120),
             audio_segment_duration=processing_options.get("audio_segment_duration", 30),
             audio_overlap=processing_options.get("audio_overlap", 5),
+            use_readrate=processing_options.get("use_readrate", False),
         )
         
         # Initialize processors with context manager
@@ -212,26 +213,43 @@ async def _process_stream_async(
                 
                 # Queue wake word detection for the full video segment (async is fine)
                 # This uses the same 2-minute segments as Gemini processing for easier clip alignment
-                detect_wake_words_task.delay(
-                    stream_id=stream_id,
-                    video_segment={
-                        "id": str(segment.segment_id),
-                        "video_path": str(segment.path),  # Use the original path since this is queued immediately
-                        "start_time": segment.start_time,
-                        "end_time": segment.start_time + segment.duration,
-                        "segment_number": segment.segment_number,
-                    },
-                    organization_id=str(organization_id),
-                )
+                try:
+                    detect_wake_words_task.delay(
+                        stream_id=stream_id,
+                        video_segment={
+                            "id": str(segment.segment_id),
+                            "video_path": str(segment.path),  # Use the original path since this is queued immediately
+                            "start_time": segment.start_time,
+                            "end_time": segment.start_time + segment.duration,
+                            "segment_number": segment.segment_number,
+                        },
+                        organization_id=str(organization_id),
+                    )
+                except Exception as e:
+                    logger.error(
+                        "Failed to queue wake word detection task",
+                        stream_id=stream_id,
+                        segment_id=str(segment.segment_id),
+                        error=str(e),
+                        exc_info=True,
+                    )
                 
                 processed_count += 1
                 
                 # Update progress periodically
                 if processed_count % 10 == 0:
-                    celery_app.send_task(
-                        "worker.tasks.webhook_delivery.send_progress_update",
-                        args=[stream_id, processed_count],
-                    )
+                    try:
+                        celery_app.send_task(
+                            "worker.tasks.webhook_delivery.send_progress_update",
+                            args=[stream_id, processed_count],
+                        )
+                    except Exception as e:
+                        logger.warning(
+                            "Failed to send progress update",
+                            stream_id=stream_id,
+                            processed_count=processed_count,
+                            error=str(e),
+                        )
     
     logger.info(
         "Stream processing completed",

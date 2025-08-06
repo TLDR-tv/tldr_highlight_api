@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+import time
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -91,6 +92,71 @@ class GeminiFileManager:
             logger.error(f"Failed to upload video: {e}")
             raise RuntimeError(f"Video upload failed: {e}") from e
 
+    async def poll_until_active(
+        self, 
+        video_file: VideoFile, 
+        max_wait_time: int = 600,  # 10 minutes
+        initial_delay: float = 1.0,
+        max_delay: float = 60.0
+    ) -> None:
+        """Poll file status until it becomes ACTIVE using exponential backoff.
+        
+        Args:
+            video_file: VideoFile to check
+            max_wait_time: Maximum time to wait in seconds (default: 10 minutes)
+            initial_delay: Initial delay between checks in seconds
+            max_delay: Maximum delay between checks in seconds
+            
+        Raises:
+            RuntimeError: If file fails to become ACTIVE within max_wait_time
+            ValueError: If file enters FAILED state
+        """
+        start_time = time.time()
+        delay = initial_delay
+        
+        logger.info(f"Polling file status for {video_file.name} until ACTIVE")
+        
+        while time.time() - start_time < max_wait_time:
+            try:
+                # Get current file status
+                file_info = await asyncio.to_thread(
+                    self.client.files.get, 
+                    name=video_file.name
+                )
+                
+                # Check file state
+                if hasattr(file_info, 'state') and file_info.state:
+                    state_name = file_info.state.name if hasattr(file_info.state, 'name') else str(file_info.state)
+                    logger.debug(f"File {video_file.name} state: {state_name}")
+                    
+                    if state_name == "ACTIVE":
+                        logger.info(f"File {video_file.name} is now ACTIVE")
+                        return
+                    elif state_name == "FAILED":
+                        raise ValueError(f"File {video_file.name} failed to process: {getattr(file_info.state, 'error_message', 'Unknown error')}")
+                    elif state_name in ["PROCESSING", "STATE_UNSPECIFIED"]:
+                        # Continue polling
+                        logger.debug(f"File {video_file.name} still processing, waiting {delay}s...")
+                    else:
+                        logger.warning(f"Unknown file state: {state_name}")
+                else:
+                    # No state information available, assume still processing
+                    logger.debug(f"No state information for {video_file.name}, assuming still processing")
+                
+                # Wait before next check with exponential backoff
+                await asyncio.sleep(delay)
+                delay = min(delay * 2, max_delay)  # Double delay up to max_delay
+                
+            except Exception as e:
+                logger.error(f"Error checking file status: {e}")
+                # Wait before retrying
+                await asyncio.sleep(delay)
+                delay = min(delay * 2, max_delay)
+        
+        # Timeout reached
+        elapsed = time.time() - start_time
+        raise RuntimeError(f"File {video_file.name} did not become ACTIVE within {elapsed:.1f} seconds")
+
     async def delete_file(self, video_file: VideoFile) -> None:
         """Delete an uploaded file from Gemini.
 
@@ -134,14 +200,14 @@ class GeminiFileManager:
 async def gemini_video_file(
     client: genai.Client, video_path: Path
 ) -> AsyncIterator[VideoFile]:
-    """Context manager for handling video file uploads with automatic cleanup.
+    """Context manager for handling video file uploads with automatic cleanup and status polling.
 
     Args:
         client: Gemini client
         video_path: Path to video file
 
     Yields:
-        VideoFile object
+        VideoFile object that is guaranteed to be in ACTIVE state
 
     Example:
         async with gemini_video_file(client, Path("video.mp4")) as video:
@@ -153,6 +219,8 @@ async def gemini_video_file(
     video_file = await manager.upload_video(video_path)
 
     try:
+        # Poll until file is ACTIVE before yielding
+        await manager.poll_until_active(video_file)
         yield video_file
     finally:
         # Cleanup: delete the uploaded file
@@ -229,6 +297,9 @@ class GeminiVideoScorer(ScoringStrategy):
                     ),
                 )
 
+                # Log the raw Gemini response for debugging
+                logger.info(f"Gemini response received (model={self.model_name}, temp={self.temperature}): {response.text}")
+
                 # Parse response
                 return self._parse_response(response, rubric)
 
@@ -256,6 +327,9 @@ class GeminiVideoScorer(ScoringStrategy):
 
             # Parse JSON
             result = json.loads(result_text)
+            
+            # Log the parsed JSON structure
+            logger.info(f"Parsed Gemini JSON response - keys: {list(result.keys()) if isinstance(result, dict) else 'not_dict'}, content: {result}")
 
             # Extract dimension scores
             dimension_scores = result.get("dimensions", {})

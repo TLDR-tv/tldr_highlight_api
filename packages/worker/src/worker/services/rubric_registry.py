@@ -1,5 +1,6 @@
 """Registry of available scoring rubrics."""
 
+import logging
 from typing import Dict, Optional
 from worker.services.dimension_framework import (
     AggregationMethod,
@@ -9,6 +10,8 @@ from worker.services.dimension_framework import (
     DimensionType,
     ScoringRubric,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class RubricRegistry:
@@ -21,8 +24,11 @@ class RubricRegistry:
     def initialize(cls) -> None:
         """Initialize the registry with all available rubrics."""
         if cls._initialized:
+            logger.debug("RubricRegistry already initialized, skipping")
             return
             
+        logger.info("Initializing RubricRegistry with all available rubrics")
+        
         # Register all rubrics
         cls.register_general_rubric()
         cls.register_action_content_rubric()
@@ -31,12 +37,24 @@ class RubricRegistry:
         cls.register_dyli_rubric()
         
         cls._initialized = True
+        
+        # Log final registry state
+        logger.info(f"RubricRegistry initialized with {len(cls._rubrics)} rubrics: {list(cls._rubrics.keys())}")
     
     @classmethod
     def get_rubric(cls, name: str) -> Optional[ScoringRubric]:
         """Get a rubric by name."""
         cls.initialize()
-        return cls._rubrics.get(name.lower())
+        
+        lookup_name = name.lower()
+        rubric = cls._rubrics.get(lookup_name)
+        
+        if rubric:
+            logger.debug(f"Found rubric '{name}' -> '{rubric.name}'")
+        else:
+            logger.warning(f"Rubric '{name}' not found. Available rubrics: {list(cls._rubrics.keys())}")
+            
+        return rubric
     
     @classmethod
     def list_rubrics(cls) -> Dict[str, str]:
@@ -50,7 +68,9 @@ class RubricRegistry:
     @classmethod
     def _register(cls, name: str, rubric: ScoringRubric) -> None:
         """Register a rubric."""
-        cls._rubrics[name.lower()] = rubric
+        key = name.lower()
+        cls._rubrics[key] = rubric
+        logger.debug(f"Registered rubric: '{key}' -> '{rubric.name}'")
     
     @classmethod
     def register_general_rubric(cls) -> None:
@@ -215,6 +235,7 @@ class RubricRegistry:
     @classmethod
     def register_dyli_rubric(cls) -> None:
         """Register DYLI's custom rubric for collectibles content."""
+        logger.debug("Registering DYLI rubric")
         rubric = ScoringRubric(
             name="DYLI Trading Card & Collectibles",
             description="Optimized for trading card pack openings and collectibles reveals",
@@ -324,3 +345,4 @@ class RubricRegistry:
         rubric.add_dimension(value)
         
         cls._register("dyli", rubric)
+        logger.debug("DYLI rubric registration complete")

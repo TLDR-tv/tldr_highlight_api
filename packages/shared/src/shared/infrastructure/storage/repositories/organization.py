@@ -28,6 +28,7 @@ class OrganizationRepository:
             total_processing_seconds=entity.total_processing_seconds,
             webhook_url=entity.webhook_url,
             webhook_secret=entity.webhook_secret,
+            rubric_name=entity.rubric_name,
             created_at=entity.created_at,
             updated_at=entity.updated_at,
         )
@@ -106,6 +107,7 @@ class OrganizationRepository:
         model.total_processing_seconds = entity.total_processing_seconds
         model.webhook_url = entity.webhook_url
         model.webhook_secret = entity.webhook_secret
+        model.rubric_name = entity.rubric_name
         model.updated_at = entity.updated_at
 
         # Update wake words - only add/remove changed ones
@@ -175,4 +177,5 @@ class OrganizationRepository:
             wake_words=wake_words,
             webhook_url=model.webhook_url,
             webhook_secret=model.webhook_secret,
+            rubric_name=model.rubric_name,
         )

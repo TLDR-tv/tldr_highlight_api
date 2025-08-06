@@ -52,14 +52,14 @@ class WakeWordDetectionTask(Task):
 def detect_wake_words_task(
     self,
     stream_id: str,
-    audio_chunk: Dict,
+    video_segment: Dict,
     organization_id: str,
 ) -> Dict:
-    """Detect wake words in audio chunk using WhisperX.
+    """Detect wake words in video segment using faster-whisper.
     
     Args:
         stream_id: UUID of the stream
-        audio_chunk: Audio chunk information with path and timestamps
+        video_segment: Video segment information with path and timestamps
         organization_id: Organization ID to fetch wake words
         
     Returns:
@@ -165,8 +165,8 @@ async def _detect_wake_words_async(
                 for word_info in segment.words:
                     word_timings.append({
                         "word": word_info.word.strip(),
-                        "start": word_info.start + audio_chunk["start_time"],
-                        "end": word_info.end + audio_chunk["start_time"],
+                        "start": word_info.start + video_segment["start_time"],
+                        "end": word_info.end + video_segment["start_time"],
                     })
         
         full_transcript = full_transcript.strip()
@@ -210,7 +210,7 @@ async def _detect_wake_words_async(
         
         return {
             "detected": detected_wake_words,
-            "chunk_id": audio_chunk["id"],
+            "segment_id": video_segment["id"],
             "transcript": full_transcript,
         }
         

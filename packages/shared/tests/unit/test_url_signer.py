@@ -220,6 +220,26 @@ class TestJWTURLSigner:
         
         assert claims is not None
 
+    def test_verify_access_token_streamer_clips_wrong_fingerprint(self, signer, organization_id):
+        """Test verifying streamer clips token with wrong fingerprint."""
+        stream_fingerprint = "streamer789"
+        wrong_fingerprint = "wrongstreamer"
+        
+        token = signer.create_access_token(
+            organization_id=organization_id,
+            resource_type="streamer_clips",
+            stream_fingerprint=stream_fingerprint
+        )
+        
+        # This should hit line 126 - return None for wrong fingerprint
+        claims = signer.verify_access_token(
+            token=token,
+            organization_id=organization_id,
+            requested_stream_fingerprint=wrong_fingerprint
+        )
+        
+        assert claims is None
+
     def test_verify_access_token_all_clips(self, signer, organization_id):
         """Test verifying token for all clips."""
         token = signer.create_access_token(

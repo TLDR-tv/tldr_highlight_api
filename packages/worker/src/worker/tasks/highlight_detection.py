@@ -64,7 +64,16 @@ async def process_segment_for_highlights(
         if not organization:
             raise ValueError(f"Organization not found for stream {stream_id}")
     
+    # Debug: Log organization details
+    logger.info(
+        f"Organization details for stream {stream_id}",
+        organization_id=str(organization.id),
+        organization_name=organization.name,
+        organization_rubric_name=organization.rubric_name,
+    )
+    
     # Get the rubric for this organization
+    logger.debug(f"Looking up rubric: '{organization.rubric_name}' for organization {organization.name}")
     rubric = RubricRegistry.get_rubric(organization.rubric_name)
     if not rubric:
         logger.warning(
@@ -115,8 +124,6 @@ async def process_segment_for_highlights(
     # Create highlight records if any detected
     created_highlights = []
     if detected_highlights:
-        ffmpeg_processor = FFmpegProcessor()
-        
         async with database.session() as session:
             highlight_repo = HighlightRepository(session)
             
@@ -125,8 +132,8 @@ async def process_segment_for_highlights(
                 segment_start = segment_data["start_time"]
                 highlight_start_offset = highlight_candidate.start_time - segment_start
                 
-                # Generate clip and thumbnail
-                clip_path, thumbnail_path = await ffmpeg_processor.create_highlight_clip(
+                # Generate clip and thumbnail using static method
+                clip_path, thumbnail_path = await FFmpegProcessor.create_highlight_clip(
                     source_path=segment_data["video_path"],
                     start_offset=highlight_start_offset,
                     duration=highlight_candidate.duration,
@@ -142,7 +149,7 @@ async def process_segment_for_highlights(
                 # Convert to highlight using the candidate's method
                 highlight = highlight_candidate.to_highlight(
                     organization_id=stream.organization_id,
-                    s3_url=clip_url,
+                    clip_url=clip_url,
                     thumbnail_url=thumbnail_url,
                 )
                 
@@ -176,7 +183,7 @@ async def _upload_to_s3(file_path: str, s3_prefix: str) -> str:
         "s3",
         aws_access_key_id=settings.aws_access_key_id,
         aws_secret_access_key=settings.aws_secret_access_key,
-        region_name=settings.aws_region,
+        region_name=settings.s3_region,
     )
     
     file_name = Path(file_path).name
@@ -191,4 +198,4 @@ async def _upload_to_s3(file_path: str, s3_prefix: str) -> str:
         },
     )
     
-    return f"https://{settings.s3_bucket_name}.s3.{settings.aws_region}.amazonaws.com/{key}"
+    return f"https://{settings.s3_bucket_name}.s3.{settings.s3_region}.amazonaws.com/{key}"

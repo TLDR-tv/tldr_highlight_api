@@ -37,6 +37,7 @@ class FFmpegConfig:
     reconnect_delay: int = 5
     timeout: int = 30
     rtsp_transport: str = "tcp"
+    use_readrate: bool = False  # Use -re flag to simulate live streaming
 
     # Output settings
     segment_duration: int = 120  # 2 minutes for video segments
@@ -156,6 +157,67 @@ class FFmpegProcessor:
         self._video_ring_buffer = []
         self._audio_ring_buffer = []
 
+    @staticmethod
+    async def create_highlight_clip(
+        source_path: str,
+        start_offset: float,
+        duration: float,
+        output_dir: str,
+    ) -> tuple[str, str]:
+        """Create highlight clip and thumbnail from source video.
+        
+        Args:
+            source_path: Path to source video file
+            start_offset: Start time offset in seconds
+            duration: Duration of clip in seconds
+            output_dir: Directory to save outputs
+            
+        Returns:
+            Tuple of (clip_path, thumbnail_path)
+        """
+        import os
+        import uuid
+        
+        # Create output directory
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # Generate unique filenames
+        clip_id = str(uuid.uuid4())
+        clip_path = os.path.join(output_dir, f"clip_{clip_id}.mp4")
+        thumbnail_path = os.path.join(output_dir, f"thumb_{clip_id}.jpg")
+        
+        # Create clip
+        clip_cmd = [
+            "ffmpeg", "-y",
+            "-ss", str(start_offset),
+            "-i", source_path,
+            "-t", str(duration),
+            "-c:v", "libx264",
+            "-c:a", "aac",
+            "-movflags", "+faststart",
+            clip_path,
+        ]
+        
+        # Create thumbnail (at middle of clip)
+        thumb_time = start_offset + (duration / 2)
+        thumb_cmd = [
+            "ffmpeg", "-y",
+            "-ss", str(thumb_time),
+            "-i", source_path,
+            "-vframes", "1",
+            "-q:v", "2",
+            thumbnail_path,
+        ]
+        
+        # Execute commands
+        proc_clip = await asyncio.create_subprocess_exec(*clip_cmd)
+        await proc_clip.wait()
+        
+        proc_thumb = await asyncio.create_subprocess_exec(*thumb_cmd)
+        await proc_thumb.wait()
+        
+        return clip_path, thumbnail_path
+
     @property
     def format(self) -> StreamFormat:
         """Detect stream format from URL."""
@@ -175,6 +237,10 @@ class FFmpegProcessor:
     def _build_input_args(self) -> list[str]:
         """Build FFmpeg input arguments based on stream format."""
         args = []
+
+        # Add readrate flag for live streaming simulation
+        if self.config.use_readrate:
+            args.append("-re")
 
         # Common reconnection flags
         if self.config.reconnect and self.format != StreamFormat.FILE:

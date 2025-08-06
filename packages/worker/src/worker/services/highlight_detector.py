@@ -57,7 +57,7 @@ class HighlightCandidate:
         return self.end_time - self.start_time
 
     def to_highlight(
-        self, organization_id: UUID, s3_url: str, thumbnail_url: str
+        self, organization_id: UUID, clip_url: str, thumbnail_url: str
     ) -> Highlight:
         """Convert to Highlight domain model."""
         highlight = Highlight(
@@ -66,15 +66,15 @@ class HighlightCandidate:
             start_time=self.start_time,
             end_time=self.end_time,
             duration=self.duration,
-            s3_url=s3_url,
-            thumbnail_url=thumbnail_url,
-            confidence_score=self.confidence,
-            metadata={
-                "dimension_scores": self.dimension_scores,
-                "overall_score": self.overall_score,
-                **self.metadata,
-            },
+            clip_path=clip_url,
+            thumbnail_path=thumbnail_url,
+            overall_score=self.overall_score,
         )
+        
+        # Add dimension scores to the highlight
+        for dim_name, score in self.dimension_scores.items():
+            highlight.add_dimension_score(dim_name, score, self.confidence)
+        
         return highlight
 
 
