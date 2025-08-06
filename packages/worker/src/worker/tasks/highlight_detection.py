@@ -128,17 +128,33 @@ async def process_segment_for_highlights(
             highlight_repo = HighlightRepository(session)
             
             for highlight_candidate in detected_highlights:
-                # Calculate offset within the segment
-                segment_start = segment_data["start_time"]
-                highlight_start_offset = highlight_candidate.start_time - segment_start
+                # Use the candidate's method to get precise offset and duration
+                segment_start = segment_data["start_time"] 
+                clip_offset, clip_duration = highlight_candidate.get_clip_offset_and_duration(segment_start)
                 
-                # Generate clip and thumbnail using static method
-                clip_path, thumbnail_path = await FFmpegProcessor.create_highlight_clip(
-                    source_path=segment_data["video_path"],
-                    start_offset=highlight_start_offset,
-                    duration=highlight_candidate.duration,
-                    output_dir=f"/tmp/highlights/{stream_id}",
+                # Log clipping approach for monitoring
+                boundary_type = "precise" if highlight_candidate.has_precise_boundaries else "segment-based"
+                logger.info(
+                    f"Creating {boundary_type} clip: offset={clip_offset:.1f}s, "
+                    f"duration={clip_duration:.1f}s, confidence={highlight_candidate.boundary_confidence:.2f}"
                 )
+                
+                # Generate clip and thumbnail using enhanced method
+                try:
+                    clip_path, thumbnail_path = await FFmpegProcessor.create_highlight_clip(
+                        source_path=segment_data["video_path"],
+                        start_offset=clip_offset,
+                        duration=clip_duration,
+                        output_dir=f"/tmp/highlights/{stream_id}",
+                        min_duration=processing_options.get("min_highlight_duration", 15.0),
+                        max_duration=processing_options.get("max_highlight_duration", 90.0),
+                    )
+                    
+                    logger.info(f"Successfully created clip: {clip_path}")
+                    
+                except (ValueError, RuntimeError) as e:
+                    logger.error(f"Failed to create clip for highlight candidate: {e}")
+                    continue  # Skip this candidate and continue with others
                 
                 # Upload to S3
                 clip_url = await _upload_to_s3(clip_path, f"highlights/{stream_id}/clips")

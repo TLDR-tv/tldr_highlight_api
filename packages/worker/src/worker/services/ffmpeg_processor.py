@@ -163,20 +163,53 @@ class FFmpegProcessor:
         start_offset: float,
         duration: float,
         output_dir: str,
+        min_duration: float = 15.0,
+        max_duration: float = 90.0,
     ) -> tuple[str, str]:
-        """Create highlight clip and thumbnail from source video.
+        """Create highlight clip and thumbnail from source video with duration validation.
+        
+        This method enforces duration constraints to ensure clips are between 15-90 seconds,
+        supporting the new targeted clipping system that replaces 2-minute segment clips.
         
         Args:
             source_path: Path to source video file
             start_offset: Start time offset in seconds
             duration: Duration of clip in seconds
             output_dir: Directory to save outputs
+            min_duration: Minimum allowed clip duration (default: 15s)
+            max_duration: Maximum allowed clip duration (default: 90s)
             
         Returns:
             Tuple of (clip_path, thumbnail_path)
+            
+        Raises:
+            ValueError: If duration is outside allowed bounds
+            RuntimeError: If FFmpeg command fails
         """
         import os
         import uuid
+        
+        # Validate duration constraints
+        if duration < min_duration:
+            raise ValueError(
+                f"Clip duration {duration:.1f}s is below minimum {min_duration}s"
+            )
+        elif duration > max_duration:
+            # Clamp to maximum (don't raise error, just warn and clamp)
+            logger.warning(
+                f"Clip duration {duration:.1f}s exceeds maximum {max_duration}s, clamping"
+            )
+            duration = max_duration
+        
+        # Validate start offset
+        if start_offset < 0:
+            logger.warning(f"Negative start offset {start_offset}, clamping to 0")
+            start_offset = 0.0
+        
+        logger.info(
+            f"Creating highlight clip: offset={start_offset:.1f}s, duration={duration:.1f}s, "
+            f"source={os.path.basename(source_path)}"
+        )
         
         # Create output directory
         os.makedirs(output_dir, exist_ok=True)
@@ -186,37 +219,72 @@ class FFmpegProcessor:
         clip_path = os.path.join(output_dir, f"clip_{clip_id}.mp4")
         thumbnail_path = os.path.join(output_dir, f"thumb_{clip_id}.jpg")
         
-        # Create clip
-        clip_cmd = [
-            "ffmpeg", "-y",
-            "-ss", str(start_offset),
-            "-i", source_path,
-            "-t", str(duration),
-            "-c:v", "libx264",
-            "-c:a", "aac",
-            "-movflags", "+faststart",
-            clip_path,
-        ]
-        
-        # Create thumbnail (at middle of clip)
-        thumb_time = start_offset + (duration / 2)
-        thumb_cmd = [
-            "ffmpeg", "-y",
-            "-ss", str(thumb_time),
-            "-i", source_path,
-            "-vframes", "1",
-            "-q:v", "2",
-            thumbnail_path,
-        ]
-        
-        # Execute commands
-        proc_clip = await asyncio.create_subprocess_exec(*clip_cmd)
-        await proc_clip.wait()
-        
-        proc_thumb = await asyncio.create_subprocess_exec(*thumb_cmd)
-        await proc_thumb.wait()
-        
-        return clip_path, thumbnail_path
+        try:
+            # Create clip with optimized settings for highlight content
+            clip_cmd = [
+                "ffmpeg", "-y",
+                "-ss", str(start_offset),
+                "-i", source_path,
+                "-t", str(duration),
+                "-c:v", "libx264",
+                "-preset", "fast",  # Faster encoding for highlights
+                "-crf", "23",       # Good quality/size balance
+                "-c:a", "aac",
+                "-b:a", "128k",     # Good audio quality
+                "-movflags", "+faststart",
+                clip_path,
+            ]
+            
+            # Execute clip creation
+            proc_clip = await asyncio.create_subprocess_exec(
+                *clip_cmd,
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await proc_clip.communicate()
+            
+            if proc_clip.returncode != 0:
+                error_msg = stderr.decode() if stderr else "Unknown FFmpeg error"
+                raise RuntimeError(f"FFmpeg clip creation failed: {error_msg}")
+            
+            # Create thumbnail (at middle of clip)
+            thumb_time = start_offset + (duration / 2)
+            thumb_cmd = [
+                "ffmpeg", "-y",
+                "-ss", str(thumb_time),
+                "-i", source_path,
+                "-vframes", "1",
+                "-q:v", "2",
+                "-vf", "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:-1:-1:black",
+                thumbnail_path,
+            ]
+            
+            # Execute thumbnail creation
+            proc_thumb = await asyncio.create_subprocess_exec(
+                *thumb_cmd,
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await proc_thumb.communicate()
+            
+            if proc_thumb.returncode != 0:
+                error_msg = stderr.decode() if stderr else "Unknown FFmpeg error" 
+                logger.error(f"Thumbnail creation failed: {error_msg}")
+                # Don't raise error for thumbnail failure, clip is still usable
+                thumbnail_path = ""
+            
+            logger.info(f"Successfully created clip: {os.path.basename(clip_path)}")
+            return clip_path, thumbnail_path
+            
+        except Exception as e:
+            # Cleanup partial files on error
+            for path in [clip_path, thumbnail_path]:
+                if os.path.exists(path):
+                    try:
+                        os.remove(path)
+                    except OSError:
+                        pass
+            raise RuntimeError(f"Failed to create highlight clip: {e}") from e
 
     @property
     def format(self) -> StreamFormat:

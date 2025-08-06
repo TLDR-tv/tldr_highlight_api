@@ -12,7 +12,12 @@ from typing import Any, AsyncIterator, Optional
 from google import genai
 from google.genai import types
 
-from .dimension_framework import ScoringRubric, ScoringStrategy
+from .dimension_framework import (
+    ScoringRubric, 
+    ScoringStrategy, 
+    HighlightBoundary,
+    create_gemini_response_schema
+)
 
 logger = logging.getLogger(__name__)
 
@@ -307,6 +312,172 @@ class GeminiVideoScorer(ScoringStrategy):
                 logger.error(f"Gemini API error: {e}")
                 # Return low confidence scores on error
                 return {dim.name: (0.0, 0.0) for dim in rubric.dimensions}
+
+    async def score_with_boundaries(
+        self, content: Any, rubric: ScoringRubric, context: Optional[list[Any]] = None
+    ) -> tuple[dict[str, tuple[float, float]], Optional[HighlightBoundary]]:
+        """Score video content and extract precise highlight boundaries using structured output.
+        
+        This method uses Gemini's structured output capabilities to reliably extract
+        both dimensional scores and precise highlight timestamps, enabling creation
+        of targeted clips instead of full segment clips.
+
+        Args:
+            content: Video file path (Path or str)
+            rubric: Scoring rubric with dimensions  
+            context: Optional context (previous segments)
+
+        Returns:
+            Tuple of (dimension_scores, highlight_boundary)
+            - dimension_scores: Dict mapping dimension_name -> (score, confidence)
+            - highlight_boundary: HighlightBoundary object if highlight detected, None otherwise
+
+        """
+        video_path = Path(content) if isinstance(content, str) else content
+
+        if not video_path.exists():
+            raise ValueError(f"Video file not found: {video_path}")
+
+        # Use context manager for automatic cleanup
+        async with gemini_video_file(self.client, video_path) as video_file:
+            # Build structured prompt for precise boundary detection
+            prompt = rubric.build_structured_output_prompt()
+            
+            # Create JSON schema for structured output
+            response_schema = create_gemini_response_schema(rubric)
+
+            # Create content parts
+            contents = types.Content(
+                parts=[
+                    types.Part(file_data=video_file.file_data),
+                    types.Part(text=prompt),
+                ]
+            )
+
+            # Generate response with structured output
+            try:
+                logger.info(f"Attempting structured output with Gemini API (model={self.model_name})")
+                
+                response = await asyncio.to_thread(
+                    self.client.models.generate_content,
+                    model=self.model_name,
+                    contents=contents,
+                    config=types.GenerateContentConfig(
+                        temperature=self.temperature,
+                        max_output_tokens=self.max_tokens,
+                        response_mime_type="application/json",
+                        response_schema=response_schema,
+                    ),
+                )
+
+                # Parse structured response
+                return self._parse_structured_response(response, rubric)
+
+            except Exception as e:
+                logger.error(f"Structured output failed, attempting fallback: {e}")
+                
+                # Fallback to basic JSON parsing
+                try:
+                    response = await asyncio.to_thread(
+                        self.client.models.generate_content,
+                        model=self.model_name,
+                        contents=contents,
+                        config=types.GenerateContentConfig(
+                            temperature=self.temperature,
+                            max_output_tokens=self.max_tokens,
+                            response_mime_type="application/json",
+                        ),
+                    )
+                    
+                    # Use existing parsing method
+                    scores = self._parse_response(response, rubric)
+                    logger.warning("Using fallback parsing - no precise boundaries available")
+                    return scores, None
+                    
+                except Exception as fallback_error:
+                    logger.error(f"Both structured and fallback parsing failed: {fallback_error}")
+                    # Return low confidence scores with no boundaries
+                    return {dim.name: (0.0, 0.0) for dim in rubric.dimensions}, None
+
+    def _parse_structured_response(
+        self, response: Any, rubric: ScoringRubric
+    ) -> tuple[dict[str, tuple[float, float]], Optional[HighlightBoundary]]:
+        """Parse structured Gemini response with highlight boundaries.
+
+        Args:
+            response: Gemini API response with structured output
+            rubric: Scoring rubric for validation
+
+        Returns:
+            Tuple of (dimension_scores, highlight_boundary)
+
+        """
+        try:
+            # Extract JSON from response
+            result_text = response.text
+            result = json.loads(result_text)
+            
+            logger.info(f"Parsed structured Gemini response - highlight_detected: {result.get('highlight_detected')}")
+
+            # Extract dimension scores
+            dimension_scores = result.get("dimensions", {})
+            scores = {}
+            
+            for dim in rubric.dimensions:
+                if dim.name in dimension_scores:
+                    dim_data = dimension_scores[dim.name]
+                    score = float(dim_data.get("score", 0.0))
+                    confidence = float(dim_data.get("confidence", 0.5))
+
+                    # Normalize score based on dimension type
+                    if dim.type.value == "scale_1_4":
+                        score = (score - 1) / 3  # Convert 1-4 to 0-1
+                    elif dim.type.value == "binary":
+                        score = float(score)  # Ensure 0.0 or 1.0
+
+                    scores[dim.name] = (score, confidence)
+                else:
+                    # Missing dimension - low confidence
+                    scores[dim.name] = (0.0, 0.0)
+
+            # Extract highlight boundary if detected
+            highlight_boundary = None
+            if result.get("highlight_detected", False) and "highlight_boundary" in result:
+                boundary_data = result["highlight_boundary"]
+                
+                try:
+                    highlight_boundary = HighlightBoundary(
+                        start_timestamp=boundary_data["start_timestamp"],
+                        end_timestamp=boundary_data["end_timestamp"], 
+                        confidence=float(boundary_data["confidence"]),
+                        reasoning=boundary_data["reasoning"]
+                    )
+                    
+                    # Validate duration constraints  
+                    if not highlight_boundary.validate_duration():
+                        logger.warning(
+                            f"Highlight boundary duration invalid: "
+                            f"{highlight_boundary.start_timestamp} to {highlight_boundary.end_timestamp}"
+                        )
+                        highlight_boundary = None
+                    else:
+                        logger.info(
+                            f"Extracted valid highlight boundary: "
+                            f"{highlight_boundary.start_timestamp} to {highlight_boundary.end_timestamp}"
+                        )
+                        
+                except (KeyError, ValueError) as e:
+                    logger.error(f"Failed to parse highlight boundary: {e}")
+                    highlight_boundary = None
+
+            return scores, highlight_boundary
+
+        except (json.JSONDecodeError, KeyError, ValueError) as e:
+            logger.error(f"Failed to parse structured response: {e}")
+            logger.debug(f"Raw response: {response.text}")
+
+            # Return default low-confidence scores with no boundary
+            return {dim.name: (0.0, 0.0) for dim in rubric.dimensions}, None
 
     def _parse_response(
         self, response: Any, rubric: ScoringRubric

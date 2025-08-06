@@ -2,8 +2,9 @@
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Optional, Protocol
+from typing import Any, Optional, Protocol, Dict, List
 from collections import defaultdict
+import re
 
 
 class DimensionType(Enum):
@@ -349,6 +350,227 @@ class ScoringRubric:
         )
 
         return "\n".join(prompt_parts)
+
+    def build_structured_output_prompt(self) -> str:
+        """Build a prompt specifically designed for structured output with precise highlight boundaries.
+        
+        This prompt explicitly requests start/end timestamps for highlights within the video segment,
+        enabling creation of targeted clips between 15-90 seconds instead of full 2-minute segments.
+        """
+        prompt_parts = [
+            f"Task: Analyze this video segment to identify precise highlight moments using the '{self.name}' rubric",
+            f"Description: {self.description}",
+            "",
+            "CRITICAL INSTRUCTIONS:",
+            "- You must identify the EXACT start and end timestamps for any highlight within this video segment",
+            "- Highlights must be between 15 and 90 seconds long",
+            "- Use MM:SS format for all timestamps (e.g., 01:23 for 1 minute 23 seconds)",
+            "- If multiple highlights exist, identify the BEST one with precise boundaries",
+            "- Timestamps should mark the actual beginning and end of the interesting content",
+            "",
+            "ANALYSIS DIMENSIONS:",
+            "",
+        ]
+        
+        # Add each dimension's details  
+        for i, dim in enumerate(self.dimensions, 1):
+            prompt_parts.extend([
+                f"### {i}. {dim.name}",
+                f"Description: {dim.description}",
+                "",
+            ])
+            
+            if dim.evaluation_criteria:
+                prompt_parts.append("Evaluation criteria:")
+                for criterion in dim.evaluation_criteria:
+                    prompt_parts.append(f"- {criterion}")
+                prompt_parts.append("")
+            
+            # Add scoring scale based on type
+            if dim.type == DimensionType.SCALE_1_4:
+                prompt_parts.append("Scale: 1=Poor, 2=Fair, 3=Good, 4=Excellent")
+            elif dim.type == DimensionType.NUMERIC:
+                prompt_parts.append(f"Scale: {dim.min_score} to {dim.max_score}")
+            elif dim.type == DimensionType.BINARY:
+                prompt_parts.append("Scale: 0=No/Absent, 1=Yes/Present")
+            
+            prompt_parts.append("")
+        
+        # Add final instructions
+        prompt_parts.extend([
+            "RESPONSE REQUIREMENTS:",
+            "1. Watch the entire video segment carefully",
+            "2. Evaluate each dimension with specific scores and confidence",
+            "3. If you identify a highlight, provide EXACT start and end timestamps",
+            "4. Ensure highlight duration is between 15-90 seconds", 
+            "5. Provide clear reasoning for your highlight boundaries",
+            "",
+            "Your response will be automatically parsed, so follow the JSON structure exactly.",
+        ])
+        
+        return "\n".join(prompt_parts)
+
+
+@dataclass
+class HighlightBoundary:
+    """Represents precise start/end boundaries for a highlight within a video segment."""
+    
+    start_timestamp: str  # MM:SS format (e.g., "01:23")
+    end_timestamp: str    # MM:SS format (e.g., "02:45") 
+    confidence: float     # 0.0-1.0 confidence in these boundaries
+    reasoning: str        # Explanation of why these boundaries were chosen
+    
+    def to_seconds(self) -> tuple[float, float]:
+        """Convert MM:SS timestamps to seconds.
+        
+        Returns:
+            Tuple of (start_seconds, end_seconds)
+            
+        Raises:
+            ValueError: If timestamp format is invalid
+        """
+        def parse_timestamp(ts: str) -> float:
+            match = re.match(r'^(\d{1,2}):(\d{2})$', ts.strip())
+            if not match:
+                raise ValueError(f"Invalid timestamp format: {ts}. Expected MM:SS")
+            minutes, seconds = map(int, match.groups())
+            return minutes * 60 + seconds
+        
+        start_secs = parse_timestamp(self.start_timestamp)
+        end_secs = parse_timestamp(self.end_timestamp)
+        
+        if start_secs >= end_secs:
+            raise ValueError(f"Start time {self.start_timestamp} must be before end time {self.end_timestamp}")
+        
+        return start_secs, end_secs
+    
+    def validate_duration(self, min_duration: float = 15.0, max_duration: float = 90.0) -> bool:
+        """Validate that highlight duration is within acceptable bounds."""
+        try:
+            start_secs, end_secs = self.to_seconds()
+            duration = end_secs - start_secs
+            return min_duration <= duration <= max_duration
+        except ValueError:
+            return False
+
+
+def create_gemini_response_schema(rubric: ScoringRubric) -> Dict[str, Any]:
+    """Create a JSON Schema for structured Gemini API responses.
+    
+    This schema ensures reliable parsing of Gemini responses and enforces
+    the structure needed for precise highlight boundary extraction.
+    
+    Args:
+        rubric: The scoring rubric being used for evaluation
+        
+    Returns:
+        JSON Schema dictionary compatible with Gemini's response_schema parameter
+    """
+    # Build dimension properties dynamically
+    dimension_properties = {}
+    for dim in rubric.dimensions:
+        dim_schema = {
+            "type": "object",
+            "properties": {
+                "score": {"type": "number", "minimum": 0},
+                "confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+                "reasoning": {"type": "string", "minLength": 10},
+                "key_moments": {
+                    "type": "array", 
+                    "items": {"type": "string", "pattern": r"^\d{1,2}:\d{2}$"},
+                    "description": "MM:SS timestamps of key moments for this dimension"
+                }
+            },
+            "required": ["score", "confidence", "reasoning"],
+            "additionalProperties": False
+        }
+        
+        # Add score constraints based on dimension type
+        if dim.type == DimensionType.SCALE_1_4:
+            dim_schema["properties"]["score"]["minimum"] = 1
+            dim_schema["properties"]["score"]["maximum"] = 4
+        elif dim.type == DimensionType.BINARY:
+            dim_schema["properties"]["score"]["minimum"] = 0
+            dim_schema["properties"]["score"]["maximum"] = 1
+        elif dim.type == DimensionType.NUMERIC:
+            dim_schema["properties"]["score"]["minimum"] = dim.min_score
+            dim_schema["properties"]["score"]["maximum"] = dim.max_score
+            
+        dimension_properties[dim.name] = dim_schema
+    
+    # Main schema structure
+    schema = {
+        "type": "object",
+        "properties": {
+            "rubric_name": {
+                "type": "string",
+                "enum": [rubric.name]
+            },
+            "overall_assessment": {
+                "type": "string", 
+                "minLength": 20,
+                "description": "Brief summary of video content and analysis"
+            },
+            "dimensions": {
+                "type": "object",
+                "properties": dimension_properties,
+                "required": list(dimension_properties.keys()),
+                "additionalProperties": False
+            },
+            "highlight_detected": {
+                "type": "boolean",
+                "description": "Whether a highlight was identified in this segment"
+            },
+            "highlight_boundary": {
+                "type": "object",
+                "properties": {
+                    "start_timestamp": {
+                        "type": "string",
+                        "pattern": r"^\d{1,2}:\d{2}$",
+                        "description": "Start time in MM:SS format"
+                    },
+                    "end_timestamp": {
+                        "type": "string", 
+                        "pattern": r"^\d{1,2}:\d{2}$",
+                        "description": "End time in MM:SS format"
+                    },
+                    "confidence": {
+                        "type": "number",
+                        "minimum": 0.0,
+                        "maximum": 1.0,
+                        "description": "Confidence in these precise boundaries"
+                    },
+                    "reasoning": {
+                        "type": "string",
+                        "minLength": 20,
+                        "description": "Explanation of why these boundaries were chosen"
+                    }
+                },
+                "required": ["start_timestamp", "end_timestamp", "confidence", "reasoning"],
+                "additionalProperties": False,
+                "description": "Precise highlight boundaries within the video segment"
+            },
+            "overall_highlight_score": {
+                "type": "number",
+                "minimum": 0.0,
+                "maximum": 1.0,
+                "description": "Overall score indicating highlight quality"
+            }
+        },
+        "required": [
+            "rubric_name", 
+            "overall_assessment", 
+            "dimensions", 
+            "highlight_detected",
+            "overall_highlight_score"
+        ],
+        "additionalProperties": False,
+        # Conditional requirement: if highlight_detected is True, highlight_boundary is required
+        "if": {"properties": {"highlight_detected": {"const": True}}},
+        "then": {"required": ["highlight_boundary"]}
+    }
+    
+    return schema
 
 
 class ScoringStrategy(Protocol):
