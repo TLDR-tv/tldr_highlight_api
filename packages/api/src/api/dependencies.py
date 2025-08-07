@@ -149,6 +149,11 @@ def get_jwt_signer(settings: Settings = Depends(get_settings_dep)) -> JWTURLSign
     return JWTURLSigner(settings.jwt_secret_key)
 
 
+def get_jwt_url_signer(settings: Settings = Depends(get_settings_dep)) -> JWTURLSigner:
+    """Get JWT URL signer for token viewing."""
+    return JWTURLSigner(settings.jwt_secret_key)
+
+
 def get_secure_content_delivery(
     jwt_signer: JWTURLSigner = Depends(get_jwt_signer),
     settings: Settings = Depends(get_settings_dep),

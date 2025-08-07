@@ -7,7 +7,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from structlog import get_logger
 
-from .routes import auth, users, streams, highlights, organizations, webhooks, health
+from .routes import auth, users, streams, highlights, organizations, webhooks, health, tokens
 from .middleware.logging import LoggingMiddleware
 from .middleware.rate_limit import RateLimiter, RateLimitHeaderMiddleware, rate_limit_error_handler
 from shared.infrastructure.config.config import get_settings
@@ -75,6 +75,7 @@ def create_app() -> FastAPI:
         highlights.router, prefix="/api/v1/highlights", tags=["highlights"]
     )
     app.include_router(webhooks.router, prefix="/api/v1/webhooks", tags=["webhooks"])
+    app.include_router(tokens.router, tags=["tokens"])
 
     @app.get("/")
     async def root():

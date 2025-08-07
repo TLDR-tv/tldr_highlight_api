@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Token Claims - TLDR Highlight API</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 30px;
+        }
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        .token-info {
+            background: #f8f9fa;
+            border-left: 4px solid #007bff;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+        .claim-grid {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .claim-label {
+            font-weight: 600;
+            color: #495057;
+            text-transform: capitalize;
+        }
+        .claim-value {
+            font-family: 'Monaco', 'Consolas', monospace;
+            background: #e9ecef;
+            padding: 8px 12px;
+            border-radius: 4px;
+            word-break: break-all;
+        }
+        .timestamp {
+            color: #28a745;
+        }
+        .expired {
+            color: #dc3545;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .status-valid {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .status-expired {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .highlight-ids {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .highlight-id {
+            background: #007bff;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85em;
+        }
+        .raw-token {
+            margin-top: 20px;
+            padding: 15px;
+            background: #2c3e50;
+            color: #ecf0f1;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 0.9em;
+            word-break: break-all;
+            line-height: 1.4;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>JWT Token Claims</h1>
+        
+        <div class="token-info">
+            <strong>Token Status:</strong>
+            {% if is_expired %}
+                <span class="status-badge status-expired">Expired</span>
+            {% else %}
+                <span class="status-badge status-valid">Valid</span>
+            {% endif %}
+        </div>
+
+        <div class="claim-grid">
+            <div class="claim-label">Organization ID</div>
+            <div class="claim-value">{{ claims.sub }}</div>
+
+            <div class="claim-label">Token Type</div>
+            <div class="claim-value">{{ claims.type }}</div>
+
+            <div class="claim-label">Resource Type</div>
+            <div class="claim-value">{{ claims.resource_type }}</div>
+
+            <div class="claim-label">Issued At</div>
+            <div class="claim-value timestamp">{{ issued_at_formatted }}</div>
+
+            <div class="claim-label">Expires At</div>
+            <div class="claim-value {% if is_expired %}expired{% else %}timestamp{% endif %}">
+                {{ expires_at_formatted }}
+            </div>
+
+            {% if claims.stream_id %}
+            <div class="claim-label">Stream ID</div>
+            <div class="claim-value">{{ claims.stream_id }}</div>
+            {% endif %}
+
+            {% if claims.stream_fingerprint %}
+            <div class="claim-label">Stream Fingerprint</div>
+            <div class="claim-value">{{ claims.stream_fingerprint }}</div>
+            {% endif %}
+
+            {% if claims.highlight_ids %}
+            <div class="claim-label">Highlight IDs</div>
+            <div class="highlight-ids">
+                {% for highlight_id in claims.highlight_ids %}
+                    <span class="highlight-id">{{ highlight_id }}</span>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+
+        {% if additional_claims %}
+        <h3>Additional Claims</h3>
+        <div class="claim-grid">
+            {% for key, value in additional_claims.items() %}
+            <div class="claim-label">{{ key }}</div>
+            <div class="claim-value">{{ value }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="raw-token">
+            <strong>Raw Token:</strong><br>
+            {{ raw_token }}
+        </div>
+    </div>
+</body>
+</html>

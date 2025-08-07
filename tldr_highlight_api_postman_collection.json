@@ -69,6 +69,11 @@
       "key": "created_api_key_id",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "signed_token_url",
+      "value": "",
+      "type": "string"
     }
   ],
   "item": [
@@ -1291,6 +1296,101 @@
               "path": ["api", "v1", "webhooks", "receive", "test-webhook-id"]
             },
             "description": "Receive incoming webhook. Note: Currently returns placeholder response."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Token Management",
+      "item": [
+        {
+          "name": "Generate Signed Token",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// This is a helper script to generate a signed JWT token for testing",
+                  "// In a real scenario, you'd call your API to generate the token",
+                  "",
+                  "// Sample JWT token for testing (expires in 1 hour)",
+                  "const jwt = require('jsonwebtoken');",
+                  "const uuid = require('uuid');",
+                  "",
+                  "const secret = 'test-secret-key-for-development-only';",
+                  "const payload = {",
+                  "    sub: pm.collectionVariables.get('organization_id') || uuid.v4(),",
+                  "    resource_type: 'clip',",
+                  "    stream_id: pm.collectionVariables.get('stream_id') || uuid.v4(),",
+                  "    highlight_ids: [uuid.v4(), uuid.v4()],",
+                  "    type: 'content_access',",
+                  "    iat: Math.floor(Date.now() / 1000),",
+                  "    exp: Math.floor(Date.now() / 1000) + 3600, // 1 hour",
+                  "    custom_field: 'test_value'",
+                  "};",
+                  "",
+                  "// Note: This is for testing only - in production, tokens should be generated server-side",
+                  "try {",
+                  "    const token = jwt.sign(payload, secret, { algorithm: 'HS256' });",
+                  "    pm.collectionVariables.set('signed_token_url', token);",
+                  "    console.log('Test token generated and stored in signed_token_url variable');",
+                  "} catch (e) {",
+                  "    console.log('Could not generate token - using placeholder');",
+                  "    pm.collectionVariables.set('signed_token_url', 'your-jwt-token-here');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/",
+              "host": ["{{base_url}}"],
+              "path": [""]
+            },
+            "description": "Helper request to generate a signed JWT token for testing the token viewer. Run this first to generate a token, then use the 'View Token Claims' request."
+          }
+        },
+        {
+          "name": "View Token Claims",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/tokens/{{signed_token_url}}",
+              "host": ["{{base_url}}"],
+              "path": ["tokens", "{{signed_token_url}}"]
+            },
+            "description": "View JWT token claims in formatted HTML. This endpoint displays the decoded JWT claims including organization ID, resource type, expiration, and any custom fields. No authentication required - this is a display-only endpoint."
+          }
+        },
+        {
+          "name": "View Token Claims (Demo Token)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/tokens/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJlMWRhYjE3OC03Nzg0LTQwMmQtYjg3YS01MDM3NWYwOWFkZDIiLCJyZXNvdXJjZV90eXBlIjoic3RyZWFtX2NsaXBzIiwiaWF0IjoxNzU0NTkxOTU1LCJleHAiOjE3NTQ2NzgzNTUsInR5cGUiOiJjb250ZW50X2FjY2VzcyIsInN0cmVhbV9pZCI6IjYyYzkwNGNhLWRiMGUtNDhlYi1hMjJhLTIzNTZlZDA3YjI1MCIsImhpZ2hsaWdodF9pZHMiOlsiYzUyNGNhY2YtNTM0YS00MTgwLWExMDctODZhNmM5NGMyZmEwIiwiMDliN2RhNWEtNDE5ZC00MzlhLTkzZWQtYWY4OGZmMzBlN2ZiIiwiMDk3NTE3NmYtNmE3OS00ZDg1LTkzMDYtZTYyODAzOTAyOGU5Il0sImRlbW9fbW9kZSI6dHJ1ZSwiY3VzdG9tX2ZpZWxkIjoicG9zdG1hbl90ZXN0X3Rva2VuIiwiY3JlYXRlZF9mb3IiOiJwb3N0bWFuX2NvbGxlY3Rpb24ifQ.gSxImqoozjVCBVT0frcIIoudoj19Pj366MIpfdSoC8I",
+              "host": ["{{base_url}}"],
+              "path": ["tokens", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJlMWRhYjE3OC03Nzg0LTQwMmQtYjg3YS01MDM3NWYwOWFkZDIiLCJyZXNvdXJjZV90eXBlIjoic3RyZWFtX2NsaXBzIiwiaWF0IjoxNzU0NTkxOTU1LCJleHAiOjE3NTQ2NzgzNTUsInR5cGUiOiJjb250ZW50X2FjY2VzcyIsInN0cmVhbV9pZCI6IjYyYzkwNGNhLWRiMGUtNDhlYi1hMjJhLTIzNTZlZDA3YjI1MCIsImhpZ2hsaWdodF9pZHMiOlsiYzUyNGNhY2YtNTM0YS00MTgwLWExMDctODZhNmM5NGMyZmEwIiwiMDliN2RhNWEtNDE5ZC00MzlhLTkzZWQtYWY4OGZmMzBlN2ZiIiwiMDk3NTE3NmYtNmE3OS00ZDg1LTkzMDYtZTYyODAzOTAyOGU5Il0sImRlbW9fbW9kZSI6dHJ1ZSwiY3VzdG9tX2ZpZWxkIjoicG9zdG1hbl90ZXN0X3Rva2VuIiwiY3JlYXRlZF9mb3IiOiJwb3N0bWFuX2NvbGxlY3Rpb24ifQ.gSxImqoozjVCBVT0frcIIoudoj19Pj366MIpfdSoC8I"]
+            },
+            "description": "View token claims with a demo token (24-hour validity). Shows stream_clips resource type with 3 highlight IDs, custom claims including demo_mode=true, and expires 2025-08-08 18:39:15 UTC. Great for testing the token viewer functionality."
+          }
+        },
+        {
+          "name": "View Invalid Token (Error Test)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/tokens/invalid-token-format",
+              "host": ["{{base_url}}"],
+              "path": ["tokens", "invalid-token-format"]
+            },
+            "description": "Test error handling with an invalid token format. Should return 400 Bad Request with error details."
           }
         }
       ]
